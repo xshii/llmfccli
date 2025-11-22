@@ -1,0 +1,22 @@
+ollama:
+  base_url: "http://localhost:11434"  # 通过 SSH 隧道访问
+  model: "qwen3:latest"
+  timeout: 300
+  
+  generation:
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 40
+    num_ctx: 131072          # 128k context window
+    repeat_penalty: 1.1
+    num_predict: 4096        # Max output tokens
+  
+  models:
+    main: "qwen3:latest"            # Main agent model
+    compress: "qwen3:latest"        # Context compression model
+    intent: "qwen3:latest"          # Intent recognition model
+  
+  retry:
+    max_attempts: 3
+    backoff_factor: 2
+    initial_delay: 1

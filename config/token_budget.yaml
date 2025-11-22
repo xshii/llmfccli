@@ -1,0 +1,21 @@
+token_management:
+  max_tokens: 128000
+  target_after_compress: 0.6
+  
+  budgets:
+    active_files: 0.25        # Current files + unit tests (non-compressible)
+    processed_files: 0.15     # Historical file summaries
+    project_structure: 0.05   # Directory tree (non-compressible)
+    compressed_history: 0.30  # Compressed conversation history
+    recent_messages: 0.25     # Recent uncompressed messages
+  
+  compression:
+    trigger_threshold: 0.85   # Trigger when 85% full
+    min_interval: 300         # Minimum 5 minutes between compressions
+    target_after_compress: 0.6
+    max_retries: 2
+  
+  limits:
+    max_file_size: 10000      # Max tokens per file
+    max_compile_output: 2000  # Limit compilation error output
+    max_tool_result: 5000     # Limit individual tool result size
