@@ -14,6 +14,7 @@ UNIT_TESTS = [
     ('unit/test_ollama_hello.py', 'Ollama 连接测试'),
     ('unit/test_basic.py', '基础功能测试'),
     ('unit/test_tool_executor.py', 'ToolExecutor 接口测试'),
+    ('unit/test_executor.py', 'Bash/Executor 工具测试'),
 ]
 
 

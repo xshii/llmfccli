@@ -201,8 +201,88 @@ def register_filesystem_tools(project_root: str):
 
 def register_executor_tools(project_root: str):
     """Register executor tools (bash, cmake, etc.)"""
-    # TODO: Implement when executor.py is ready
-    pass
+    from ..tools.executor import bash_run, cmake_build, run_tests
+
+    # bash_run
+    registry.register(
+        name='bash_run',
+        description='Execute bash command with security checks and timeout',
+        parameters={
+            'type': 'object',
+            'properties': {
+                'command': {
+                    'type': 'string',
+                    'description': 'Bash command to execute'
+                },
+                'timeout': {
+                    'type': 'integer',
+                    'description': 'Timeout in seconds (default: 60)'
+                }
+            },
+            'required': ['command']
+        },
+        implementation=lambda command, timeout=60: bash_run(
+            command, project_root, timeout=timeout
+        )
+    )
+
+    # cmake_build
+    registry.register(
+        name='cmake_build',
+        description='Build project with CMake',
+        parameters={
+            'type': 'object',
+            'properties': {
+                'build_dir': {
+                    'type': 'string',
+                    'description': 'Build directory name (default: "build")'
+                },
+                'config': {
+                    'type': 'string',
+                    'description': 'Build configuration: Debug or Release (default: "Release")'
+                },
+                'target': {
+                    'type': 'string',
+                    'description': 'Optional specific target to build'
+                },
+                'clean': {
+                    'type': 'boolean',
+                    'description': 'Clean before building (default: false)'
+                }
+            },
+            'required': []
+        },
+        implementation=lambda build_dir="build", config="Release", target=None, clean=False: cmake_build(
+            project_root, build_dir=build_dir, config=config, target=target, clean=clean
+        )
+    )
+
+    # run_tests
+    registry.register(
+        name='run_tests',
+        description='Run tests with ctest',
+        parameters={
+            'type': 'object',
+            'properties': {
+                'build_dir': {
+                    'type': 'string',
+                    'description': 'Build directory name (default: "build")'
+                },
+                'test_pattern': {
+                    'type': 'string',
+                    'description': 'Optional test name pattern (regex)'
+                },
+                'timeout': {
+                    'type': 'integer',
+                    'description': 'Timeout in seconds (default: 120)'
+                }
+            },
+            'required': []
+        },
+        implementation=lambda build_dir="build", test_pattern=None, timeout=120: run_tests(
+            project_root, build_dir=build_dir, test_pattern=test_pattern, timeout=timeout
+        )
+    )
 
 
 def register_analyzer_tools(project_root: str):
@@ -224,5 +304,5 @@ def execute_tool(tool_name: str, arguments: Dict[str, Any]) -> Any:
 def initialize_tools(project_root: str):
     """Initialize all available tools"""
     register_filesystem_tools(project_root)
-    # register_executor_tools(project_root)
+    register_executor_tools(project_root)
     # register_analyzer_tools(project_root)
