@@ -107,8 +107,32 @@ class OllamaClient:
                     json.dump(data, f, ensure_ascii=False)
                     temp_file = f.name
                 
-                curl_cmd = ['curl', '-s', '-N', f'{self.base_url}/api/chat', '-d', f'@{temp_file}']
-                
+                curl_cmd = ['curl', '-s', '-N', '--noproxy', 'localhost', f'{self.base_url}/api/chat', '-d', f'@{temp_file}']
+
+                # DEBUG: Save request to logs
+                import os
+                from datetime import datetime
+                log_dir = None
+                request_file = None
+                if os.getenv('DEBUG_AGENT'):
+                    # Create logs directory
+                    import pathlib
+                    project_root = pathlib.Path(__file__).parent.parent.parent
+                    log_dir = project_root / 'logs'
+                    log_dir.mkdir(exist_ok=True)
+
+                    # Save request
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+                    request_file = log_dir / f'request_{timestamp}.json'
+                    with open(temp_file, 'r') as f:
+                        request_data = json.load(f)
+                    with open(request_file, 'w', encoding='utf-8') as f:
+                        json.dump(request_data, f, ensure_ascii=False, indent=2)
+
+                    print(f"\n=== CURL REQUEST ===")
+                    print(f"Saved to: {request_file}")
+                    print(f"=== END CURL REQUEST ===\n")
+
                 print(f"\nExecuting: curl -s -N \"{self.base_url}/api/chat\" -d @{temp_file}\n")
                 
                 # Stream response
@@ -123,8 +147,14 @@ class OllamaClient:
                 full_response = ""
                 tool_calls = []
                 stop_tokens = ['<|endoftext|>', '<|im_end|>']
-                
+
+                # DEBUG: Raw response collection
+                import os as os_check
+                raw_lines = []
+
                 for line in process.stdout:
+                    if os_check.getenv('DEBUG_AGENT'):
+                        raw_lines.append(line)
                     if line.strip():
                         try:
                             chunk = json.loads(line)
@@ -156,24 +186,69 @@ class OllamaClient:
                             pass
                 
                 process.wait()
-                
+
+                # DEBUG: Save request+response together
+                if os_check.getenv('DEBUG_AGENT'):
+                    if log_dir and request_file:
+                        # Combine request and response in one file
+                        combined_file = log_dir / request_file.name.replace('request_', 'conversation_')
+
+                        with open(combined_file, 'w', encoding='utf-8') as f:
+                            f.write("=" * 80 + "\n")
+                            f.write("REQUEST\n")
+                            f.write("=" * 80 + "\n")
+                            # Read and write request
+                            with open(request_file, 'r') as req:
+                                f.write(req.read())
+
+                            f.write("\n\n" + "=" * 80 + "\n")
+                            f.write("RESPONSE\n")
+                            f.write("=" * 80 + "\n")
+                            # Format response as indented JSON
+                            raw_response = ''.join(raw_lines)
+                            try:
+                                response_json = json.loads(raw_response)
+                                f.write(json.dumps(response_json, indent=2, ensure_ascii=False))
+                            except:
+                                # If not valid JSON, write raw
+                                f.write(raw_response)
+
+                            # Save stderr if any
+                            stderr_output = process.stderr.read() if process.stderr else ''
+                            if stderr_output:
+                                f.write("\n\n" + "=" * 80 + "\n")
+                                f.write("STDERR\n")
+                                f.write("=" * 80 + "\n")
+                                f.write(stderr_output)
+
+                        # Delete separate request file
+                        try:
+                            request_file.unlink()
+                        except:
+                            pass
+
+                    print(f"\n=== RAW CURL OUTPUT ({len(raw_lines)} lines) ===")
+                    for i, line in enumerate(raw_lines[:10]):  # First 10 lines only
+                        print(f"Line {i}: {line[:200]}")  # First 200 chars
+                    print("=== END RAW CURL OUTPUT ===\n")
+
                 # Clean up temp file
                 import os
                 try:
                     os.unlink(temp_file)
                 except:
                     pass
-                
+
                 # Return in expected format
                 result = {
                     'message': {
                         'content': full_response.strip()
                     }
                 }
-                
+
                 if tool_calls:
                     result['message']['tool_calls'] = tool_calls
-                
+
                 return result
                 
             except Exception as e:

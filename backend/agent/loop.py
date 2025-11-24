@@ -92,10 +92,30 @@ class AgentLoop:
             
             # Get tool schemas
             tools = get_tool_schemas()
-            
+
+            # DEBUG: Log request
+            import os
+            if os.getenv('DEBUG_AGENT'):
+                print(f"\n=== LLM REQUEST (iteration {iteration}) ===")
+                import json
+                print(f"Messages count: {len(messages)}")
+                print(f"Last message: {messages[-1] if messages else 'none'}")
+                print(f"Tools count: {len(tools)}")
+                if tools:
+                    print(f"First tool: {tools[0]['function']['name']}")
+                print("=== END REQUEST ===\n")
+
             # Call LLM
             try:
                 response = self.client.chat_with_tools(messages, tools)
+
+                # DEBUG: Log raw response
+                if os.getenv('DEBUG_AGENT'):
+                    print(f"\n=== RAW LLM RESPONSE (iteration {iteration}) ===")
+                    import json
+                    print(json.dumps(response, indent=2, ensure_ascii=False))
+                    print("=== END RAW RESPONSE ===\n")
+
             except Exception as e:
                 error_msg = f"LLM call failed: {e}"
                 self.conversation_history.append({
@@ -103,11 +123,11 @@ class AgentLoop:
                     'content': error_msg
                 })
                 return error_msg
-            
+
             # Extract message
             assistant_message = response.get('message', {})
             content = assistant_message.get('content', '')
-            
+
             # Parse tool calls
             tool_calls = self.client.parse_tool_calls(response)
             
@@ -144,13 +164,22 @@ class AgentLoop:
                 
                 # Execute tool
                 result = execute_tool(tool_name, arguments)
-                
+
+                # DEBUG: Log tool results
+                import os
+                if os.getenv('DEBUG_AGENT'):
+                    print(f"\n=== TOOL RESULT: {tool_name} ===")
+                    print(f"Args: {arguments}")
+                    result_str = str(result)[:500]  # First 500 chars
+                    print(f"Result: {result_str}...")
+                    print("=== END TOOL RESULT ===\n")
+
                 # Track active files
                 if tool_name in ['view_file', 'edit_file', 'create_file']:
                     file_path = arguments.get('path', '')
                     if file_path and file_path not in self.active_files:
                         self.active_files.append(file_path)
-                
+
                 # Add tool result to history
                 tool_message = {
                     'role': 'tool',
