@@ -13,7 +13,7 @@ Test Case 2: 编译错误自动修复循环
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
 from backend.agent.loop import AgentLoop
 from backend.llm.client import OllamaClient
@@ -25,7 +25,7 @@ def test_compile_error_fix_loop():
     client = OllamaClient()
     agent = AgentLoop(client)
     
-    project_root = os.path.join(os.path.dirname(__file__), 'fixtures/sample-cpp')
+    project_root = os.path.join(os.path.dirname(__file__), '../fixtures/sample-cpp')
     agent.set_project_root(project_root)
     
     # 测试输入
@@ -38,8 +38,8 @@ def test_compile_error_fix_loop():
     print("\n=== 验证点 ===")
     
     # 1. 检查是否调用了编译命令
-    bash_calls = [tool for tool in agent.tool_calls if tool['name'] == 'bash_run']
-    cmake_calls = [tool for tool in agent.tool_calls if tool['name'] == 'cmake_build']
+    bash_calls = [tool for tool in agent.tool_calls if tool.get('function', {}).get('name') == 'bash_run']
+    cmake_calls = [tool for tool in agent.tool_calls if tool.get('function', {}).get('name') == 'cmake_build']
     
     assert len(bash_calls) > 0 or len(cmake_calls) > 0, \
         "应该调用编译命令"
@@ -58,7 +58,7 @@ def test_compile_error_fix_loop():
     
     error_files_found = []
     for tool in agent.tool_calls:
-        if tool['name'] == 'view_file':
+        if tool.get('function', {}).get('name') == 'view_file':
             if 'json_parser.cpp' in str(tool):
                 error_files_found.append('json_parser.cpp')
     
@@ -66,7 +66,7 @@ def test_compile_error_fix_loop():
         "应该识别到 json_parser.cpp 中的错误"
     
     # 4. 检查是否应用了修复
-    edit_calls = [tool for tool in agent.tool_calls if tool['name'] == 'edit_file']
+    edit_calls = [tool for tool in agent.tool_calls if tool.get('function', {}).get('name') == 'edit_file']
     assert len(edit_calls) > 0, "应该编辑文件以修复错误"
     
     # 5. 验证最终编译成功
