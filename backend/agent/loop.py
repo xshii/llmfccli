@@ -9,29 +9,32 @@ from pathlib import Path
 
 from ..llm.client import OllamaClient
 from .token_counter import TokenCounter
-from .tools import initialize_tools, get_tool_schemas, execute_tool
+from .tool_executor import ToolExecutor, RegistryToolExecutor
 
 
 class AgentLoop:
     """Main agent loop for task execution"""
-    
-    def __init__(self, client: Optional[OllamaClient] = None, 
+
+    def __init__(self,
+                 client: Optional[OllamaClient] = None,
+                 tool_executor: Optional[ToolExecutor] = None,
                  project_root: Optional[str] = None):
         """
         Initialize agent loop
-        
+
         Args:
-            client: OllamaClient instance
+            client: OllamaClient instance (injected dependency)
+            tool_executor: ToolExecutor instance (injected dependency)
             project_root: Project root directory
         """
         self.client = client or OllamaClient()
         self.project_root = project_root or str(Path.cwd())
-        
+
         # Initialize components
         self.token_counter = TokenCounter()
-        
-        # Initialize tools
-        initialize_tools(self.project_root)
+
+        # Initialize tool executor (dependency injection)
+        self.tool_executor = tool_executor or RegistryToolExecutor(self.project_root)
         
         # State
         self.conversation_history: List[Dict[str, str]] = []
@@ -49,7 +52,8 @@ class AgentLoop:
     def set_project_root(self, root: str):
         """Set project root and reinitialize tools"""
         self.project_root = root
-        initialize_tools(self.project_root)
+        if isinstance(self.tool_executor, RegistryToolExecutor):
+            self.tool_executor.reinitialize(self.project_root)
     
     def set_active_file(self, file_path: str):
         """Set active file (from VSCode)"""
@@ -90,9 +94,9 @@ class AgentLoop:
         
         while iteration < self.max_iterations:
             iteration += 1
-            
-            # Get tool schemas
-            tools = get_tool_schemas()
+
+            # Get tool schemas from executor
+            tools = self.tool_executor.get_tool_schemas()
 
             # DEBUG: Log request
             import os
@@ -153,7 +157,7 @@ class AgentLoop:
             # Execute each tool
             for tool_call in tool_calls:
                 tool_name = tool_call['function']['name']
-                
+
                 # Parse arguments
                 try:
                     arguments = tool_call['function']['arguments']
@@ -162,9 +166,9 @@ class AgentLoop:
                         arguments = json.loads(arguments)
                 except Exception as e:
                     arguments = {}
-                
-                # Execute tool
-                result = execute_tool(tool_name, arguments)
+
+                # Execute tool via executor
+                result = self.tool_executor.execute_tool(tool_name, arguments)
 
                 # DEBUG: Log tool results
                 import os
@@ -175,8 +179,8 @@ class AgentLoop:
                     print(f"Result: {result_str}...")
                     print("=== END TOOL RESULT ===\n")
 
-                # Track active files
-                if tool_name in ['view_file', 'edit_file', 'create_file']:
+                # Track active files (using executor to check if file operation)
+                if self.tool_executor.is_file_operation(tool_name):
                     file_path = arguments.get('path', '')
                     if file_path and file_path not in self.active_files:
                         self.active_files.append(file_path)
