@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Test Case 3: 基于打开文件的 UT 生成
 
@@ -52,8 +53,8 @@ def test_unit_test_generation():
     # 4. 验证测试文件内容
     test_file_path = os.path.join(project_root, 'tests/parser/json_parser_test.cpp')
     assert os.path.exists(test_file_path), f"测试文件应该存在: {test_file_path}"
-    
-    with open(test_file_path, 'r') as f:
+
+    with open(test_file_path, 'r', encoding='utf-8') as f:
         test_content = f.read()
     
     # 检查 GTest 框架使用

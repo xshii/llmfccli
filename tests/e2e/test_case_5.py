@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Test Case 5: 上下文保持测试
 
@@ -41,8 +42,8 @@ def test_context_preservation():
     
     assert os.path.exists(header_path), "应该创建头文件"
     assert os.path.exists(impl_path), "应该创建实现文件"
-    
-    with open(header_path, 'r') as f:
+
+    with open(header_path, 'r', encoding='utf-8') as f:
         header_content = f.read()
     
     assert 'class DataProcessor' in header_content, "应该包含 DataProcessor 类"
@@ -60,10 +61,10 @@ def test_context_preservation():
     response2 = agent.run(round2_input)
     
     # 验证第 2 轮
-    with open(header_path, 'r') as f:
+    with open(header_path, 'r', encoding='utf-8') as f:
         updated_header = f.read()
-    
-    with open(impl_path, 'r') as f:
+
+    with open(impl_path, 'r', encoding='utf-8') as f:
         updated_impl = f.read()
     
     # 检查是否添加了线程安全机制

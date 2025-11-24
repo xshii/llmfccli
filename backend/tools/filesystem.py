@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Filesystem tools for reading, writing, and searching files
 """

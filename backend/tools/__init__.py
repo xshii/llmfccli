@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Tools module for file operations, code execution, and analysis
 """

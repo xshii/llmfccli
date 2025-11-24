@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Test Case 6: 错误恢复测试
 
@@ -27,7 +28,7 @@ def test_error_recovery():
     
     # 创建一个无法自动修复的复杂错误
     broken_file = os.path.join(project_root, 'src/broken.cpp')
-    with open(broken_file, 'w') as f:
+    with open(broken_file, 'w', encoding='utf-8') as f:
         f.write("""
 #include <iostream>
 
@@ -68,8 +69,8 @@ void test() {
     session_file = os.path.join(project_root, '.claude_session')
     assert os.path.exists(session_file), \
         f"应该保存 session 文件: {session_file}"
-    
-    with open(session_file, 'r') as f:
+
+    with open(session_file, 'r', encoding='utf-8') as f:
         session_data = json.load(f)
     
     # 验证 session 数据完整性

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Test Case 2: 编译错误自动修复循环
 
@@ -70,7 +71,7 @@ def test_compile_error_fix_loop():
     
     # 5. 验证最终编译成功
     json_parser_path = os.path.join(project_root, 'src/parser/json_parser.cpp')
-    with open(json_parser_path, 'r') as f:
+    with open(json_parser_path, 'r', encoding='utf-8') as f:
         fixed_content = f.read()
     
     # 检查错误是否被修复

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Ollama client wrapper for Qwen3 model
 """
@@ -27,7 +28,7 @@ class OllamaClient:
         config_path = Path(config_path).resolve()
         
         if config_path.exists():
-            with open(config_path, 'r') as f:
+            with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
         else:
             # Use default config if file not found
@@ -124,7 +125,7 @@ class OllamaClient:
                     # Save request
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
                     request_file = log_dir / f'request_{timestamp}.json'
-                    with open(temp_file, 'r') as f:
+                    with open(temp_file, 'r', encoding='utf-8') as f:
                         request_data = json.load(f)
                     with open(request_file, 'w', encoding='utf-8') as f:
                         json.dump(request_data, f, ensure_ascii=False, indent=2)
@@ -198,7 +199,7 @@ class OllamaClient:
                             f.write("REQUEST\n")
                             f.write("=" * 80 + "\n")
                             # Read and write request
-                            with open(request_file, 'r') as req:
+                            with open(request_file, 'r', encoding='utf-8') as req:
                                 f.write(req.read())
 
                             f.write("\n\n" + "=" * 80 + "\n")

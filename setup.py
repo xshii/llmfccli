@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Setup script for claude-qwen"""
 
 from setuptools import setup, find_packages

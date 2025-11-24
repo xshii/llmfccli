@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Intent recognition and TODO generation for task planning
 """

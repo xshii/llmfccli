@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Test Case 4: 模块级集成测试生成
 
@@ -53,8 +54,8 @@ def test_integration_test_generation():
     # 4. 验证集成测试文件
     test_file_path = os.path.join(project_root, 'tests/integration/http_module_test.cpp')
     assert os.path.exists(test_file_path), f"集成测试文件应该存在: {test_file_path}"
-    
-    with open(test_file_path, 'r') as f:
+
+    with open(test_file_path, 'r', encoding='utf-8') as f:
         test_content = f.read()
     
     # 检查 GTest 框架

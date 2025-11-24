@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Token counter using tiktoken for accurate token estimation
 """
@@ -25,7 +26,7 @@ class TokenCounter:
         config_path = Path(config_path).resolve()
         
         if config_path.exists():
-            with open(config_path, 'r') as f:
+            with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
         else:
             # Use default config

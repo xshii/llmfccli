@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Test Case 1: 跨目录文件定位与功能实现
 
@@ -74,7 +75,7 @@ def test_file_location_and_feature_addition():
     assert has_edit, "应该编辑文件"
     
     # 5. 读取修改后的文件，验证是否包含超时和重试逻辑
-    with open(network_handler_path, 'r') as f:
+    with open(network_handler_path, 'r', encoding='utf-8') as f:
         modified_content = f.read()
     
     # 检查关键字

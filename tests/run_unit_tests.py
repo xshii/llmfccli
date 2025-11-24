@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 单元测试运行器 - 仅运行单元测试（快速，不需要 LLM）
 """

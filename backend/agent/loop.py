@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Agent main loop for executing tasks with LLM and tools
 """
@@ -304,7 +305,7 @@ Project structure: {self.project_root}
             'next_steps': self._suggest_next_steps()
         }
         
-        with open(session_file, 'w') as f:
+        with open(session_file, 'w', encoding='utf-8') as f:
             json.dump(session_data, f, indent=2, ensure_ascii=False)
     
     def _get_context_summary(self) -> str:

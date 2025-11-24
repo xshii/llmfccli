@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 LLM module for Ollama client and prompt management
 """

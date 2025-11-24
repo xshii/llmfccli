@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Prompt templates for Qwen3 model
 """
