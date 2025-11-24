@@ -17,22 +17,30 @@ from rich.panel import Panel
 
 from .agent.loop import AgentLoop
 from .llm.client import OllamaClient
+from .utils.precheck import PreCheck
 
 
 class CLI:
     """Interactive CLI for Claude-Qwen"""
     
-    def __init__(self, project_root: Optional[str] = None):
-        """Initialize CLI"""
+    def __init__(self, project_root: Optional[str] = None, skip_precheck: bool = False):
+        """Initialize CLI
+
+        Args:
+            project_root: Project root directory
+            skip_precheck: Skip environment pre-check (for testing)
+        """
         self.console = Console()
         self.project_root = project_root or str(Path.cwd())
-        
+
+        # Run pre-check unless explicitly skipped
+        if not skip_precheck:
+            self._run_precheck()
+
         # Initialize agent
         self.client = OllamaClient()
         self.agent = AgentLoop(self.client, self.project_root)
-        
-        # Skip model check to avoid network requests
-        
+
         # Setup prompt session
         history_file = Path.home() / '.claude_qwen_history'
         self.session = PromptSession(
@@ -40,6 +48,52 @@ class CLI:
             auto_suggest=AutoSuggestFromHistory(),
         )
     
+    def _run_precheck(self):
+        """Run environment pre-check"""
+        self.console.print("\n[cyan]运行环境检查...[/cyan]\n")
+
+        # Run pre-checks (skip project structure check)
+        results = []
+        results.append(PreCheck.check_ssh_tunnel())
+        results.append(PreCheck.check_ollama_connection())
+        results.append(PreCheck.check_ollama_model(model_name="qwen3:latest"))
+
+        # Display results
+        all_passed = all(r.success for r in results)
+
+        for result in results:
+            status = "✓" if result.success else "✗"
+            color = "green" if result.success else "red"
+            self.console.print(f"[{color}]{status}[/{color}] {result.message}")
+
+        if not all_passed:
+            self.console.print("\n[yellow]⚠ 环境检查失败[/yellow]")
+            self.console.print("\n[yellow]建议操作:[/yellow]")
+
+            for result in results:
+                if not result.success:
+                    if "SSH Tunnel" in result.name:
+                        self.console.print("  • 启动 SSH 隧道: [cyan]ssh -fN ollama-tunnel[/cyan]")
+                    elif "Ollama Connection" in result.name:
+                        self.console.print("  • 验证远程服务器上的 Ollama 服务是否运行")
+                    elif "Ollama Model" in result.name:
+                        model = result.details.get('model', 'qwen3:latest')
+                        self.console.print(f"  • 拉取模型: [cyan]ollama pull {model}[/cyan]")
+
+            self.console.print("\n[yellow]提示: 使用 --skip-precheck 参数跳过环境检查[/yellow]\n")
+
+            # Ask user if they want to continue
+            try:
+                response = input("是否继续? (y/N): ").strip().lower()
+                if response not in ['y', 'yes']:
+                    self.console.print("[red]已取消启动[/red]")
+                    sys.exit(1)
+            except (KeyboardInterrupt, EOFError):
+                self.console.print("\n[red]已取消启动[/red]")
+                sys.exit(1)
+        else:
+            self.console.print("\n[green]✓ 环境检查通过[/green]\n")
+
     def show_welcome(self):
         """Show welcome message"""
         welcome = """
@@ -198,16 +252,18 @@ class CLI:
 def main():
     """Main entry point"""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='Claude-Qwen AI 编程助手')
     parser.add_argument('--root', '-r', help='项目根目录', default=None)
+    parser.add_argument('--skip-precheck', action='store_true',
+                        help='跳过环境预检查（用于测试或离线环境）')
     parser.add_argument('--version', '-v', action='version', version='0.1.0')
-    
+
     args = parser.parse_args()
-    
+
     # Initialize and run CLI
-    cli = CLI(project_root=args.root)
-    
+    cli = CLI(project_root=args.root, skip_precheck=args.skip_precheck)
+
     try:
         cli.run()
     except Exception as e:
