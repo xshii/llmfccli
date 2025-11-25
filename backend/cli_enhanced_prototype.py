@@ -29,8 +29,15 @@ class EnhancedCLI:
         self.tool_outputs = []  # [(tool_name, output, collapsed)]
         self.last_toggle_index = 0
 
-    def add_tool_output(self, tool_name: str, output: str, auto_collapse: bool = True):
-        """添加工具输出"""
+    def add_tool_output(self, tool_name: str, output: str, args: dict = None, auto_collapse: bool = True):
+        """添加工具输出
+
+        Args:
+            tool_name: 工具名称
+            output: 输出内容
+            args: 工具参数（可选）
+            auto_collapse: 是否自动折叠长输出
+        """
         # 超过 20 行自动折叠
         lines = output.count('\n')
         should_collapse = auto_collapse and lines > 20
@@ -38,6 +45,7 @@ class EnhancedCLI:
         self.tool_outputs.append({
             'tool': tool_name,
             'output': output,
+            'args': args or {},
             'collapsed': should_collapse,
             'lines': lines
         })
@@ -72,15 +80,30 @@ class EnhancedCLI:
         for i, tool_data in enumerate(self.tool_outputs):
             tool_name = tool_data['tool']
             output = tool_data['output']
+            args = tool_data['args']
             collapsed = tool_data['collapsed']
             lines = tool_data['lines']
+
+            # 格式化参数显示
+            args_str = ""
+            if args:
+                # 限制参数显示长度
+                args_display = []
+                for key, value in args.items():
+                    value_str = str(value)
+                    if len(value_str) > 50:
+                        value_str = value_str[:47] + "..."
+                    args_display.append(f"{key}={repr(value_str)}")
+                args_str = f"({', '.join(args_display)})"
 
             if collapsed:
                 # 折叠状态
                 collapse_text = Text()
                 collapse_text.append("▶ ", style="yellow")
-                collapse_text.append(f"[{tool_name}] ", style="cyan")
-                collapse_text.append(f"({lines} lines) ", style="dim")
+                collapse_text.append(f"[{tool_name}]", style="cyan bold")
+                if args_str:
+                    collapse_text.append(args_str, style="cyan dim")
+                collapse_text.append(f" ({lines} lines) ", style="dim")
                 collapse_text.append("[Ctrl+E to expand]", style="dim italic")
                 elements.append(collapse_text)
             else:
@@ -90,9 +113,14 @@ class EnhancedCLI:
                 if len(output) > 2000:
                     display_output = output[:2000] + f"\n\n... ({len(output) - 2000} more chars)"
 
+                # 标题包含参数
+                title = f"[bold green]▼ {tool_name}[/bold green]"
+                if args_str:
+                    title = f"[bold green]▼ {tool_name}[/bold green][dim]{args_str}[/dim]"
+
                 output_panel = Panel(
                     display_output,
-                    title=f"[bold green]▼ {tool_name}[/bold green]",
+                    title=title,
                     border_style="green",
                     padding=(0, 1)
                 )
@@ -128,6 +156,7 @@ class EnhancedCLI:
             self.add_tool_output(
                 "bash_run",
                 "$ cmake --build build\n[ 10%] Building CXX object...\n[ 20%] Building CXX object...\n✓ Build complete",
+                args={"command": "cmake --build build"},
                 auto_collapse=False
             )
             live.update(self.render())
@@ -135,7 +164,12 @@ class EnhancedCLI:
 
             # 模拟 Tool 2: bash_run (长输出，自动折叠)
             long_output = "\n".join([f"Line {i}: Some compilation output..." for i in range(50)])
-            self.add_tool_output("bash_run", long_output, auto_collapse=True)
+            self.add_tool_output(
+                "bash_run",
+                long_output,
+                args={"command": "make -j8", "cwd": "/home/user/project"},
+                auto_collapse=True
+            )
             live.update(self.render())
             time.sleep(2)
 
@@ -143,6 +177,7 @@ class EnhancedCLI:
             self.add_tool_output(
                 "edit_file",
                 "File: src/main.cpp\nEdited lines: 45-67\n\nChanges:\n  - Added error handling\n  - Fixed memory leak",
+                args={"file_path": "src/main.cpp", "old_str": "return nullptr;", "new_str": "throw std::runtime_error(\"...\");"},
                 auto_collapse=False
             )
             live.update(self.render())
