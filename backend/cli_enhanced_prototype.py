@@ -101,9 +101,15 @@ class EnhancedCLI:
         # 3. 提示栏
         help_text = Text()
         help_text.append("\n")
-        help_text.append("提示: ", style="bold yellow")
-        help_text.append("输入 'toggle' 切换最后一个输出 | ", style="dim")
-        help_text.append("输入 'quit' 退出", style="dim")
+        help_text.append("命令: ", style="bold yellow")
+        help_text.append("/expand", style="cyan")
+        help_text.append(" 展开 | ", style="dim")
+        help_text.append("/collapse", style="cyan")
+        help_text.append(" 折叠 | ", style="dim")
+        help_text.append("/toggle", style="cyan")
+        help_text.append(" 切换 | ", style="dim")
+        help_text.append("/exit", style="cyan")
+        help_text.append(" 退出", style="dim")
         elements.append(help_text)
 
         return Group(*elements)
@@ -143,23 +149,52 @@ class EnhancedCLI:
             time.sleep(2)
 
             # 演示交互
-            self.console.print("\n[yellow]现在可以输入命令:[/yellow]")
-            self.console.print("  • 'toggle' - 切换最后一个输出")
-            self.console.print("  • 'quit' - 退出")
+            self.console.print("\n[yellow]现在可以输入斜杠命令:[/yellow]")
+            self.console.print("  • '/expand' - 展开最后一个折叠的输出")
+            self.console.print("  • '/collapse' - 折叠最后一个展开的输出")
+            self.console.print("  • '/toggle' - 切换最后一个输出状态")
+            self.console.print("  • '/exit' - 退出")
 
         # 简单的交互循环
         while True:
             try:
-                user_input = input("\n> ").strip().lower()
+                user_input = input("\n> ").strip()
 
-                if user_input == 'quit':
+                if user_input == '/exit' or user_input == '/quit':
                     break
-                elif user_input == 'toggle':
-                    self.toggle_last_output()
+                elif user_input == '/expand':
+                    # 展开最后一个折叠的输出
+                    for i in range(len(self.tool_outputs) - 1, -1, -1):
+                        if self.tool_outputs[i]['collapsed']:
+                            self.toggle_output(i)
+                            self.console.print(f"[green]✓ 展开了输出 #{i + 1}[/green]")
+                            break
+                    else:
+                        self.console.print("[yellow]没有折叠的输出[/yellow]")
                     with Live(self.render(), console=self.console, refresh_per_second=1) as live:
                         time.sleep(0.5)
-                else:
+                elif user_input == '/collapse':
+                    # 折叠最后一个展开的输出
+                    for i in range(len(self.tool_outputs) - 1, -1, -1):
+                        if not self.tool_outputs[i]['collapsed']:
+                            self.toggle_output(i)
+                            self.console.print(f"[green]✓ 折叠了输出 #{i + 1}[/green]")
+                            break
+                    else:
+                        self.console.print("[yellow]没有展开的输出[/yellow]")
+                    with Live(self.render(), console=self.console, refresh_per_second=1) as live:
+                        time.sleep(0.5)
+                elif user_input == '/toggle':
+                    self.toggle_last_output()
+                    self.console.print("[green]✓ 切换了最后一个输出状态[/green]")
+                    with Live(self.render(), console=self.console, refresh_per_second=1) as live:
+                        time.sleep(0.5)
+                elif user_input.startswith('/'):
                     self.console.print(f"[yellow]未知命令: {user_input}[/yellow]")
+                    self.console.print("输入 '/exit' 退出")
+                else:
+                    if user_input:
+                        self.console.print(f"[dim]普通输入: {user_input}[/dim]")
 
             except (KeyboardInterrupt, EOFError):
                 break
