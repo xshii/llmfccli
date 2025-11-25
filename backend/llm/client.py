@@ -298,13 +298,12 @@ class OllamaClient:
             return None
 
         # Ensure each tool call has an id field
-        # If missing, generate id based on function name
-        import time
+        # If missing, generate id based on function name and index
         for i, tool_call in enumerate(tool_calls):
             if 'id' not in tool_call:
-                # Generate id: function_name + timestamp + index
+                # Generate id: function_name_index (e.g., view_file_0, edit_file_1)
                 func_name = tool_call.get('function', {}).get('name', 'unknown')
-                tool_call['id'] = f"{func_name}_{int(time.time() * 1000)}_{i}"
+                tool_call['id'] = f"{func_name}_{i}"
 
         return tool_calls
     
