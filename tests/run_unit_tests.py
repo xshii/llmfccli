@@ -16,6 +16,7 @@ UNIT_TESTS = [
     ('unit/test_tool_executor.py', 'ToolExecutor 接口测试'),
     ('unit/test_executor.py', 'Bash/Executor 工具测试'),
     ('unit/test_precheck.py', 'PreCheck 环境检查测试'),
+    ('unit/test_confirmation.py', '工具确认系统测试'),
 ]
 
 
