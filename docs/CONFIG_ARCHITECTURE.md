@@ -20,7 +20,7 @@
   - num_ctx（上下文窗口大小）
   - repeat_penalty（重复惩罚）
   - num_predict（最大输出 tokens）
-  - stop（停止词）
+  - **stop（停止词）**：告诉模型何时停止生成，避免重复配置
 
 **特点**：
 - 这些参数在创建模型时被固化到模型定义中
@@ -70,6 +70,59 @@ ollama:
 
   # 注意：temperature 等参数已在 Modelfile 中固化
   # 如需临时覆盖，可在代码中通过 kwargs 传递
+```
+
+## Stop Tokens 配置说明
+
+### Stop Tokens 的作用
+
+Stop tokens 告诉模型何时停止生成，防止：
+- 模型继续生成用户对话（如 `Human:`）
+- 生成超出预期的内容
+- 无限循环生成
+
+### 配置位置：仅在 Modelfile 中
+
+**✅ 正确做法**（Modelfile）：
+```dockerfile
+PARAMETER stop "<|im_end|>"       # Qwen3 消息结束标记
+PARAMETER stop "<|endoftext|>"    # 通用文本结束标记
+PARAMETER stop "Human:"           # 防止生成用户回复
+PARAMETER stop "\nHuman:"         # 防止生成用户回复（带换行）
+```
+
+**❌ 避免做法**（client.py）：
+```python
+# 不要在 API 调用中硬编码 stop tokens
+data = {
+    'model': self.model,
+    'messages': messages,
+    'stop': ['<|endoftext|>', '<|im_end|>']  # ❌ 与 Modelfile 重复
+}
+```
+
+### 客户端 Stop Token 检测 vs API Stop Parameter
+
+这是两个不同的概念：
+
+1. **API Stop Parameter**（Modelfile PARAMETER stop）
+   - 在 **Modelfile 中定义**
+   - 告诉 Ollama **何时停止生成**
+   - 在服务器端生效
+
+2. **客户端 Stop Token 检测**（client.py 中的 stop_tokens）
+   - 在 **流式响应处理**中使用
+   - 用于**提前终止客户端接收**
+   - 避免处理已知会出现的多余内容
+   - 仅影响客户端，不影响服务器生成
+
+**客户端检测示例**（保留）：
+```python
+# 这是客户端逻辑，与 Modelfile 不冲突
+stop_tokens = ['<|endoftext|>', '<|im_end|>']
+for line in process.stdout:
+    if any(token in content for token in stop_tokens):
+        break  # 提前终止接收
 ```
 
 ## 参数覆盖机制

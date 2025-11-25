@@ -96,7 +96,7 @@ class OllamaClient:
             'model': self.model,
             'messages': messages,
             'stream': stream,  # Use the stream parameter
-            'stop': ['<|endoftext|>', '<|im_end|>', 'Human:', '\nHuman:']
+            # 注意：stop tokens 已在 Modelfile 中定义，这里不再重复传递
         }
 
         # 只有在有参数需要覆盖时才传递 options（否则使用 Modelfile 中的默认值）
@@ -158,6 +158,11 @@ class OllamaClient:
                 
                 full_response = ""
                 tool_calls = []
+
+                # 客户端 stop token 检测（用于提前终止流式输出）
+                # 注意：这与 Modelfile 中的 PARAMETER stop 不同
+                # - Modelfile stop：告诉 API 何时停止生成
+                # - 客户端检测：在流式响应中提前终止，避免处理多余内容
                 stop_tokens = ['<|endoftext|>', '<|im_end|>']
 
                 # DEBUG: Raw response collection

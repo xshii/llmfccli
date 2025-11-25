@@ -48,6 +48,9 @@ PARAMETER num_ctx 131072
 PARAMETER repeat_penalty 1.1
 PARAMETER num_predict 4096
 
-# 停止词
-PARAMETER stop "<|im_start|>"
-PARAMETER stop "<|im_end|>"
+# 停止词（固化在模型定义中）
+# 注意：这些是 API 级别的 stop tokens，用于告诉模型何时停止生成
+PARAMETER stop "<|im_end|>"       # Qwen3 消息结束标记
+PARAMETER stop "<|endoftext|>"    # 通用文本结束标记
+PARAMETER stop "Human:"           # 防止生成用户回复
+PARAMETER stop "\nHuman:"         # 防止生成用户回复（带换行）
