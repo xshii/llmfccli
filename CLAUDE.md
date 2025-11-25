@@ -176,8 +176,8 @@ Agent 实现编译-修复-重试循环（最多 3 次尝试）处理 C++ 编译�
 
 ```
 Host ollama-tunnel
-    HostName 192.168.3.41
-    User gakki
+    HostName ciserver
+    User root
     LocalForward 11434 localhost:11434
     ServerAliveInterval 60
     ServerAliveCountMax 3
@@ -190,7 +190,7 @@ Host ollama-tunnel
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
 
 # 2. 复制公钥到远程服务器
-ssh-copy-id gakki@192.168.3.41
+ssh-copy-id root@ciserver
 
 # 3. 启动后台隧道
 ssh -fN ollama-tunnel

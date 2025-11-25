@@ -19,6 +19,7 @@ from .agent.loop import AgentLoop
 from .llm.client import OllamaClient
 from .utils.precheck import PreCheck
 from .agent.tool_confirmation import ConfirmAction
+from .remotectl.commands import RemoteCommands
 
 
 class CLI:
@@ -52,6 +53,9 @@ class CLI:
             history=FileHistory(str(history_file)),
             auto_suggest=AutoSuggestFromHistory(),
         )
+
+        # Initialize remote commands (for /model commands)
+        self.remote_commands = RemoteCommands(self.console)
     
     def _run_precheck(self):
         """Run environment pre-check"""
@@ -189,6 +193,7 @@ class CLI:
 - `/compact` - 手动压缩上下文
 - `/usage` - 显示 Token 使用情况
 - `/reset-confirmations` - 重置工具执行确认
+- `/model` - 管理 Ollama 模型（list/create/pull/health）
 - `/exit` - 退出
 
 **快速开始**: 直接输入您的请求，例如：
@@ -323,17 +328,83 @@ class CLI:
             self.console.print("[green]✓ 已重置所有工具执行确认[/green]")
             self.console.print("[dim]下次执行工具时将重新询问确认[/dim]")
 
+        elif cmd == '/model':
+            # Handle model management commands
+            self.handle_model_command(command)
+
         else:
             self.console.print(f"[yellow]未知命令: {cmd}[/yellow]")
             self.console.print("输入 /help 查看可用命令")
         
         return True
-    
+
+    def handle_model_command(self, command: str):
+        """Handle /model subcommands for Ollama model management
+
+        Available subcommands:
+        - /model list - List all models
+        - /model create - Create claude-qwen model
+        - /model show <name> - Show model details
+        - /model delete <name> - Delete a model
+        - /model pull <name> - Pull a model from registry
+        - /model health - Check Ollama server health
+        """
+        parts = command.split()
+
+        if len(parts) < 2:
+            self.console.print("[yellow]用法: /model <subcommand> [args][/yellow]")
+            self.console.print("\n可用子命令:")
+            self.console.print("  • list - 列出所有模型")
+            self.console.print("  • create - 创建 claude-qwen 模型")
+            self.console.print("  • show <name> - 显示模型详情")
+            self.console.print("  • delete <name> - 删除模型")
+            self.console.print("  • pull <name> - 拉取模型")
+            self.console.print("  • health - 检查服务器健康状态")
+            return
+
+        subcmd = parts[1].lower()
+
+        if subcmd == 'list':
+            self.remote_commands.list_models()
+
+        elif subcmd == 'create':
+            self.remote_commands.create_model()
+
+        elif subcmd == 'show':
+            if len(parts) < 3:
+                self.console.print("[red]错误: 需要指定模型名称[/red]")
+                self.console.print("用法: /model show <model_name>")
+                return
+            self.remote_commands.show_model(parts[2])
+
+        elif subcmd == 'delete':
+            if len(parts) < 3:
+                self.console.print("[red]错误: 需要指定模型名称[/red]")
+                self.console.print("用法: /model delete <model_name>")
+                return
+            confirm = '-y' in parts or '--yes' in parts
+            self.remote_commands.delete_model(parts[2], confirm=confirm)
+
+        elif subcmd == 'pull':
+            if len(parts) < 3:
+                self.console.print("[red]错误: 需要指定模型名称[/red]")
+                self.console.print("用法: /model pull <model_name>")
+                return
+            self.remote_commands.pull_model(parts[2])
+
+        elif subcmd == 'health':
+            self.remote_commands.check_health()
+
+        else:
+            self.console.print(f"[yellow]未知子命令: {subcmd}[/yellow]")
+            self.console.print("输入 /model 查看可用子命令")
+
     def show_help(self):
         """Show help message"""
         help_text = """
 ## 可用命令
 
+### Agent 控制
 - `/help` - 显示此帮助信息
 - `/clear` - 清除对话历史（保留文件访问权限）
 - `/compact` - 手动触发上下文压缩
@@ -341,6 +412,14 @@ class CLI:
 - `/root [path]` - 查看或设置项目根目录
 - `/reset-confirmations` - 重置所有工具执行确认
 - `/exit` 或 `/quit` - 退出程序
+
+### 模型管理
+- `/model list` - 列出所有 Ollama 模型
+- `/model create` - 创建 claude-qwen 模型
+- `/model show <name>` - 显示模型详情
+- `/model delete <name>` - 删除模型
+- `/model pull <name>` - 拉取模型
+- `/model health` - 检查 Ollama 服务器状态
 
 ## 示例用法
 

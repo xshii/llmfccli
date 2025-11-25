@@ -14,6 +14,18 @@
             }
         },
         {
+            "name": "Python: Current Module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "${input:moduleName}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: Test Current File",
             "type": "debugpy",
             "request": "launch",
@@ -97,6 +109,53 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        },
+        {
+            "name": "Module: remotectl.cli",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "backend.remotectl.cli",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "list"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Module: remotectl.cli_interactive",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "backend.remotectl.cli_interactive",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Module: interactive_base (demo)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "backend.interactive_base",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "moduleName",
+            "type": "promptString",
+            "description": "Enter module name (e.g., backend.remotectl.cli_interactive)",
+            "default": "backend.cli"
         }
     ]
 }
