@@ -37,6 +37,7 @@ class OllamaClient:
                     'base_url': 'http://localhost:11434',
                     'model': 'qwen3',
                     'timeout': 300,
+                    'stream': False,  # Default to non-streaming for backward compatibility
                     'generation': {
                         'temperature': 0.1,
                         'top_p': 0.9,
@@ -59,7 +60,8 @@ class OllamaClient:
         self.timeout = self.config['timeout']
         self.generation_params = self.config['generation']
         self.retry_config = self.config['retry']
-        
+        self.stream_enabled = self.config.get('stream', False)  # Default to False for backward compatibility
+
         # Warm up model on initialization
         self._warmup()
         
