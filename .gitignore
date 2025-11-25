@@ -60,3 +60,9 @@ logs/
 
 # Test artifacts
 test_ollama_raw.py
+
+# Test fixtures (sample C++ files for testing)
+tests/fixtures/**/*.cpp
+tests/fixtures/**/*.h
+tests/fixtures/**/*.hpp
+tests/fixtures/**/CMakeLists.txt

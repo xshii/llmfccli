@@ -18,6 +18,7 @@ from rich.panel import Panel
 from .agent.loop import AgentLoop
 from .llm.client import OllamaClient
 from .utils.precheck import PreCheck
+from .agent.tool_confirmation import ConfirmAction
 
 
 class CLI:
@@ -39,7 +40,11 @@ class CLI:
 
         # Initialize agent
         self.client = OllamaClient()
-        self.agent = AgentLoop(self.client, self.project_root)
+        self.agent = AgentLoop(
+            client=self.client,
+            project_root=self.project_root,
+            confirmation_callback=self._confirm_tool_execution
+        )
 
         # Setup prompt session
         history_file = Path.home() / '.claude_qwen_history'
@@ -94,6 +99,79 @@ class CLI:
         else:
             self.console.print("\n[green]✓ 环境检查通过[/green]\n")
 
+    def _confirm_tool_execution(self, tool_name: str, category: str, arguments: dict) -> ConfirmAction:
+        """Prompt user to confirm tool execution
+
+        Args:
+            tool_name: Name of the tool to execute
+            category: Tool category (filesystem, executor, analyzer)
+            arguments: Tool arguments
+
+        Returns:
+            ConfirmAction: User's choice (ALLOW_ONCE, ALLOW_ALWAYS, DENY)
+        """
+        # Format arguments for display
+        args_display = []
+        for key, value in arguments.items():
+            # Truncate long values
+            value_str = str(value)
+            if len(value_str) > 60:
+                value_str = value_str[:57] + "..."
+            args_display.append(f"  • {key}: {value_str}")
+        args_text = "\n".join(args_display) if args_display else "  (无参数)"
+
+        # Special handling for bash_run - highlight the command
+        if tool_name == 'bash_run':
+            command = arguments.get('command', '')
+            self.console.print(Panel(
+                f"[yellow]⚠ 工具执行确认[/yellow]\n\n"
+                f"[bold]工具:[/bold] {tool_name}\n"
+                f"[bold]类别:[/bold] {category}\n"
+                f"[bold]命令:[/bold] [cyan]{command}[/cyan]\n\n"
+                f"[dim]参数:[/dim]\n{args_text}",
+                title="需要确认",
+                border_style="yellow"
+            ))
+        else:
+            self.console.print(Panel(
+                f"[yellow]⚠ 工具执行确认[/yellow]\n\n"
+                f"[bold]工具:[/bold] {tool_name}\n"
+                f"[bold]类别:[/bold] {category}\n\n"
+                f"[dim]参数:[/dim]\n{args_text}",
+                title="需要确认",
+                border_style="yellow"
+            ))
+
+        # Prompt for action
+        self.console.print("\n[bold]选择操作:[/bold]")
+        self.console.print("  [green]1[/green] - 本次允许 (ALLOW_ONCE)")
+        self.console.print("  [blue]2[/blue] - 始终允许 (ALLOW_ALWAYS)")
+        self.console.print("  [red]3[/red] - 拒绝并停止 (DENY)")
+
+        while True:
+            try:
+                choice = input("\n请输入选择 (1/2/3): ").strip()
+
+                if choice == '1':
+                    self.console.print("[green]✓ 本次允许执行[/green]\n")
+                    return ConfirmAction.ALLOW_ONCE
+                elif choice == '2':
+                    if tool_name == 'bash_run':
+                        command = arguments.get('command', '')
+                        base_cmd = command.split()[0] if command else ''
+                        self.console.print(f"[blue]✓ 始终允许命令: {base_cmd}[/blue]\n")
+                    else:
+                        self.console.print(f"[blue]✓ 始终允许工具: {tool_name}[/blue]\n")
+                    return ConfirmAction.ALLOW_ALWAYS
+                elif choice == '3':
+                    self.console.print("[red]✗ 已拒绝，停止执行[/red]\n")
+                    return ConfirmAction.DENY
+                else:
+                    self.console.print("[yellow]无效选择，请输入 1、2 或 3[/yellow]")
+            except (KeyboardInterrupt, EOFError):
+                self.console.print("\n[red]✗ 已取消，停止执行[/red]\n")
+                return ConfirmAction.DENY
+
     def show_welcome(self):
         """Show welcome message"""
         stream_status = "✓ 启用" if self.client.stream_enabled else "✗ 禁用"
@@ -110,6 +188,7 @@ class CLI:
 - `/clear` - 清除对话历史（保留文件访问）
 - `/compact` - 手动压缩上下文
 - `/usage` - 显示 Token 使用情况
+- `/reset-confirmations` - 重置工具执行确认
 - `/exit` - 退出
 
 **快速开始**: 直接输入您的请求，例如：
@@ -237,7 +316,13 @@ class CLI:
                     self.console.print(f"[red]目录不存在: {new_root}[/red]")
             else:
                 self.console.print(f"当前项目根目录: {self.project_root}")
-        
+
+        elif cmd == '/reset-confirmations':
+            # Reset all saved confirmations
+            self.agent.confirmation.reset_confirmations()
+            self.console.print("[green]✓ 已重置所有工具执行确认[/green]")
+            self.console.print("[dim]下次执行工具时将重新询问确认[/dim]")
+
         else:
             self.console.print(f"[yellow]未知命令: {cmd}[/yellow]")
             self.console.print("输入 /help 查看可用命令")
@@ -254,6 +339,7 @@ class CLI:
 - `/compact` - 手动触发上下文压缩
 - `/usage` - 显示 Token 使用情况
 - `/root [path]` - 查看或设置项目根目录
+- `/reset-confirmations` - 重置所有工具执行确认
 - `/exit` 或 `/quit` - 退出程序
 
 ## 示例用法
