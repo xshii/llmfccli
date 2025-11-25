@@ -19,9 +19,9 @@ ollama:
 
 # SSH 配置（用于远程 Ollama 管理）
 ssh:
-  enabled: false              # 启用 SSH 远程管理（true: 远程, false: 本地）
-  host: "ollama-tunnel"       # SSH 配置名称（~/.ssh/config 中定义）
-  user: "gakki"               # SSH 用户名（可选，如果在 .ssh/config 中已定义）
+  enabled: true               # 启用 SSH 远程管理（true: 远程, false: 本地）
+  host: "ciserver"            # SSH 配置名称（~/.ssh/config 中定义）
+  user: "root"                # SSH 用户名（可选，如果在 .ssh/config 中已定义）
 
 # 模型管理配置
 model_management:
