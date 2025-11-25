@@ -220,33 +220,49 @@ Type 'exit' or 'quit' to exit.
             # Show help for specific command
             super().do_help(arg)
         else:
-            # Show general help
-            help_text = """
-## Available Commands
+            # Show general help using table
+            from rich.table import Table
 
-### Model Management
-- **list**        - List all models
-- **create**      - Create claude-qwen model from Modelfile
-- **ensure**      - Ensure model exists (create if not)
-- **show**        - Show model details
-- **delete**      - Delete a model
-- **pull**        - Pull model from registry
-- **sync**        - Run model sync script
+            self.console.print("\n[bold cyan]Available Commands[/bold cyan]\n")
 
-### Server
-- **health**      - Check Ollama server health
+            # Model Management commands
+            table = Table(show_header=False, box=None, padding=(0, 2))
+            table.add_column("Command", style="cyan", no_wrap=True)
+            table.add_column("Description", style="dim")
 
-### Utility
-- **clear**       - Clear the screen
-- **help**        - Show this help message
-- **exit/quit**   - Exit the shell
+            self.console.print("[bold]Model Management[/bold]")
+            table.add_row("list", "List all models")
+            table.add_row("create", "Create claude-qwen model from Modelfile")
+            table.add_row("ensure", "Ensure model exists (create if not)")
+            table.add_row("show", "Show model details")
+            table.add_row("delete", "Delete a model")
+            table.add_row("pull", "Pull model from registry")
+            table.add_row("sync", "Run model sync script")
+            self.console.print(table)
 
-### Tips
-- Use TAB for command completion
-- Type 'help <command>' for detailed help on a command
-- Press Ctrl+D or type 'exit' to quit
-"""
-            self.print_markdown(help_text)
+            # Server commands
+            self.console.print("\n[bold]Server[/bold]")
+            table2 = Table(show_header=False, box=None, padding=(0, 2))
+            table2.add_column("Command", style="cyan", no_wrap=True)
+            table2.add_column("Description", style="dim")
+            table2.add_row("health", "Check Ollama server health")
+            self.console.print(table2)
+
+            # Utility commands
+            self.console.print("\n[bold]Utility[/bold]")
+            table3 = Table(show_header=False, box=None, padding=(0, 2))
+            table3.add_column("Command", style="cyan", no_wrap=True)
+            table3.add_column("Description", style="dim")
+            table3.add_row("clear", "Clear the screen")
+            table3.add_row("help", "Show this help message")
+            table3.add_row("exit/quit", "Exit the shell")
+            self.console.print(table3)
+
+            # Tips
+            self.console.print("\n[bold]Tips[/bold]")
+            self.console.print("  • Use TAB for command completion")
+            self.console.print("  • Type 'help <command>' for detailed help")
+            self.console.print("  • Press Ctrl+D or type 'exit' to quit\n")
 
     # ==================== Completion ====================
 
