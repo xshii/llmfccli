@@ -115,6 +115,26 @@ class CLI:
                 seconds = int(elapsed % 60)
                 elapsed_time = f" [dim]({minutes}m {seconds}s)[/dim]"
 
+        # Get token usage
+        token_info = ""
+        if hasattr(self.agent, 'token_counter'):
+            total_tokens = self.agent.token_counter.usage.get('total', 0)
+            max_tokens = self.agent.token_counter.max_tokens
+
+            # Format tokens in K (thousands)
+            if total_tokens >= 1000:
+                total_str = f"{total_tokens/1000:.1f}K"
+            else:
+                total_str = str(total_tokens)
+
+            if max_tokens >= 1000:
+                max_str = f"{max_tokens/1000:.0f}K"
+            else:
+                max_str = str(max_tokens)
+
+            usage_pct = (total_tokens / max_tokens * 100) if max_tokens > 0 else 0
+            token_info = f" [dim][Tokens: {total_str}/{max_str} ({usage_pct:.0f}%)][/dim]"
+
         # Command panel (at top)
         command_text = Text()
         command_text.append("> ", style="cyan bold")
@@ -122,7 +142,7 @@ class CLI:
 
         command_panel = Panel(
             command_text,
-            title=f"[bold blue]Command{elapsed_time}[/bold blue]",
+            title=f"[bold blue]Command{elapsed_time}{token_info}[/bold blue]",
             border_style="blue",
             padding=(0, 1)
         )
