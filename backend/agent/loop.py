@@ -63,13 +63,15 @@ class AgentLoop:
         """Set maximum retry count"""
         self.max_retries = max_retries
     
-    def run(self, user_input: str) -> str:
+    def run(self, user_input: str, stream: bool = False, on_chunk=None) -> str:
         """
         Execute agent loop for user input
-        
+
         Args:
             user_input: User's request
-            
+            stream: Enable streaming output (default: False)
+            on_chunk: Optional callback function for streaming chunks
+
         Returns:
             Agent's final response
         """
@@ -112,7 +114,7 @@ class AgentLoop:
 
             # Call LLM
             try:
-                response = self.client.chat_with_tools(messages, tools)
+                response = self.client.chat_with_tools(messages, tools, stream=stream, on_chunk=on_chunk)
 
                 # DEBUG: Log raw response
                 if os.getenv('DEBUG_AGENT'):

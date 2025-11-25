@@ -96,10 +96,14 @@ class CLI:
 
     def show_welcome(self):
         """Show welcome message"""
+        stream_status = "✓ 启用" if self.client.stream_enabled else "✗ 禁用"
+        stream_hint = "(实时输出)" if self.client.stream_enabled else "(等待完整响应)"
+
         welcome = """
 # Claude-Qwen AI 编程助手
 
 **项目根目录**: {root}
+**流式输出**: {stream_status} {stream_hint}
 
 **可用命令**:
 - `/help` - 显示帮助
@@ -112,9 +116,15 @@ class CLI:
 - "找到 network_handler.cpp 并添加超时重试机制"
 - "编译项目并修复错误"
 - "为当前文件生成单元测试"
+
+💡 修改 `config/ollama.yaml` 中的 `stream` 配置可切换输出模式
 """
         self.console.print(Panel(
-            Markdown(welcome.format(root=self.project_root)),
+            Markdown(welcome.format(
+                root=self.project_root,
+                stream_status=stream_status,
+                stream_hint=stream_hint
+            )),
             title="欢迎",
             border_style="blue"
         ))
@@ -139,17 +149,41 @@ class CLI:
                 
                 # Execute task
                 self.console.print("\n[cyan]执行中...[/cyan]\n")
-                
+
                 try:
-                    response = self.agent.run(user_input)
-                    
-                    # Display response
-                    self.console.print(Panel(
-                        Markdown(response),
-                        title="响应",
-                        border_style="green"
-                    ))
-                    
+                    # Check if streaming is enabled in config
+                    stream_enabled = self.client.stream_enabled
+
+                    if stream_enabled:
+                        # Streaming mode: real-time output
+                        streamed_content = []
+
+                        def on_chunk(chunk: str):
+                            """Callback for streaming chunks"""
+                            streamed_content.append(chunk)
+                            # Print chunk in real-time
+                            self.console.print(chunk, end='', style="white")
+
+                        # Run with streaming enabled
+                        response = self.agent.run(user_input, stream=True, on_chunk=on_chunk)
+
+                        # Print newline after streaming
+                        self.console.print("\n")
+
+                        # If response is empty (fully streamed), use streamed content
+                        if not response.strip() and streamed_content:
+                            response = ''.join(streamed_content)
+                    else:
+                        # Non-streaming mode: wait for complete response
+                        response = self.agent.run(user_input, stream=False)
+
+                        # Display response in panel
+                        self.console.print(Panel(
+                            Markdown(response),
+                            title="响应",
+                            border_style="green"
+                        ))
+
                 except Exception as e:
                     self.console.print(f"[red]错误: {e}[/red]")
                 
