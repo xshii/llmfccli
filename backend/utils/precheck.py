@@ -315,11 +315,13 @@ class PreCheck:
         """
         Check if local Ollama is running and kill it if using remote Ollama.
         Reads config/ollama.yaml to determine if ssh.enabled is true.
+        Supports both Windows (tasklist/taskkill) and Unix (pgrep/kill).
 
         Returns:
             PreCheckResult
         """
         import os
+        import platform
         import yaml
         from pathlib import Path
 
@@ -350,68 +352,136 @@ class PreCheck:
                 )
 
             # SSH enabled (remote mode), check for local Ollama process
+            is_windows = platform.system() == 'Windows'
+
             try:
-                result = subprocess.run(
-                    ['pgrep', '-f', 'ollama serve'],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
+                if is_windows:
+                    # Windows: Use tasklist to find Ollama processes
+                    result = subprocess.run(
+                        ['tasklist', '/FI', 'IMAGENAME eq ollama.exe', '/FO', 'CSV', '/NH'],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                        encoding='utf-8'
+                    )
 
-                if result.returncode == 0 and result.stdout.strip():
-                    # Found local Ollama process(es)
-                    pids = result.stdout.strip().split('\n')
+                    if result.returncode == 0 and 'ollama.exe' in result.stdout:
+                        # Parse CSV output to get PIDs
+                        import csv
+                        import io
+                        pids = []
+                        reader = csv.reader(io.StringIO(result.stdout))
+                        for row in reader:
+                            if len(row) >= 2 and 'ollama.exe' in row[0]:
+                                pids.append(row[1])  # PID is in second column
 
-                    # Kill all Ollama processes
-                    killed_pids = []
-                    for pid in pids:
-                        try:
-                            kill_result = subprocess.run(
-                                ['kill', pid],
-                                capture_output=True,
-                                timeout=5
+                        if not pids:
+                            return PreCheckResult(
+                                "Local Ollama Check",
+                                True,
+                                "No local Ollama process found (using remote Ollama)",
+                                {"ssh_enabled": True, "platform": "Windows"}
                             )
-                            if kill_result.returncode == 0:
-                                killed_pids.append(pid)
-                        except Exception as e:
-                            pass
 
-                    if killed_pids:
-                        return PreCheckResult(
-                            "Local Ollama Check",
-                            True,
-                            f"Killed {len(killed_pids)} local Ollama process(es) (using remote Ollama)",
-                            {"killed_pids": killed_pids, "ssh_enabled": True}
-                        )
+                        # Kill all Ollama processes using taskkill
+                        killed_pids = []
+                        for pid in pids:
+                            try:
+                                kill_result = subprocess.run(
+                                    ['taskkill', '/F', '/PID', pid],
+                                    capture_output=True,
+                                    timeout=5
+                                )
+                                if kill_result.returncode == 0:
+                                    killed_pids.append(pid)
+                            except Exception as e:
+                                pass
+
+                        if killed_pids:
+                            return PreCheckResult(
+                                "Local Ollama Check",
+                                True,
+                                f"Killed {len(killed_pids)} local Ollama process(es) (using remote Ollama)",
+                                {"killed_pids": killed_pids, "ssh_enabled": True, "platform": "Windows"}
+                            )
+                        else:
+                            return PreCheckResult(
+                                "Local Ollama Check",
+                                False,
+                                f"Found {len(pids)} local Ollama process(es) but failed to kill them",
+                                {"pids": pids, "ssh_enabled": True, "platform": "Windows"}
+                            )
                     else:
                         return PreCheckResult(
                             "Local Ollama Check",
-                            False,
-                            f"Found {len(pids)} local Ollama process(es) but failed to kill them",
-                            {"pids": pids, "ssh_enabled": True}
+                            True,
+                            "No local Ollama process found (using remote Ollama)",
+                            {"ssh_enabled": True, "platform": "Windows"}
                         )
                 else:
-                    # No local Ollama running
-                    return PreCheckResult(
-                        "Local Ollama Check",
-                        True,
-                        "No local Ollama process found (using remote Ollama)",
-                        {"ssh_enabled": True}
+                    # Unix/Linux/macOS: Use pgrep to find Ollama processes
+                    result = subprocess.run(
+                        ['pgrep', '-f', 'ollama serve'],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
                     )
+
+                    if result.returncode == 0 and result.stdout.strip():
+                        # Found local Ollama process(es)
+                        pids = result.stdout.strip().split('\n')
+
+                        # Kill all Ollama processes
+                        killed_pids = []
+                        for pid in pids:
+                            try:
+                                kill_result = subprocess.run(
+                                    ['kill', pid],
+                                    capture_output=True,
+                                    timeout=5
+                                )
+                                if kill_result.returncode == 0:
+                                    killed_pids.append(pid)
+                            except Exception as e:
+                                pass
+
+                        if killed_pids:
+                            return PreCheckResult(
+                                "Local Ollama Check",
+                                True,
+                                f"Killed {len(killed_pids)} local Ollama process(es) (using remote Ollama)",
+                                {"killed_pids": killed_pids, "ssh_enabled": True, "platform": "Unix"}
+                            )
+                        else:
+                            return PreCheckResult(
+                                "Local Ollama Check",
+                                False,
+                                f"Found {len(pids)} local Ollama process(es) but failed to kill them",
+                                {"pids": pids, "ssh_enabled": True, "platform": "Unix"}
+                            )
+                    else:
+                        # No local Ollama running
+                        return PreCheckResult(
+                            "Local Ollama Check",
+                            True,
+                            "No local Ollama process found (using remote Ollama)",
+                            {"ssh_enabled": True, "platform": "Unix"}
+                        )
             except subprocess.TimeoutExpired:
                 return PreCheckResult(
                     "Local Ollama Check",
                     False,
                     "Process check timeout",
-                    {"ssh_enabled": True}
+                    {"ssh_enabled": True, "platform": platform.system()}
                 )
-            except FileNotFoundError:
-                # pgrep not available
+            except FileNotFoundError as e:
+                # Command not available
+                cmd = "tasklist/taskkill" if is_windows else "pgrep/kill"
                 return PreCheckResult(
                     "Local Ollama Check",
                     True,
-                    "pgrep command not available, skipping process check",
-                    {"ssh_enabled": True}
+                    f"{cmd} command not available, skipping process check",
+                    {"ssh_enabled": True, "platform": platform.system()}
                 )
 
         except Exception as e:
@@ -419,7 +489,7 @@ class PreCheck:
                 "Local Ollama Check",
                 False,
                 f"Check failed: {e}",
-                {}
+                {"platform": platform.system()}
             )
 
     @staticmethod
