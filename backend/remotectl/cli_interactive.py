@@ -17,12 +17,9 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from rich.table import Table
-from rich.panel import Panel
-from rich.markdown import Markdown
 
 from backend.interactive_base import InteractiveShellBase
-from backend.remotectl.client import RemoteOllamaClient
-from backend.remotectl.model_manager import ModelManager
+from backend.remotectl.commands import RemoteCommands
 
 
 class OllamaShell(InteractiveShellBase):
@@ -41,8 +38,7 @@ Type 'exit' or 'quit' to exit.
 
     def __init__(self):
         super().__init__()
-        self.client = RemoteOllamaClient()
-        self.manager = ModelManager()
+        self.commands = RemoteCommands(self.console)
 
     # ==================== Commands ====================
 
@@ -51,37 +47,14 @@ Type 'exit' or 'quit' to exit.
 
         Usage: list
         """
-        result = self.manager.list_models()
-
-        if not result['success']:
-            self.print_error(f"Error: {result.get('error', 'Unknown error')}")
-            return
-
-        if result['count'] == 0:
-            self.print_warning("No models found")
-            return
-
-        table = Table(title=f"Ollama Models ({result['count']} total)")
-        table.add_column("Model Name", style="cyan")
-        table.add_column("Details", style="dim")
-
-        for model in result['models']:
-            table.add_row(model['name'], model.get('raw', ''))
-
-        self.console.print(table)
+        self.commands.list_models()
 
     def do_create(self, arg):
         """Create claude-qwen model from Modelfile
 
         Usage: create
         """
-        self.print_info("Creating claude-qwen:latest model...")
-        success = self.manager.sync_claude_qwen_model()
-
-        if success:
-            self.print_success("Model created successfully")
-        else:
-            self.print_error("Failed to create model")
+        self.commands.create_model()
 
     def do_ensure(self, arg):
         """Ensure model exists (create if not)
@@ -90,14 +63,7 @@ Type 'exit' or 'quit' to exit.
         Default model: claude-qwen:latest
         """
         model_name = arg.strip() or "claude-qwen:latest"
-        self.print_info(f"Ensuring {model_name} exists...")
-
-        success = self.manager.ensure_model_exists(model_name)
-
-        if success:
-            self.print_success(f"Model {model_name} is available")
-        else:
-            self.print_error(f"Failed to ensure model {model_name}")
+        self.commands.ensure_model(model_name)
 
     def do_show(self, arg):
         """Show model details
@@ -110,17 +76,7 @@ Type 'exit' or 'quit' to exit.
             self.console.print("Usage: show <model_name>")
             return
 
-        result = self.manager.show_model_info(arg.strip())
-
-        if not result['success']:
-            self.print_error(f"Error: {result.get('error', 'Unknown error')}")
-            return
-
-        self.console.print(Panel(
-            result['modelfile'],
-            title=f"Model: {result['model_name']}",
-            border_style="cyan"
-        ))
+        self.commands.show_model(arg.strip())
 
     def do_delete(self, arg):
         """Delete a model
@@ -138,33 +94,14 @@ Type 'exit' or 'quit' to exit.
         model_name = parts[0]
         skip_confirm = '-y' in parts or '--yes' in parts
 
-        success = self.manager.delete_model(model_name, confirm=skip_confirm)
-
-        if success:
-            self.print_success(f"Model {model_name} deleted")
-        else:
-            self.print_error(f"Failed to delete model {model_name}")
+        self.commands.delete_model(model_name, confirm=skip_confirm)
 
     def do_health(self, arg):
         """Check Ollama server health
 
         Usage: health
         """
-        health = self.client.check_health()
-
-        status_color = "green" if health['healthy'] else "red"
-        status_text = "Healthy" if health['healthy'] else "Unhealthy"
-
-        info = f"""
-**Status**: [{status_color}]{status_text}[/{status_color}]
-
-**Details**:
-- Process Running: {'✓' if health['process_running'] else '✗'}
-- API Accessible: {'✓' if health['api_accessible'] else '✗'}
-- Models Available: {health['model_count']}
-"""
-
-        self.print_panel(info, title="Ollama Server Health", style=status_color)
+        self.commands.check_health()
 
     def do_pull(self, arg):
         """Pull model from registry
@@ -177,18 +114,7 @@ Type 'exit' or 'quit' to exit.
             self.console.print("Usage: pull <model_name>")
             return
 
-        model_name = arg.strip()
-        self.print_info(f"Pulling model: {model_name}")
-        self.console.print("[dim]This may take several minutes for large models...[/dim]")
-
-        success, output = self.client.pull_model(model_name)
-
-        if success:
-            self.print_success(f"Model {model_name} pulled successfully")
-            if output:
-                self.console.print(output)
-        else:
-            self.print_error(f"Failed to pull model: {output}")
+        self.commands.pull_model(arg.strip())
 
     def do_sync(self, arg):
         """Run model sync script
@@ -280,7 +206,7 @@ Type 'exit' or 'quit' to exit.
 
     def _complete_model_name(self, text):
         """Helper to get model names for completion"""
-        result = self.manager.list_models()
+        result = self.commands.manager.list_models()
         if result['success']:
             model_names = [m['name'] for m in result['models']]
             return [name for name in model_names if name.startswith(text)]

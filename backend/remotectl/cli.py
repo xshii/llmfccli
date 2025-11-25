@@ -13,148 +13,8 @@ Usage:
 import sys
 import argparse
 from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 
-from .client import RemoteOllamaClient
-from .model_manager import ModelManager
-
-
-console = Console()
-
-
-def cmd_list(args):
-    """List all models"""
-    manager = ModelManager()
-    result = manager.list_models()
-
-    if not result['success']:
-        console.print(f"[red]Error: {result.get('error', 'Unknown error')}[/red]")
-        return 1
-
-    if result['count'] == 0:
-        console.print("[yellow]No models found[/yellow]")
-        return 0
-
-    # Create table
-    table = Table(title=f"Ollama Models ({result['count']} total)")
-    table.add_column("Model Name", style="cyan")
-    table.add_column("Details", style="dim")
-
-    for model in result['models']:
-        table.add_row(model['name'], model.get('raw', ''))
-
-    console.print(table)
-    return 0
-
-
-def cmd_create(args):
-    """Create claude-qwen model"""
-    manager = ModelManager()
-
-    console.print("[cyan]Creating claude-qwen:latest model...[/cyan]")
-
-    success = manager.sync_claude_qwen_model()
-
-    if success:
-        console.print("[green]✓ Model created successfully[/green]")
-        return 0
-    else:
-        console.print("[red]✗ Failed to create model[/red]")
-        return 1
-
-
-def cmd_ensure(args):
-    """Ensure claude-qwen model exists"""
-    manager = ModelManager()
-
-    model_name = args.model or "claude-qwen:latest"
-    success = manager.ensure_model_exists(model_name)
-
-    return 0 if success else 1
-
-
-def cmd_show(args):
-    """Show model details"""
-    if not args.model:
-        console.print("[red]Error: Model name required[/red]")
-        console.print("Usage: remotectl show <model_name>")
-        return 1
-
-    manager = ModelManager()
-    result = manager.show_model_info(args.model)
-
-    if not result['success']:
-        console.print(f"[red]Error: {result.get('error', 'Unknown error')}[/red]")
-        return 1
-
-    console.print(Panel(
-        result['modelfile'],
-        title=f"Model: {result['model_name']}",
-        border_style="cyan"
-    ))
-
-    return 0
-
-
-def cmd_delete(args):
-    """Delete a model"""
-    if not args.model:
-        console.print("[red]Error: Model name required[/red]")
-        console.print("Usage: remotectl delete <model_name>")
-        return 1
-
-    manager = ModelManager()
-    success = manager.delete_model(args.model, confirm=args.yes)
-
-    return 0 if success else 1
-
-
-def cmd_health(args):
-    """Check Ollama server health"""
-    client = RemoteOllamaClient()
-    health = client.check_health()
-
-    # Display health status
-    status_color = "green" if health['healthy'] else "red"
-    status_text = "Healthy" if health['healthy'] else "Unhealthy"
-
-    info = f"""
-**Status**: [{status_color}]{status_text}[/{status_color}]
-
-**Details**:
-- Process Running: {'✓' if health['process_running'] else '✗'}
-- API Accessible: {'✓' if health['api_accessible'] else '✗'}
-- Models Available: {health['model_count']}
-"""
-
-    console.print(Panel(info, title="Ollama Server Health", border_style=status_color))
-
-    return 0 if health['healthy'] else 1
-
-
-def cmd_pull(args):
-    """Pull a model from registry"""
-    if not args.model:
-        console.print("[red]Error: Model name required[/red]")
-        console.print("Usage: remotectl pull <model_name>")
-        return 1
-
-    client = RemoteOllamaClient()
-
-    console.print(f"[cyan]Pulling model: {args.model}[/cyan]")
-    console.print("[dim]This may take several minutes for large models...[/dim]")
-
-    success, output = client.pull_model(args.model)
-
-    if success:
-        console.print(f"[green]✓ Model {args.model} pulled successfully[/green]")
-        if output:
-            console.print(output)
-        return 0
-    else:
-        console.print(f"[red]✗ Failed to pull model: {output}[/red]")
-        return 1
+from .commands import RemoteCommands
 
 
 def main():
@@ -198,23 +58,37 @@ def main():
         parser.print_help()
         return 0
 
-    # Execute command
-    commands = {
-        'list': cmd_list,
-        'create': cmd_create,
-        'ensure': cmd_ensure,
-        'show': cmd_show,
-        'delete': cmd_delete,
-        'health': cmd_health,
-        'pull': cmd_pull
-    }
+    # Initialize commands
+    console = Console()
+    commands = RemoteCommands(console)
 
-    cmd_func = commands.get(args.command)
-    if cmd_func:
-        return cmd_func(args)
-    else:
-        console.print(f"[red]Unknown command: {args.command}[/red]")
-        parser.print_help()
+    # Execute command
+    try:
+        if args.command == 'list':
+            success = commands.list_models()
+        elif args.command == 'create':
+            success = commands.create_model()
+        elif args.command == 'ensure':
+            success = commands.ensure_model(args.model)
+        elif args.command == 'show':
+            success = commands.show_model(args.model)
+        elif args.command == 'delete':
+            success = commands.delete_model(args.model, confirm=args.yes)
+        elif args.command == 'health':
+            success = commands.check_health()
+        elif args.command == 'pull':
+            success = commands.pull_model(args.model)
+        else:
+            console.print(f"[red]Unknown command: {args.command}[/red]")
+            return 1
+
+        return 0 if success else 1
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted[/yellow]")
+        return 130
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
         return 1
 
 
