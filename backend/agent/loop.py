@@ -4,12 +4,13 @@ Agent main loop for executing tasks with LLM and tools
 """
 
 import time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
 
 from ..llm.client import OllamaClient
 from .token_counter import TokenCounter
 from .tool_executor import ToolExecutor, RegistryToolExecutor
+from .tool_confirmation import ToolConfirmation, ConfirmAction
 
 
 class AgentLoop:
@@ -18,7 +19,8 @@ class AgentLoop:
     def __init__(self,
                  client: Optional[OllamaClient] = None,
                  tool_executor: Optional[ToolExecutor] = None,
-                 project_root: Optional[str] = None):
+                 project_root: Optional[str] = None,
+                 confirmation_callback: Optional[Callable] = None):
         """
         Initialize agent loop
 
@@ -26,6 +28,7 @@ class AgentLoop:
             client: OllamaClient instance (injected dependency)
             tool_executor: ToolExecutor instance (injected dependency)
             project_root: Project root directory
+            confirmation_callback: Callback function for user confirmation
         """
         self.client = client or OllamaClient()
         self.project_root = project_root or str(Path.cwd())
@@ -35,17 +38,22 @@ class AgentLoop:
 
         # Initialize tool executor (dependency injection)
         self.tool_executor = tool_executor or RegistryToolExecutor(self.project_root)
-        
+
+        # Initialize tool confirmation
+        self.confirmation = ToolConfirmation()
+        if confirmation_callback:
+            self.confirmation.set_confirmation_callback(confirmation_callback)
+
         # State
         self.conversation_history: List[Dict[str, str]] = []
         self.tool_calls: List[Dict[str, Any]] = []
         self.active_files: List[str] = []
-        
+
         # Configuration
         self.max_iterations = 20
         self.max_retries = 3
         self.stopped_due_to_max_retries = False
-        
+
         # Active file (for VSCode integration)
         self.active_file: Optional[str] = None
     
@@ -168,6 +176,34 @@ class AgentLoop:
                         arguments = json.loads(arguments)
                 except Exception as e:
                     arguments = {}
+
+                # Check if confirmation is needed
+                if self.confirmation.needs_confirmation(tool_name, arguments):
+                    action = self.confirmation.confirm_tool_execution(tool_name, arguments)
+
+                    if action == ConfirmAction.DENY:
+                        # User denied - add error message and skip execution
+                        result = {
+                            'success': False,
+                            'error': 'User denied tool execution',
+                            'denied_by_user': True
+                        }
+
+                        # Add tool result to history
+                        tool_message = {
+                            'role': 'tool',
+                            'content': self._format_tool_result(result),
+                            'tool_call_id': tool_call.get('id', f'call_{iteration}')
+                        }
+                        self.conversation_history.append(tool_message)
+
+                        # Stop execution - user wants to stop
+                        final_msg = "Tool execution stopped by user."
+                        self.conversation_history.append({
+                            'role': 'assistant',
+                            'content': final_msg
+                        })
+                        return final_msg
 
                 # Execute tool via executor
                 result = self.tool_executor.execute_tool(tool_name, arguments)
