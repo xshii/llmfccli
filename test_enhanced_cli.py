@@ -44,9 +44,17 @@ def test_tool_output_management():
     assert not cli.tool_outputs[0]['collapsed'], "Output should be expanded after toggle"
     console.print("[green]✓ Test 3: Toggle expands output[/green]")
 
-    # Test 4: Display summary (visual test)
-    console.print("\n[cyan]Test 4: Display summary (visual inspection)[/cyan]")
+    # Test 4: Display summary with execution time and token usage (visual test)
+    console.print("\n[cyan]Test 4: Display summary with time and token usage (visual inspection)[/cyan]")
+    import time
     cli.current_command = "编译项目并修复错误"
+    cli.command_start_time = time.time() - 5.3  # Simulate 5.3 seconds elapsed
+
+    # Simulate token usage
+    if hasattr(cli.agent, 'token_counter'):
+        cli.agent.token_counter.usage['total'] = 12500  # 12.5K tokens used
+        console.print(f"[dim]Simulated token usage: {cli.agent.token_counter.usage['total']} tokens[/dim]")
+
     cli.tool_outputs = []
 
     # Add multiple outputs

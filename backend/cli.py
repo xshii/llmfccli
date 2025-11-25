@@ -63,6 +63,7 @@ class CLI:
 
         # Tool output management (for enhanced display)
         self.current_command = ""
+        self.command_start_time = None
         self.tool_outputs = []  # [{'tool', 'output', 'args', 'collapsed', 'lines'}]
 
     def add_tool_output(self, tool_name: str, output: str, args: dict = None, auto_collapse: bool = True):
@@ -102,10 +103,46 @@ class CLI:
 
         elements = []
 
+        # Calculate execution time
+        import time
+        elapsed_time = ""
+        if self.command_start_time:
+            elapsed = time.time() - self.command_start_time
+            if elapsed < 60:
+                elapsed_time = f" [dim]({elapsed:.1f}s)[/dim]"
+            else:
+                minutes = int(elapsed // 60)
+                seconds = int(elapsed % 60)
+                elapsed_time = f" [dim]({minutes}m {seconds}s)[/dim]"
+
+        # Get token usage
+        token_info = ""
+        if hasattr(self.agent, 'token_counter'):
+            total_tokens = self.agent.token_counter.usage.get('total', 0)
+            max_tokens = self.agent.token_counter.max_tokens
+
+            # Format tokens in K (thousands)
+            if total_tokens >= 1000:
+                total_str = f"{total_tokens/1000:.1f}K"
+            else:
+                total_str = str(total_tokens)
+
+            if max_tokens >= 1000:
+                max_str = f"{max_tokens/1000:.0f}K"
+            else:
+                max_str = str(max_tokens)
+
+            usage_pct = (total_tokens / max_tokens * 100) if max_tokens > 0 else 0
+            token_info = f" [dim][Tokens: {total_str}/{max_str} ({usage_pct:.0f}%)][/dim]"
+
         # Command panel (at top)
+        command_text = Text()
+        command_text.append("> ", style="cyan bold")
+        command_text.append(self.current_command, style="cyan bold")
+
         command_panel = Panel(
-            Text(f"> {self.current_command}", style="cyan bold"),
-            title="[bold blue]Command[/bold blue]",
+            command_text,
+            title=f"[bold blue]Command{elapsed_time}{token_info}[/bold blue]",
             border_style="blue",
             padding=(0, 1)
         )
@@ -344,7 +381,9 @@ class CLI:
                     continue
 
                 # Clear tool outputs and set current command
+                import time
                 self.current_command = user_input
+                self.command_start_time = time.time()
                 self.tool_outputs = []
 
                 # Execute task
