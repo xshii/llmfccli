@@ -1,22 +1,17 @@
 ollama:
   base_url: "http://localhost:11434"  # 通过 SSH 隧道访问
-  model: "claude-qwen:latest"  # 使用自定义模型（固化了 system prompt 和参数）
+  model: "claude-qwen:latest"  # 使用自定义模型（参数已在 Modelfile 中固化）
   timeout: 300
   stream: true  # 启用流式输出 (true) 或等待完整响应 (false)
 
-  generation:
-    temperature: 0.7
-    top_p: 0.9
-    top_k: 40
-    num_ctx: 131072          # 128k context window
-    repeat_penalty: 1.1
-    num_predict: 4096        # Max output tokens
-  
+  # 注意：temperature, top_p, top_k 等参数已在 Modelfile 中固化
+  # 如需临时覆盖，可在代码中通过 kwargs 传递
+
   models:
-    main: "qwen3:latest"            # Main agent model
-    compress: "qwen3:latest"        # Context compression model
-    intent: "qwen3:latest"          # Intent recognition model
-  
+    main: "claude-qwen:latest"         # Main agent model（使用自定义模型）
+    compress: "qwen3:latest"           # Context compression model（基础模型即可）
+    intent: "qwen3:latest"             # Intent recognition model（基础模型即可）
+
   retry:
     max_attempts: 3
     backoff_factor: 2
