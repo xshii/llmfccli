@@ -9,7 +9,6 @@ Usage:
 """
 
 import sys
-import cmd
 from pathlib import Path
 
 # Add project root to path for standalone execution
@@ -17,19 +16,16 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.markdown import Markdown
 
+from backend.interactive_base import InteractiveShellBase
 from backend.remotectl.client import RemoteOllamaClient
 from backend.remotectl.model_manager import ModelManager
 
 
-console = Console()
-
-
-class OllamaShell(cmd.Cmd):
+class OllamaShell(InteractiveShellBase):
     """Interactive shell for Ollama remote control"""
 
     intro = """
@@ -47,7 +43,6 @@ Type 'exit' or 'quit' to exit.
         super().__init__()
         self.client = RemoteOllamaClient()
         self.manager = ModelManager()
-        console.print(self.intro, style="cyan")
 
     # ==================== Commands ====================
 
@@ -59,11 +54,11 @@ Type 'exit' or 'quit' to exit.
         result = self.manager.list_models()
 
         if not result['success']:
-            console.print(f"[red]Error: {result.get('error', 'Unknown error')}[/red]")
+            self.print_error(f"Error: {result.get('error', 'Unknown error')}")
             return
 
         if result['count'] == 0:
-            console.print("[yellow]No models found[/yellow]")
+            self.print_warning("No models found")
             return
 
         table = Table(title=f"Ollama Models ({result['count']} total)")
@@ -73,20 +68,20 @@ Type 'exit' or 'quit' to exit.
         for model in result['models']:
             table.add_row(model['name'], model.get('raw', ''))
 
-        console.print(table)
+        self.console.print(table)
 
     def do_create(self, arg):
         """Create claude-qwen model from Modelfile
 
         Usage: create
         """
-        console.print("[cyan]Creating claude-qwen:latest model...[/cyan]")
+        self.print_info("Creating claude-qwen:latest model...")
         success = self.manager.sync_claude_qwen_model()
 
         if success:
-            console.print("[green]✓ Model created successfully[/green]")
+            self.print_success("Model created successfully")
         else:
-            console.print("[red]✗ Failed to create model[/red]")
+            self.print_error("Failed to create model")
 
     def do_ensure(self, arg):
         """Ensure model exists (create if not)
@@ -95,14 +90,14 @@ Type 'exit' or 'quit' to exit.
         Default model: claude-qwen:latest
         """
         model_name = arg.strip() or "claude-qwen:latest"
-        console.print(f"[cyan]Ensuring {model_name} exists...[/cyan]")
+        self.print_info(f"Ensuring {model_name} exists...")
 
         success = self.manager.ensure_model_exists(model_name)
 
         if success:
-            console.print(f"[green]✓ Model {model_name} is available[/green]")
+            self.print_success(f"Model {model_name} is available")
         else:
-            console.print(f"[red]✗ Failed to ensure model {model_name}[/red]")
+            self.print_error(f"Failed to ensure model {model_name}")
 
     def do_show(self, arg):
         """Show model details
@@ -111,17 +106,17 @@ Type 'exit' or 'quit' to exit.
         Example: show claude-qwen:latest
         """
         if not arg.strip():
-            console.print("[red]Error: Model name required[/red]")
-            console.print("Usage: show <model_name>")
+            self.print_error("Model name required")
+            self.console.print("Usage: show <model_name>")
             return
 
         result = self.manager.show_model_info(arg.strip())
 
         if not result['success']:
-            console.print(f"[red]Error: {result.get('error', 'Unknown error')}[/red]")
+            self.print_error(f"Error: {result.get('error', 'Unknown error')}")
             return
 
-        console.print(Panel(
+        self.console.print(Panel(
             result['modelfile'],
             title=f"Model: {result['model_name']}",
             border_style="cyan"
@@ -135,8 +130,8 @@ Type 'exit' or 'quit' to exit.
                  delete test-model:latest -y  (skip confirmation)
         """
         if not arg.strip():
-            console.print("[red]Error: Model name required[/red]")
-            console.print("Usage: delete <model_name> [-y]")
+            self.print_error("Model name required")
+            self.console.print("Usage: delete <model_name> [-y]")
             return
 
         parts = arg.strip().split()
@@ -146,9 +141,9 @@ Type 'exit' or 'quit' to exit.
         success = self.manager.delete_model(model_name, confirm=skip_confirm)
 
         if success:
-            console.print(f"[green]✓ Model {model_name} deleted[/green]")
+            self.print_success(f"Model {model_name} deleted")
         else:
-            console.print(f"[red]✗ Failed to delete model {model_name}[/red]")
+            self.print_error(f"Failed to delete model {model_name}")
 
     def do_health(self, arg):
         """Check Ollama server health
@@ -169,7 +164,7 @@ Type 'exit' or 'quit' to exit.
 - Models Available: {health['model_count']}
 """
 
-        console.print(Panel(info, title="Ollama Server Health", border_style=status_color))
+        self.print_panel(info, title="Ollama Server Health", style=status_color)
 
     def do_pull(self, arg):
         """Pull model from registry
@@ -178,30 +173,30 @@ Type 'exit' or 'quit' to exit.
         Example: pull qwen3:latest
         """
         if not arg.strip():
-            console.print("[red]Error: Model name required[/red]")
-            console.print("Usage: pull <model_name>")
+            self.print_error("Model name required")
+            self.console.print("Usage: pull <model_name>")
             return
 
         model_name = arg.strip()
-        console.print(f"[cyan]Pulling model: {model_name}[/cyan]")
-        console.print("[dim]This may take several minutes for large models...[/dim]")
+        self.print_info(f"Pulling model: {model_name}")
+        self.console.print("[dim]This may take several minutes for large models...[/dim]")
 
         success, output = self.client.pull_model(model_name)
 
         if success:
-            console.print(f"[green]✓ Model {model_name} pulled successfully[/green]")
+            self.print_success(f"Model {model_name} pulled successfully")
             if output:
-                console.print(output)
+                self.console.print(output)
         else:
-            console.print(f"[red]✗ Failed to pull model: {output}[/red]")
+            self.print_error(f"Failed to pull model: {output}")
 
     def do_sync(self, arg):
         """Run model sync script
 
         Usage: sync
         """
-        console.print("[cyan]Running sync_models.py...[/cyan]")
-        console.print("[dim]This will sync all enabled models from config[/dim]")
+        self.print_info("Running sync_models.py...")
+        self.console.print("[dim]This will sync all enabled models from config[/dim]")
 
         import subprocess
         result = subprocess.run(
@@ -210,36 +205,9 @@ Type 'exit' or 'quit' to exit.
         )
 
         if result.returncode == 0:
-            console.print("[green]✓ Sync completed successfully[/green]")
+            self.print_success("Sync completed successfully")
         else:
-            console.print("[red]✗ Sync failed[/red]")
-
-    def do_clear(self, arg):
-        """Clear the screen
-
-        Usage: clear
-        """
-        console.clear()
-
-    def do_exit(self, arg):
-        """Exit the interactive shell
-
-        Usage: exit
-        """
-        console.print("\n[cyan]Goodbye! 👋[/cyan]\n")
-        return True
-
-    def do_quit(self, arg):
-        """Exit the interactive shell
-
-        Usage: quit
-        """
-        return self.do_exit(arg)
-
-    def do_EOF(self, arg):
-        """Exit on Ctrl+D"""
-        console.print()
-        return self.do_exit(arg)
+            self.print_error("Sync failed")
 
     # ==================== Help ====================
 
@@ -278,7 +246,7 @@ Type 'exit' or 'quit' to exit.
 - Type 'help <command>' for detailed help on a command
 - Press Ctrl+D or type 'exit' to quit
 """
-            console.print(Markdown(help_text))
+            self.print_markdown(help_text)
 
     # ==================== Completion ====================
 
@@ -302,20 +270,12 @@ Type 'exit' or 'quit' to exit.
             return [name for name in model_names if name.startswith(text)]
         return []
 
-    # ==================== Error Handling ====================
-
-    def emptyline(self):
-        """Do nothing on empty line (don't repeat last command)"""
-        pass
-
-    def default(self, line):
-        """Handle unknown commands"""
-        console.print(f"[red]Unknown command: {line}[/red]")
-        console.print("Type 'help' to see available commands")
-
 
 def main():
     """Main entry point"""
+    from rich.console import Console
+    console = Console()
+
     try:
         shell = OllamaShell()
         shell.cmdloop()

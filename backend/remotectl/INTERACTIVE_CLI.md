@@ -209,11 +209,100 @@ Error: Model name required
 Usage: show <model_name>
 ```
 
+## 🔧 代码复用 - InteractiveShellBase
+
+### 设计理念
+
+为了避免代码重复，`cli_interactive.py` 使用了 `backend/interactive_base.py` 中的可复用基类。
+
+### 基类特性
+
+`InteractiveShellBase` 提供：
+
+✅ **通用命令**
+- `clear` - 清屏
+- `exit` / `quit` - 退出
+- `help` - 帮助系统
+- Ctrl+D 支持
+
+✅ **Rich 格式化辅助方法**
+- `print_success(message)` - 成功消息（绿色 ✓）
+- `print_error(message)` - 错误消息（红色 ✗）
+- `print_warning(message)` - 警告消息（黄色 ⚠）
+- `print_info(message)` - 信息消息（青色 ℹ）
+- `print_table(title, columns, rows)` - 表格输出
+- `print_panel(content, title, style)` - 面板输出
+- `print_markdown(text)` - Markdown 格式化
+
+✅ **实用工具**
+- `parse_args(arg)` - 参数解析
+- `confirm(prompt, default)` - 用户确认
+- `console` - Rich Console 实例
+
+### 使用示例
+
+```python
+from backend.interactive_base import InteractiveShellBase
+
+class MyShell(InteractiveShellBase):
+    intro = "Welcome to My Shell"
+    prompt = '(myshell) '
+
+    def __init__(self):
+        super().__init__()
+        # 初始化你的组件
+
+    def do_mycommand(self, arg):
+        """我的自定义命令"""
+        self.print_info("正在执行命令...")
+        # 使用 self.console 访问 Rich Console
+        # 使用辅助方法：self.print_success(), self.print_error() 等
+
+    def do_help(self, arg):
+        """覆盖帮助系统"""
+        if arg:
+            super().do_help(arg)
+        else:
+            help_text = """
+## 我的命令列表
+...
+"""
+            self.print_markdown(help_text)
+
+# 使用
+shell = MyShell()
+shell.cmdloop()
+```
+
+### 在主 CLI 中使用
+
+`backend/cli.py`（主 Agent CLI）也可以使用这个基类的辅助方法：
+
+```python
+from backend.interactive_base import InteractiveShellBase
+
+class AgentCLI(InteractiveShellBase):
+    # 可以保留现有的 prompt_toolkit 集成
+    # 同时使用基类的 Rich 格式化方法
+
+    def run_agent(self):
+        self.print_info("启动 Agent...")
+        # 使用 self.print_success(), self.print_error() 等
+```
+
+### 优势
+
+1. **避免重复** - 通用功能只写一次
+2. **一致体验** - 所有交互式 CLI 使用相同的格式和风格
+3. **易于维护** - 修改基类即可影响所有子类
+4. **灵活扩展** - 子类可以覆盖或扩展任何功能
+
 ## 📚 扩展阅读
 
 - 基础用法：`backend/remotectl/README.md`
 - 配置说明：`docs/CONFIG_ARCHITECTURE.md`
 - API 参考：查看 `README.md` 中的 API 章节
+- 基类实现：`backend/interactive_base.py`
 
 ## 🚀 快速开始
 
