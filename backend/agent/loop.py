@@ -20,7 +20,8 @@ class AgentLoop:
                  client: Optional[OllamaClient] = None,
                  tool_executor: Optional[ToolExecutor] = None,
                  project_root: Optional[str] = None,
-                 confirmation_callback: Optional[Callable] = None):
+                 confirmation_callback: Optional[Callable] = None,
+                 tool_output_callback: Optional[Callable] = None):
         """
         Initialize agent loop
 
@@ -29,6 +30,7 @@ class AgentLoop:
             tool_executor: ToolExecutor instance (injected dependency)
             project_root: Project root directory
             confirmation_callback: Callback function for user confirmation
+            tool_output_callback: Callback function for tool output (tool_name, output, args)
         """
         self.client = client or OllamaClient()
         self.project_root = project_root or str(Path.cwd())
@@ -43,6 +45,9 @@ class AgentLoop:
         self.confirmation = ToolConfirmation()
         if confirmation_callback:
             self.confirmation.set_confirmation_callback(confirmation_callback)
+
+        # Tool output callback
+        self.tool_output_callback = tool_output_callback
 
         # State
         self.conversation_history: List[Dict[str, str]] = []
@@ -204,6 +209,16 @@ class AgentLoop:
 
                 # Execute tool via executor
                 result = self.tool_executor.execute_tool(tool_name, arguments)
+
+                # Call tool output callback if provided
+                if self.tool_output_callback:
+                    try:
+                        self.tool_output_callback(tool_name, str(result), arguments)
+                    except Exception as e:
+                        # Don't let callback errors break execution
+                        import os
+                        if os.getenv('DEBUG_AGENT'):
+                            print(f"Tool output callback error: {e}")
 
                 # DEBUG: Log tool results
                 import os

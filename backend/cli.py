@@ -14,6 +14,9 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.live import Live
+from rich.text import Text
+from rich.console import Group
 
 from .agent.loop import AgentLoop
 from .llm.client import OllamaClient
@@ -44,7 +47,8 @@ class CLI:
         self.agent = AgentLoop(
             client=self.client,
             project_root=self.project_root,
-            confirmation_callback=self._confirm_tool_execution
+            confirmation_callback=self._confirm_tool_execution,
+            tool_output_callback=self.add_tool_output
         )
 
         # Setup prompt session
@@ -56,7 +60,113 @@ class CLI:
 
         # Initialize remote commands (for /model commands)
         self.remote_commands = RemoteCommands(self.console)
-    
+
+        # Tool output management (for enhanced display)
+        self.current_command = ""
+        self.tool_outputs = []  # [{'tool', 'output', 'args', 'collapsed', 'lines'}]
+
+    def add_tool_output(self, tool_name: str, output: str, args: dict = None, auto_collapse: bool = True):
+        """Add tool output with automatic collapse for long outputs
+
+        Args:
+            tool_name: Tool name
+            output: Output content
+            args: Tool arguments (optional)
+            auto_collapse: Auto-collapse if output >20 lines
+        """
+        lines = output.count('\n')
+        should_collapse = auto_collapse and lines > 20
+
+        self.tool_outputs.append({
+            'tool': tool_name,
+            'output': output,
+            'args': args or {},
+            'collapsed': should_collapse,
+            'lines': lines
+        })
+
+    def toggle_output(self, index: int):
+        """Toggle collapse state of specific output"""
+        if 0 <= index < len(self.tool_outputs):
+            self.tool_outputs[index]['collapsed'] = not self.tool_outputs[index]['collapsed']
+
+    def toggle_last_output(self):
+        """Toggle collapse state of last output"""
+        if self.tool_outputs:
+            self.toggle_output(len(self.tool_outputs) - 1)
+
+    def display_tool_outputs_summary(self):
+        """Display summary of all tool outputs"""
+        if not self.tool_outputs:
+            return
+
+        elements = []
+
+        # Command panel (at top)
+        command_panel = Panel(
+            Text(f"> {self.current_command}", style="cyan bold"),
+            title="[bold blue]Command[/bold blue]",
+            border_style="blue",
+            padding=(0, 1)
+        )
+        elements.append(command_panel)
+
+        # Tool outputs
+        for i, tool_data in enumerate(self.tool_outputs):
+            tool_name = tool_data['tool']
+            output = tool_data['output']
+            args = tool_data['args']
+            collapsed = tool_data['collapsed']
+            lines = tool_data['lines']
+
+            # Format arguments for display
+            args_str = ""
+            if args:
+                args_display = []
+                for key, value in args.items():
+                    value_str = str(value)
+                    if len(value_str) > 50:
+                        value_str = value_str[:47] + "..."
+                    args_display.append(f"{key}={repr(value_str)}")
+                args_str = f" ({', '.join(args_display)})"
+
+            if collapsed:
+                # Collapsed state
+                collapse_text = Text()
+                collapse_text.append("▶ ", style="yellow")
+                collapse_text.append(f"[{tool_name}]", style="cyan bold")
+                if args_str:
+                    collapse_text.append(args_str, style="cyan dim")
+                collapse_text.append(f" ({lines} lines) ", style="dim")
+                collapse_text.append("[Use /expand to view]", style="dim italic")
+                elements.append(collapse_text)
+            else:
+                # Expanded state
+                display_output = output
+                if len(output) > 2000:
+                    display_output = output[:2000] + f"\n\n... ({len(output) - 2000} more chars)"
+
+                title = f"[bold green]▼ {tool_name}[/bold green]"
+                if args_str:
+                    title += f"[dim]{args_str}[/dim]"
+
+                output_panel = Panel(
+                    display_output,
+                    title=title,
+                    border_style="green",
+                    padding=(0, 1)
+                )
+                elements.append(output_panel)
+
+        # Print all elements
+        self.console.print("\n")
+        for element in elements:
+            self.console.print(element)
+
+        # Print hints
+        if any(t['collapsed'] for t in self.tool_outputs):
+            self.console.print("\n[dim]提示: 使用 /expand 展开折叠的输出, /collapse 折叠输出, /toggle 切换最后一个[/dim]")
+
     def _run_precheck(self):
         """Run environment pre-check"""
         self.console.print("\n[cyan]运行环境检查...[/cyan]\n")
@@ -194,6 +304,7 @@ class CLI:
 - `/usage` - 显示 Token 使用情况
 - `/reset-confirmations` - 重置工具执行确认
 - `/model` - 管理 Ollama 模型（list/create/pull/health）
+- `/expand` / `/collapse` / `/toggle` - 展开/折叠工具输出
 - `/exit` - 退出
 
 **快速开始**: 直接输入您的请求，例如：
@@ -202,6 +313,7 @@ class CLI:
 - "为当前文件生成单元测试"
 
 💡 修改 `config/ollama.yaml` 中的 `stream` 配置可切换输出模式
+💡 工具输出超过 20 行会自动折叠，使用 /expand 查看详情
 """
         self.console.print(Panel(
             Markdown(welcome.format(
@@ -230,7 +342,11 @@ class CLI:
                     if not self.handle_command(user_input):
                         break
                     continue
-                
+
+                # Clear tool outputs and set current command
+                self.current_command = user_input
+                self.tool_outputs = []
+
                 # Execute task
                 self.console.print("\n[cyan]执行中...[/cyan]\n")
 
@@ -267,6 +383,10 @@ class CLI:
                             title="响应",
                             border_style="green"
                         ))
+
+                    # Display tool outputs summary if any
+                    if self.tool_outputs:
+                        self.display_tool_outputs_summary()
 
                 except Exception as e:
                     self.console.print(f"[red]错误: {e}[/red]")
@@ -332,10 +452,33 @@ class CLI:
             # Handle model management commands
             self.handle_model_command(command)
 
+        elif cmd == '/expand':
+            # Expand last collapsed output
+            for i in range(len(self.tool_outputs) - 1, -1, -1):
+                if self.tool_outputs[i]['collapsed']:
+                    self.toggle_output(i)
+                    self.console.print(f"[green]✓ 展开了输出 #{i + 1}[/green]")
+                    return True
+            self.console.print("[yellow]没有折叠的输出[/yellow]")
+
+        elif cmd == '/collapse':
+            # Collapse last expanded output
+            for i in range(len(self.tool_outputs) - 1, -1, -1):
+                if not self.tool_outputs[i]['collapsed']:
+                    self.toggle_output(i)
+                    self.console.print(f"[green]✓ 折叠了输出 #{i + 1}[/green]")
+                    return True
+            self.console.print("[yellow]没有展开的输出[/yellow]")
+
+        elif cmd == '/toggle':
+            # Toggle last output
+            self.toggle_last_output()
+            self.console.print("[green]✓ 切换了最后一个输出状态[/green]")
+
         else:
             self.console.print(f"[yellow]未知命令: {cmd}[/yellow]")
             self.console.print("输入 /help 查看可用命令")
-        
+
         return True
 
     def handle_model_command(self, command: str):
@@ -413,6 +556,11 @@ class CLI:
 - `/reset-confirmations` - 重置所有工具执行确认
 - `/exit` 或 `/quit` - 退出程序
 
+### 工具输出管理
+- `/expand` - 展开最后一个折叠的工具输出
+- `/collapse` - 折叠最后一个展开的工具输出
+- `/toggle` - 切换最后一个工具输出的状态
+
 ### 模型管理
 - `/model list` - 列出所有 Ollama 模型
 - `/model create` - 创建 claude-qwen 模型
@@ -444,6 +592,9 @@ class CLI:
 分析项目结构
 查找所有网络相关的函数
 ```
+
+**工具输出管理**:
+工具输出超过 20 行会自动折叠，使用 `/expand` 展开查看详细信息。
 """
         self.console.print(Panel(Markdown(help_text), title="帮助"))
 
