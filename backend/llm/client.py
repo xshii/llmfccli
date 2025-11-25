@@ -58,7 +58,8 @@ class OllamaClient:
         self.base_url = self.config['base_url']
         self.model = self.config['model']
         self.timeout = self.config['timeout']
-        self.generation_params = self.config['generation']
+        # generation 参数已在 Modelfile 中固化，这里只用于临时覆盖
+        self.generation_params = self.config.get('generation', {})
         self.retry_config = self.config['retry']
         self.stream_enabled = self.config.get('stream', False)  # Default to False for backward compatibility
 
@@ -86,17 +87,21 @@ class OllamaClient:
         import subprocess
         import json
         
-        # Merge generation params with kwargs
+        # Merge generation params with kwargs (only if provided)
+        # 优先使用 Modelfile 中固化的参数，除非在 config 或 kwargs 中明确覆盖
         params = {**self.generation_params, **kwargs}
-        
+
         # Prepare request
         data = {
             'model': self.model,
             'messages': messages,
-            'options': params,
             'stream': stream,  # Use the stream parameter
             'stop': ['<|endoftext|>', '<|im_end|>', 'Human:', '\nHuman:']
         }
+
+        # 只有在有参数需要覆盖时才传递 options（否则使用 Modelfile 中的默认值）
+        if params:
+            data['options'] = params
         
         if tools:
             data['tools'] = tools

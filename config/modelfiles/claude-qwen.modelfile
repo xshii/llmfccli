@@ -1,5 +1,10 @@
 # Claude-Qwen Custom Model
 # 基于 qwen3，继承其 tool calling template
+#
+# 设计原则：
+# - 所有固定参数（SYSTEM, PARAMETER）在 Modelfile 中定义
+# - config/ollama.yaml 只包含运行时配置（base_url, timeout 等）
+# - 避免配置重复，单一数据源
 
 FROM qwen3:latest
 
