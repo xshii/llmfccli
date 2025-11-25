@@ -139,16 +139,26 @@ class CLI:
                 
                 # Execute task
                 self.console.print("\n[cyan]执行中...[/cyan]\n")
-                
+
                 try:
-                    response = self.agent.run(user_input)
-                    
-                    # Display response
-                    self.console.print(Panel(
-                        Markdown(response),
-                        title="响应",
-                        border_style="green"
-                    ))
+                    # Streaming output buffer
+                    streamed_content = []
+
+                    def on_chunk(chunk: str):
+                        """Callback for streaming chunks"""
+                        streamed_content.append(chunk)
+                        # Print chunk in real-time
+                        self.console.print(chunk, end='', style="white")
+
+                    # Run with streaming enabled
+                    response = self.agent.run(user_input, stream=True, on_chunk=on_chunk)
+
+                    # Print newline after streaming
+                    self.console.print("\n")
+
+                    # If response is empty (fully streamed), use streamed content
+                    if not response.strip() and streamed_content:
+                        response = ''.join(streamed_content)
                     
                 except Exception as e:
                     self.console.print(f"[red]错误: {e}[/red]")

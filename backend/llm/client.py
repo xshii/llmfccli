@@ -6,7 +6,7 @@ Ollama client wrapper for Qwen3 model
 import json
 import time
 import subprocess
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
 import yaml
 
@@ -63,17 +63,21 @@ class OllamaClient:
         # Warm up model on initialization
         self._warmup()
         
-    def chat(self, messages: List[Dict[str, str]], 
+    def chat(self, messages: List[Dict[str, str]],
              tools: Optional[List[Dict]] = None,
+             stream: bool = False,
+             on_chunk: Optional[Callable[[str], None]] = None,
              **kwargs) -> Dict[str, Any]:
         """
         Send chat request to Qwen3 using curl
-        
+
         Args:
             messages: List of message dicts with 'role' and 'content'
             tools: Optional list of tool definitions for function calling
+            stream: Enable streaming output (default: False)
+            on_chunk: Optional callback function called with each content chunk
             **kwargs: Override generation parameters
-            
+
         Returns:
             Response dict with 'message' and optional 'tool_calls'
         """
@@ -88,7 +92,7 @@ class OllamaClient:
             'model': self.model,
             'messages': messages,
             'options': params,
-            'stream': False,
+            'stream': stream,  # Use the stream parameter
             'stop': ['<|endoftext|>', '<|im_end|>', 'Human:', '\nHuman:']
         }
         
@@ -164,7 +168,11 @@ class OllamaClient:
                             if 'message' in chunk and 'content' in chunk['message']:
                                 content = chunk['message']['content']
                                 full_response += content
-                                
+
+                                # Call streaming callback if provided
+                                if on_chunk and content:
+                                    on_chunk(content)
+
                                 # Check for stop tokens
                                 should_stop = False
                                 for token in stop_tokens:
@@ -172,7 +180,7 @@ class OllamaClient:
                                         full_response = full_response.split(token)[0]
                                         should_stop = True
                                         break
-                                
+
                                 if should_stop:
                                     process.kill()
                                     break
@@ -261,19 +269,23 @@ class OllamaClient:
                 else:
                     raise RuntimeError(f"Request failed after {max_attempts} attempts: {e}")
     
-    def chat_with_tools(self, messages: List[Dict[str, str]], 
-                       tools: List[Dict]) -> Dict[str, Any]:
+    def chat_with_tools(self, messages: List[Dict[str, str]],
+                       tools: List[Dict],
+                       stream: bool = False,
+                       on_chunk: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
         """
         Chat with function calling support
-        
+
         Args:
             messages: Conversation history
             tools: Tool definitions in OpenAI format
-            
+            stream: Enable streaming output (default: False)
+            on_chunk: Optional callback function called with each content chunk
+
         Returns:
             Response with potential tool_calls
         """
-        response = self.chat(messages, tools=tools)
+        response = self.chat(messages, tools=tools, stream=stream, on_chunk=on_chunk)
         return response
     
     def parse_tool_calls(self, response: Dict[str, Any]) -> Optional[List[Dict]]:
