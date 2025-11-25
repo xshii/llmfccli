@@ -278,25 +278,34 @@ class OllamaClient:
     
     def parse_tool_calls(self, response: Dict[str, Any]) -> Optional[List[Dict]]:
         """
-        Extract tool calls from response
-        
+        Extract tool calls from response and ensure each has a unique id
+
         Args:
             response: Ollama response dict
-            
+
         Returns:
             List of tool call dicts or None
         """
         # Check in message first
         message = response.get('message', {})
         tool_calls = message.get('tool_calls', [])
-        
+
         # If not in message, check at root level
         if not tool_calls:
             tool_calls = response.get('tool_calls', [])
-        
+
         if not tool_calls:
             return None
-        
+
+        # Ensure each tool call has an id field
+        # If missing, generate id based on function name
+        import time
+        for i, tool_call in enumerate(tool_calls):
+            if 'id' not in tool_call:
+                # Generate id: function_name + timestamp + index
+                func_name = tool_call.get('function', {}).get('name', 'unknown')
+                tool_call['id'] = f"{func_name}_{int(time.time() * 1000)}_{i}"
+
         return tool_calls
     
     def compress_context(self, messages: List[Dict[str, str]], 
