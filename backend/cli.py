@@ -210,6 +210,8 @@ class CLI:
 
         # Run pre-checks (skip project structure check)
         results = []
+        # First check and kill local Ollama if using remote
+        results.append(PreCheck.check_and_kill_local_ollama())
         results.append(PreCheck.check_ssh_tunnel())
         results.append(PreCheck.check_ollama_connection())
         results.append(PreCheck.check_ollama_model(model_name="qwen3:latest"))

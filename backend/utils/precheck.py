@@ -311,6 +311,118 @@ class PreCheck:
             )
 
     @staticmethod
+    def check_and_kill_local_ollama() -> PreCheckResult:
+        """
+        Check if local Ollama is running and kill it if using remote Ollama.
+        Reads config/ollama.yaml to determine if ssh.enabled is true.
+
+        Returns:
+            PreCheckResult
+        """
+        import os
+        import yaml
+        from pathlib import Path
+
+        try:
+            # Find config file
+            config_path = Path(__file__).parent.parent.parent / 'config' / 'ollama.yaml'
+
+            if not config_path.exists():
+                return PreCheckResult(
+                    "Local Ollama Check",
+                    True,
+                    "Config file not found, skipping local Ollama check",
+                    {"config_path": str(config_path)}
+                )
+
+            # Load config
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+
+            ssh_enabled = config.get('ssh', {}).get('enabled', False)
+
+            if not ssh_enabled:
+                return PreCheckResult(
+                    "Local Ollama Check",
+                    True,
+                    "Using local Ollama, no need to kill local process",
+                    {"ssh_enabled": False}
+                )
+
+            # SSH enabled (remote mode), check for local Ollama process
+            try:
+                result = subprocess.run(
+                    ['pgrep', '-f', 'ollama serve'],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+
+                if result.returncode == 0 and result.stdout.strip():
+                    # Found local Ollama process(es)
+                    pids = result.stdout.strip().split('\n')
+
+                    # Kill all Ollama processes
+                    killed_pids = []
+                    for pid in pids:
+                        try:
+                            kill_result = subprocess.run(
+                                ['kill', pid],
+                                capture_output=True,
+                                timeout=5
+                            )
+                            if kill_result.returncode == 0:
+                                killed_pids.append(pid)
+                        except Exception as e:
+                            pass
+
+                    if killed_pids:
+                        return PreCheckResult(
+                            "Local Ollama Check",
+                            True,
+                            f"Killed {len(killed_pids)} local Ollama process(es) (using remote Ollama)",
+                            {"killed_pids": killed_pids, "ssh_enabled": True}
+                        )
+                    else:
+                        return PreCheckResult(
+                            "Local Ollama Check",
+                            False,
+                            f"Found {len(pids)} local Ollama process(es) but failed to kill them",
+                            {"pids": pids, "ssh_enabled": True}
+                        )
+                else:
+                    # No local Ollama running
+                    return PreCheckResult(
+                        "Local Ollama Check",
+                        True,
+                        "No local Ollama process found (using remote Ollama)",
+                        {"ssh_enabled": True}
+                    )
+            except subprocess.TimeoutExpired:
+                return PreCheckResult(
+                    "Local Ollama Check",
+                    False,
+                    "Process check timeout",
+                    {"ssh_enabled": True}
+                )
+            except FileNotFoundError:
+                # pgrep not available
+                return PreCheckResult(
+                    "Local Ollama Check",
+                    True,
+                    "pgrep command not available, skipping process check",
+                    {"ssh_enabled": True}
+                )
+
+        except Exception as e:
+            return PreCheckResult(
+                "Local Ollama Check",
+                False,
+                f"Check failed: {e}",
+                {}
+            )
+
+    @staticmethod
     def check_project_structure(project_root: str) -> PreCheckResult:
         """
         Check if project structure is valid
@@ -375,6 +487,9 @@ class PreCheck:
             List of PreCheckResult
         """
         results = []
+
+        # 0. Check and kill local Ollama if using remote (must be first)
+        results.append(cls.check_and_kill_local_ollama())
 
         # 1. SSH Tunnel
         results.append(cls.check_ssh_tunnel())

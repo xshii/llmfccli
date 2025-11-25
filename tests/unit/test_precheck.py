@@ -155,10 +155,30 @@ def test_project_structure_check():
     print("✓ 项目结构检查测试通过\n")
 
 
+def test_check_and_kill_local_ollama():
+    """测试本地 Ollama 进程检查和终止"""
+    print("=" * 60)
+    print("测试 7: 本地 Ollama 进程检查")
+    print("=" * 60)
+
+    result = PreCheck.check_and_kill_local_ollama()
+
+    print(f"结果: {result}")
+    if result.details:
+        for key, value in result.details.items():
+            print(f"  {key}: {value}")
+
+    assert result.name == "Local Ollama Check"
+    assert isinstance(result.success, bool)
+    assert isinstance(result.message, str)
+
+    print("✓ 本地 Ollama 进程检查测试通过\n")
+
+
 def test_run_all_checks():
     """测试运行所有检查"""
     print("=" * 60)
-    print("测试 7: 运行所有检查")
+    print("测试 8: 运行所有检查")
     print("=" * 60)
 
     project_root = os.path.join(os.path.dirname(__file__), '../..')
@@ -167,7 +187,7 @@ def test_run_all_checks():
         project_root=project_root
     )
 
-    assert len(results) == 5  # Should have 5 checks
+    assert len(results) == 6  # Should have 6 checks (added local Ollama check)
 
     for result in results:
         print(f"  {result}")
@@ -184,7 +204,7 @@ def test_run_all_checks():
 def test_print_results():
     """测试结果打印功能"""
     print("=" * 60)
-    print("测试 8: 结果打印功能")
+    print("测试 9: 结果打印功能")
     print("=" * 60)
 
     results = [
@@ -209,6 +229,7 @@ def main():
         ("Ollama 模型检查", test_ollama_model_check),
         ("Ollama Hello 测试", test_ollama_hello),
         ("项目结构检查", test_project_structure_check),
+        ("本地 Ollama 进程检查", test_check_and_kill_local_ollama),
         ("运行所有检查", test_run_all_checks),
         ("结果打印功能", test_print_results),
     ]
