@@ -92,14 +92,11 @@ class AgentLoop:
             'recent_messages',
             self.token_counter.count_messages(self.conversation_history)
         )
-        
-        # Get system prompt
-        from ..llm.prompts import get_system_prompt
-        messages = [
-            {'role': 'system', 'content': get_system_prompt()},
-            *self.conversation_history
-        ]
-        
+
+        # System prompt is now in Modelfile (claude-qwen:latest)
+        # No need to pass it dynamically
+        messages = list(self.conversation_history)
+
         iteration = 0
         
         while iteration < self.max_iterations:
@@ -230,13 +227,11 @@ class AgentLoop:
                     'tool_call_id': tool_call.get('id', f'call_{iteration}')
                 }
                 self.conversation_history.append(tool_message)
-            
+
             # Update messages for next iteration
-            messages = [
-                {'role': 'system', 'content': get_system_prompt()},
-                *self.conversation_history
-            ]
-            
+            # System prompt is in Modelfile, no need to pass it
+            messages = list(self.conversation_history)
+
             # Check if should compress
             if self.token_counter.should_compress(time.time()):
                 self._compress_context()
