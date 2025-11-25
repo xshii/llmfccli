@@ -1,6 +1,6 @@
 ollama:
   base_url: "http://localhost:11434"  # 通过 SSH 隧道访问
-  model: "qwen3:latest"
+  model: "claude-qwen:latest"  # 使用自定义模型（固化了 system prompt 和参数）
   timeout: 300
   stream: true  # 启用流式输出 (true) 或等待完整响应 (false)
 
@@ -21,3 +21,41 @@ ollama:
     max_attempts: 3
     backoff_factor: 2
     initial_delay: 1
+
+# SSH 配置（用于远程 Ollama 管理）
+ssh:
+  enabled: false              # 启用 SSH 远程管理（true: 远程, false: 本地）
+  host: "ollama-tunnel"       # SSH 配置名称（~/.ssh/config 中定义）
+  user: "gakki"               # SSH 用户名（可选，如果在 .ssh/config 中已定义）
+
+# 模型管理配置
+model_management:
+  # 模型定义列表
+  models:
+    # 主要使用的自定义模型
+    - name: "claude-qwen:latest"          # 创建后的模型名
+      base_model: "qwen3:latest"          # 基础模型（用于 FROM 指令）
+      modelfile: "modelfiles/claude-qwen.modelfile"  # Modelfile 相对路径（相对于 config/）
+      description: "C++ 编程助手，基于 Qwen3"
+      enabled: true                       # 是否启用此模型配置
+
+    # 可以定义更多模型
+    # - name: "claude-qwen:dev"
+    #   base_model: "qwen3:latest"
+    #   modelfile: "modelfiles/claude-qwen-dev.modelfile"
+    #   description: "开发测试版本"
+    #   enabled: false
+
+  # 基础模型下载配置
+  base_models:
+    - registry_name: "qwen3:latest"       # Ollama registry 中的名称
+      local_name: "qwen3:latest"          # 本地存储名称
+      auto_pull: true                     # 启动时自动拉取（如果不存在）
+
+    # 其他基础模型
+    # - registry_name: "llama3.1:8b"
+    #   local_name: "llama3.1:8b"
+    #   auto_pull: false
+
+  # 默认使用的模型（在 ollama.model 中指定）
+  default_model: "claude-qwen:latest"
