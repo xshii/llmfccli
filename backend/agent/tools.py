@@ -116,12 +116,17 @@ def register_filesystem_tools(project_root: str):
                 'new_str': {
                     'type': 'string',
                     'description': 'Replacement string'
+                },
+                'confirm': {
+                    'type': 'boolean',
+                    'description': 'Require user confirmation (default: true)',
+                    'default': True
                 }
             },
             'required': ['path', 'old_str', 'new_str']
         },
-        implementation=lambda path, old_str, new_str: edit_file(
-            path, old_str, new_str, project_root
+        implementation=lambda path, old_str, new_str, confirm=True: edit_file(
+            path, old_str, new_str, project_root, confirm=confirm
         )
     )
     

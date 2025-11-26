@@ -38,13 +38,16 @@ class AgentLoop:
         # Initialize components
         self.token_counter = TokenCounter()
 
-        # Initialize tool executor (dependency injection)
-        self.tool_executor = tool_executor or RegistryToolExecutor(self.project_root)
-
-        # Initialize tool confirmation
+        # Initialize tool confirmation first (needed by tool executor)
         self.confirmation = ToolConfirmation()
         if confirmation_callback:
             self.confirmation.set_confirmation_callback(confirmation_callback)
+
+        # Initialize tool executor (with confirmation manager for smart handling)
+        self.tool_executor = tool_executor or RegistryToolExecutor(
+            self.project_root,
+            confirmation_manager=self.confirmation
+        )
 
         # Tool output callback
         self.tool_output_callback = tool_output_callback

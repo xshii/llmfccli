@@ -64,17 +64,19 @@ class ToolExecutor(ABC):
 class RegistryToolExecutor(ToolExecutor):
     """Tool executor backed by ToolRegistry"""
 
-    def __init__(self, project_root: str):
+    def __init__(self, project_root: str, confirmation_manager: Optional[Any] = None):
         """
         Initialize tool executor with project root
 
         Args:
             project_root: Project root directory path
+            confirmation_manager: ToolConfirmation instance (optional)
         """
         from .tools import initialize_tools, registry
 
         self.project_root = project_root
         self.registry = registry
+        self.confirmation = confirmation_manager
 
         # Initialize tools
         initialize_tools(project_root)
@@ -84,7 +86,23 @@ class RegistryToolExecutor(ToolExecutor):
         return self.registry.get_schemas()
 
     def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
-        """Execute a tool via registry"""
+        """
+        Execute a tool via registry with smart confirmation handling
+
+        For edit_file:
+        - If user set "always allow" → confirm=False (skip tool-level confirmation)
+        - Otherwise → confirm=True (show diff preview)
+        """
+        # Smart handling for edit_file
+        if tool_name == 'edit_file' and self.confirmation:
+            # Check if user has set "always allow" for edit_file
+            if tool_name in self.confirmation.allowed_tools:
+                # User trusts this tool, skip tool-level confirmation
+                arguments = dict(arguments)  # Copy to avoid mutation
+                arguments['confirm'] = False
+            # If not in allowed_tools, use default (confirm=True)
+            # This shows diff preview for user review
+
         return self.registry.execute(tool_name, arguments)
 
     def get_tool_names(self) -> List[str]:
