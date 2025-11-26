@@ -520,6 +520,10 @@ class CLI:
             # Test VSCode integration
             self.test_vscode_integration()
 
+        elif cmd == '/vscode':
+            # Open current project in VSCode
+            self.open_in_vscode()
+
         else:
             self.console.print(f"[yellow]未知命令: {cmd}[/yellow]")
             self.console.print("输入 /help 查看可用命令")
@@ -667,6 +671,64 @@ int main() {
         self.console.print("  3. 在 VSCode extension 中实现对应的命令处理")
         self.console.print("  4. 测试实际的 extension 对接\n")
 
+    def open_in_vscode(self):
+        """Open current project in VSCode with Claude-Qwen extension"""
+        import subprocess
+        import shutil
+
+        self.console.print("\n[cyan]打开 VSCode...[/cyan]")
+
+        # Check if code command is available
+        if not shutil.which('code'):
+            self.console.print("[red]错误: 未找到 'code' 命令[/red]")
+            self.console.print("[yellow]请确保已安装 VSCode 并添加到 PATH[/yellow]")
+            self.console.print("[dim]安装方法: VSCode → Command Palette → 'Shell Command: Install code command in PATH'[/dim]")
+            return
+
+        # Check if extension is installed
+        try:
+            result = subprocess.run(
+                ['code', '--list-extensions'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            extensions = result.stdout.lower()
+            extension_installed = 'claude-qwen' in extensions
+        except Exception:
+            extension_installed = False
+
+        if not extension_installed:
+            self.console.print("[yellow]⚠ Claude-Qwen extension 未安装[/yellow]")
+            self.console.print("\n[dim]安装方法:[/dim]")
+            self.console.print("  cd vscode-extension")
+            self.console.print("  npm install && npm run package")
+            self.console.print("  code --install-extension claude-qwen-0.1.0.vsix\n")
+
+            response = input("是否继续打开 VSCode? (y/N): ").strip().lower()
+            if response not in ['y', 'yes']:
+                return
+
+        # Open VSCode
+        try:
+            self.console.print(f"[dim]执行: code {self.project_root}[/dim]")
+            subprocess.run(
+                ['code', self.project_root],
+                check=True,
+                timeout=10
+            )
+            self.console.print("[green]✓ VSCode 已打开[/green]")
+
+            if extension_installed:
+                self.console.print("\n[cyan]提示:[/cyan]")
+                self.console.print("  在 VSCode 中按 Ctrl+Shift+P")
+                self.console.print("  输入: 'Claude-Qwen: Start'")
+                self.console.print("  开始使用 AI 助手")
+        except subprocess.TimeoutExpired:
+            self.console.print("[yellow]⚠ VSCode 启动超时，但可能已在后台运行[/yellow]")
+        except Exception as e:
+            self.console.print(f"[red]错误: {e}[/red]")
+
     def handle_model_command(self, command: str):
         """Handle /model subcommands for Ollama model management
 
@@ -748,6 +810,7 @@ int main() {
 - `/toggle` - 切换最后一个工具输出的状态
 
 ### VSCode 集成
+- `/vscode` - 在 VSCode 中打开当前项目
 - `/testvs` - 测试 VSCode extension 集成（Mock 模式）
 
 ### 模型管理
