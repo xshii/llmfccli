@@ -61,7 +61,9 @@ class RemoteOllamaClient:
         else:
             ssh_target = self.ssh_host
 
-        ssh_cmd = ['ssh', ssh_target, command]
+        # Use -o ClearAllForwardings=yes to prevent port forwarding conflicts
+        # when SSH config has LocalForward defined (e.g., for SSH tunnel)
+        ssh_cmd = ['ssh', '-o', 'ClearAllForwardings=yes', ssh_target, command]
 
         try:
             result = subprocess.run(
