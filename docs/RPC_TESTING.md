@@ -8,18 +8,37 @@
 
 这些测试验证 RPC 客户端基础功能，使用 Mock 数据，不需要真实的 VSCode 环境。
 
-#### 运行基础 RPC 测试
+#### 运行 Python 端测试
 
 ```bash
-# RPC 客户端基础功能测试
-python3 tests/test_rpc_integration.py
+# 运行所有 RPC 测试（推荐）
+python3 tests/run_rpc_tests.py
 
-# VSCode 工具 Mock 模式测试
-python3 tests/unit/test_vscode.py
-
-# RPC E2E 集成测试（模拟 VSCode 响应）
-python3 tests/test_rpc_e2e_simple.py
+# 或单独运行
+python3 tests/extension/test_rpc_integration.py
+python3 tests/extension/test_vscode.py
+python3 tests/extension/test_rpc_e2e_simple.py
 ```
+
+#### 运行 TypeScript 端测试
+
+测试 VSCode 扩展的 TypeScript 代码（需要 Node.js）：
+
+```bash
+# 自动化测试（推荐，自动安装依赖和编译）
+python3 tests/extension/test_typescript_integration.py
+
+# 或手动运行
+cd vscode-extension
+npm install
+npm test
+```
+
+**TypeScript 测试内容：**
+- JSON-RPC 服务器初始化
+- 请求处理逻辑
+- 方法路由和错误处理
+- VSCode API 集成
 
 #### 测试覆盖
 

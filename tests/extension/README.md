@@ -52,10 +52,26 @@ python3 tests/extension/test_rpc_e2e_simple.py
 
 ## 快速运行所有测试
 
+### Python 端测试（Mock 模式，不需要 Node.js）
+
 使用专用的 RPC 测试运行器：
 
 ```bash
 python3 tests/run_rpc_tests.py
+```
+
+### TypeScript 端测试（需要 Node.js 和 npm）
+
+测试 VSCode 扩展的 TypeScript 代码：
+
+```bash
+# 运行完整的 TypeScript 集成测试（自动安装依赖、编译、测试）
+python3 tests/extension/test_typescript_integration.py
+
+# 或者手动运行
+cd vscode-extension
+npm install
+npm test
 ```
 
 ## 测试模式
