@@ -3,7 +3,7 @@
 """
 Test VSCode integration tools
 
-Tests the VSCode client and tool functions in mock mode.
+Tests the VSCode tool functions in mock mode.
 """
 
 import sys
@@ -16,18 +16,22 @@ sys.path.insert(0, project_root)
 from backend.tools import vscode
 
 
-def test_vscode_client():
-    """Test VSCode client initialization and mock responses"""
+def test_vscode_tools():
+    """Test VSCode tools with mock responses"""
     print("\n" + "=" * 60)
-    print("Testing VSCode Client")
+    print("Testing VSCode Tools")
     print("=" * 60)
 
-    # Test 1: Initialize client in mock mode
-    print("\n1. Initializing VSCode client (mock mode)...")
-    client = vscode.init_vscode_client(mode="mock")
-    assert client is not None
-    assert client.mode == "mock"
-    print("✓ Client initialized")
+    # Ensure we're not in VSCode mode
+    if 'VSCODE_INTEGRATION' in os.environ:
+        del os.environ['VSCODE_INTEGRATION']
+
+    # Test 1: Check mock data
+    print("\n1. Checking mock data...")
+    assert vscode.MOCK_DATA is not None
+    assert 'active_file' in vscode.MOCK_DATA
+    assert 'selection' in vscode.MOCK_DATA
+    print("✓ Mock data available")
 
     # Test 2: Get active file
     print("\n2. Testing get_active_file()...")
@@ -87,9 +91,9 @@ def test_vscode_client():
     print(f"✓ Workspace: {workspace}")
 
     print("\n" + "=" * 60)
-    print("✅ All VSCode client tests passed!")
+    print("✅ All VSCode tool tests passed!")
     print("=" * 60)
 
 
 if __name__ == '__main__':
-    test_vscode_client()
+    test_vscode_tools()

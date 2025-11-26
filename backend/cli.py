@@ -559,17 +559,16 @@ class CLI:
         - Get workspace folder
         """
         from backend.tools import vscode
+        from backend.rpc.client import is_vscode_mode
         from rich.table import Table
 
         self.console.print("\n[cyan]═══════════════════════════════════════[/cyan]")
         self.console.print("[cyan bold]  VSCode Extension 集成测试[/cyan bold]")
         self.console.print("[cyan]═══════════════════════════════════════[/cyan]\n")
 
-        # Initialize VSCode client in mock mode
-        vscode.init_vscode_client(mode="mock")
-        client = vscode.get_vscode_client()
-
-        self.console.print(f"[dim]通信模式: {client.mode}[/dim]\n")
+        # Check communication mode
+        mode = "VSCode RPC" if is_vscode_mode() else "Mock"
+        self.console.print(f"[dim]通信模式: {mode}[/dim]\n")
 
         # Create results table
         table = Table(show_header=True, header_style="bold cyan")
@@ -668,18 +667,21 @@ int main() {
         # Display results
         self.console.print(table)
 
-        # Display sample mock data
-        self.console.print("\n[cyan]示例数据:[/cyan]")
-        self.console.print(Panel(
-            f"[bold]当前文件:[/bold]\n"
-            f"{client.mock_active_file}\n\n"
-            f"[bold]文件内容:[/bold]\n"
-            f"[dim]{client.mock_file_content}[/dim]\n\n"
-            f"[bold]选中文本:[/bold]\n"
-            f"{client.mock_selection['text']}",
-            title="Mock 数据",
-            border_style="cyan"
-        ))
+        # Display sample data
+        if not is_vscode_mode():
+            self.console.print("\n[cyan]Mock 数据示例:[/cyan]")
+            self.console.print(Panel(
+                f"[bold]当前文件:[/bold]\n"
+                f"{vscode.MOCK_DATA['active_file']['path']}\n\n"
+                f"[bold]文件内容:[/bold]\n"
+                f"[dim]{vscode.MOCK_DATA['active_file']['content']}[/dim]\n\n"
+                f"[bold]选中文本:[/bold]\n"
+                f"{vscode.MOCK_DATA['selection']['text']}",
+                title="Mock 数据",
+                border_style="cyan"
+            ))
+        else:
+            self.console.print("\n[green]✓ 使用真实 VSCode 数据[/green]")
 
         # Display next steps
         self.console.print("\n[yellow]下一步:[/yellow]")

@@ -9,9 +9,7 @@ Provides tools for integrating with VSCode extension:
 """
 
 import os
-import json
-from typing import Dict, Any, Optional, List, Tuple
-from pathlib import Path
+from typing import Dict, Any, Optional
 
 
 class VSCodeError(Exception):
@@ -19,181 +17,45 @@ class VSCodeError(Exception):
     pass
 
 
-class VSCodeClient:
-    """Client for communicating with VSCode extension
-
-    Communication modes:
-    1. Mock mode: Returns simulated responses (for testing)
-    2. IPC mode: Communicates via stdin/stdout with VSCode extension
-    3. Socket mode: Communicates via local socket
-    """
-
-    def __init__(self, mode: str = "mock", socket_path: Optional[str] = None):
-        """Initialize VSCode client
-
-        Args:
-            mode: Communication mode ("mock", "ipc", "socket")
-            socket_path: Path to socket file (for socket mode)
-        """
-        self.mode = mode
-        self.socket_path = socket_path
-        self.request_id = 0
-
-        # Mock data for testing
-        self.mock_active_file = "/path/to/project/src/main.cpp"
-        self.mock_file_content = """#include <iostream>
+# Mock data for testing (when not in VSCode mode)
+MOCK_DATA = {
+    "active_file": {
+        "path": "/path/to/project/src/main.cpp",
+        "content": """#include <iostream>
 
 int main() {
     std::cout << "Hello World" << std::endl;
     return 0;
 }
-"""
-        self.mock_selection = {
-            "text": 'std::cout << "Hello World" << std::endl;',
-            "start": {"line": 3, "character": 4},
-            "end": {"line": 3, "character": 49}
-        }
-
-    def _send_request(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Send request to VSCode extension
-
-        Args:
-            method: Method name
-            params: Method parameters
-
-        Returns:
-            Response from VSCode
-        """
-        self.request_id += 1
-        request = {
-            "jsonrpc": "2.0",
-            "id": self.request_id,
-            "method": method,
-            "params": params
-        }
-
-        if self.mode == "mock":
-            return self._mock_response(method, params)
-        elif self.mode == "ipc":
-            return self._ipc_request(request)
-        elif self.mode == "socket":
-            return self._socket_request(request)
-        else:
-            raise VSCodeError(f"Unknown communication mode: {self.mode}")
-
-    def _mock_response(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate mock response for testing
-
-        Args:
-            method: Method name
-            params: Method parameters
-
-        Returns:
-            Mock response
-        """
-        if method == "getActiveFile":
-            return {
-                "success": True,
-                "file": {
-                    "path": self.mock_active_file,
-                    "content": self.mock_file_content,
-                    "language": "cpp",
-                    "lineCount": len(self.mock_file_content.split('\n'))
-                }
-            }
-
-        elif method == "getSelection":
-            return {
-                "success": True,
-                "selection": self.mock_selection
-            }
-
-        elif method == "showDiff":
-            return {
-                "success": True,
-                "message": f"Diff shown: {params.get('title', 'Untitled')}"
-            }
-
-        elif method == "applyChanges":
-            return {
-                "success": True,
-                "message": f"Applied changes to {params.get('path', 'unknown')}"
-            }
-
-        elif method == "openFile":
-            return {
-                "success": True,
-                "message": f"Opened file: {params.get('path', 'unknown')}"
-            }
-
-        elif method == "getWorkspaceFolder":
-            return {
-                "success": True,
-                "folder": "/path/to/project"
-            }
-
-        else:
-            return {
-                "success": False,
-                "error": f"Unknown method: {method}"
-            }
-
-    def _ipc_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Send request via IPC (stdin/stdout)
-
-        Args:
-            request: JSON-RPC request
-
-        Returns:
-            Response from VSCode
-        """
-        # TODO: Implement IPC communication
-        # This would write to stdout and read from stdin
-        raise NotImplementedError("IPC mode not yet implemented")
-
-    def _socket_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Send request via Unix socket
-
-        Args:
-            request: JSON-RPC request
-
-        Returns:
-            Response from VSCode
-        """
-        # TODO: Implement socket communication
-        import socket
-        raise NotImplementedError("Socket mode not yet implemented")
+""",
+        "language": "cpp",
+        "lineCount": 7
+    },
+    "selection": {
+        "text": 'std::cout << "Hello World" << std::endl;',
+        "start": {"line": 3, "character": 4},
+        "end": {"line": 3, "character": 49}
+    },
+    "workspace": "/path/to/project"
+}
 
 
-# Global VSCode client instance
-_vscode_client: Optional[VSCodeClient] = None
-
-
-def init_vscode_client(mode: str = "mock", socket_path: Optional[str] = None) -> VSCodeClient:
-    """Initialize global VSCode client
-
-    Args:
-        mode: Communication mode
-        socket_path: Socket path (for socket mode)
-
-    Returns:
-        VSCode client instance
-    """
-    global _vscode_client
-    _vscode_client = VSCodeClient(mode=mode, socket_path=socket_path)
-    return _vscode_client
-
-
-def get_vscode_client() -> VSCodeClient:
-    """Get global VSCode client instance
-
-    Returns:
-        VSCode client instance
-    """
-    global _vscode_client
-    if _vscode_client is None:
-        _vscode_client = VSCodeClient(mode="mock")
-    return _vscode_client
+def _mock_response(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate mock response for testing"""
+    if method == "getActiveFile":
+        return {"success": True, "file": MOCK_DATA["active_file"]}
+    elif method == "getSelection":
+        return {"success": True, "selection": MOCK_DATA["selection"]}
+    elif method == "showDiff":
+        return {"success": True, "message": f"Diff shown: {params.get('title', 'Untitled')}"}
+    elif method == "applyChanges":
+        return {"success": True, "message": f"Applied changes to {params.get('path', 'unknown')}"}
+    elif method == "openFile":
+        return {"success": True, "message": f"Opened file: {params.get('path', 'unknown')}"}
+    elif method == "getWorkspaceFolder":
+        return {"success": True, "folder": MOCK_DATA["workspace"]}
+    else:
+        return {"success": False, "error": f"Unknown method: {method}"}
 
 
 # Tool functions for agent
@@ -209,7 +71,6 @@ def get_active_file() -> Dict[str, Any]:
             'lineCount': int
         }
     """
-    # Check if in VSCode integration mode
     from backend.rpc.client import is_vscode_mode, send_vscode_request
 
     if is_vscode_mode():
@@ -220,9 +81,8 @@ def get_active_file() -> Dict[str, Any]:
         else:
             raise VSCodeError(response.get("error", "Failed to get active file"))
     else:
-        # Use mock client
-        client = get_vscode_client()
-        response = client._send_request("getActiveFile", {})
+        # Use mock data
+        response = _mock_response("getActiveFile", {})
         if response.get("success"):
             return response["file"]
         else:
@@ -248,8 +108,7 @@ def get_selection() -> Dict[str, Any]:
         else:
             raise VSCodeError(response.get("error", "Failed to get selection"))
     else:
-        client = get_vscode_client()
-        response = client._send_request("getSelection", {})
+        response = _mock_response("getSelection", {})
         if response.get("success"):
             return response["selection"]
         else:
@@ -269,19 +128,16 @@ def show_diff(title: str, original_path: str, modified_content: str) -> Dict[str
     """
     from backend.rpc.client import is_vscode_mode, send_vscode_request
 
+    params = {
+        "title": title,
+        "originalPath": original_path,
+        "modifiedContent": modified_content
+    }
+
     if is_vscode_mode():
-        return send_vscode_request("showDiff", {
-            "title": title,
-            "originalPath": original_path,
-            "modifiedContent": modified_content
-        })
+        return send_vscode_request("showDiff", params)
     else:
-        client = get_vscode_client()
-        return client._send_request("showDiff", {
-            "title": title,
-            "originalPath": original_path,
-            "modifiedContent": modified_content
-        })
+        return _mock_response("showDiff", params)
 
 
 def apply_changes(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
@@ -297,19 +153,16 @@ def apply_changes(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
     """
     from backend.rpc.client import is_vscode_mode, send_vscode_request
 
+    params = {
+        "path": path,
+        "oldStr": old_str,
+        "newStr": new_str
+    }
+
     if is_vscode_mode():
-        return send_vscode_request("applyChanges", {
-            "path": path,
-            "oldStr": old_str,
-            "newStr": new_str
-        })
+        return send_vscode_request("applyChanges", params)
     else:
-        client = get_vscode_client()
-        return client._send_request("applyChanges", {
-            "path": path,
-            "oldStr": old_str,
-            "newStr": new_str
-        })
+        return _mock_response("applyChanges", params)
 
 
 def open_file(path: str, line: Optional[int] = None, column: Optional[int] = None) -> Dict[str, Any]:
@@ -334,8 +187,7 @@ def open_file(path: str, line: Optional[int] = None, column: Optional[int] = Non
     if is_vscode_mode():
         return send_vscode_request("openFile", params)
     else:
-        client = get_vscode_client()
-        return client._send_request("openFile", params)
+        return _mock_response("openFile", params)
 
 
 def get_workspace_folder() -> str:
@@ -353,8 +205,7 @@ def get_workspace_folder() -> str:
         else:
             raise VSCodeError(response.get("error", "Failed to get workspace folder"))
     else:
-        client = get_vscode_client()
-        response = client._send_request("getWorkspaceFolder", {})
+        response = _mock_response("getWorkspaceFolder", {})
         if response.get("success"):
             return response["folder"]
         else:
