@@ -371,7 +371,8 @@ class PreCheck:
                             capture_output=True,
                             text=True,
                             timeout=5,
-                            encoding='utf-8'
+                            encoding='utf-8',
+                            errors='ignore'  # Ignore encoding errors for non-UTF8 output
                         )
 
                         if result.returncode == 0 and process_name in result.stdout:
@@ -388,7 +389,10 @@ class PreCheck:
                                     kill_result = subprocess.run(
                                         ['taskkill', '/F', '/PID', pid],
                                         capture_output=True,
-                                        timeout=5
+                                        text=True,
+                                        timeout=5,
+                                        encoding='utf-8',
+                                        errors='ignore'  # Ignore encoding errors
                                     )
                                     if kill_result.returncode == 0:
                                         all_killed_pids.append(f"{process_name}:{pid}")
