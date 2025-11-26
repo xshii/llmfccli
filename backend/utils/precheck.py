@@ -356,62 +356,55 @@ class PreCheck:
 
             try:
                 if is_windows:
-                    # Windows: Use tasklist to find Ollama processes
-                    result = subprocess.run(
-                        ['tasklist', '/FI', 'IMAGENAME eq ollama.exe', '/FO', 'CSV', '/NH'],
-                        capture_output=True,
-                        text=True,
-                        timeout=5,
-                        encoding='utf-8'
-                    )
+                    # Windows: Check for both "ollama app.exe" and "ollama.exe"
+                    # Must kill "ollama app.exe" first (GUI), then "ollama.exe" (service)
+                    import csv
+                    import io
 
-                    if result.returncode == 0 and 'ollama.exe' in result.stdout:
-                        # Parse CSV output to get PIDs
-                        import csv
-                        import io
-                        pids = []
-                        reader = csv.reader(io.StringIO(result.stdout))
-                        for row in reader:
-                            if len(row) >= 2 and 'ollama.exe' in row[0]:
-                                pids.append(row[1])  # PID is in second column
+                    all_killed_pids = []
+                    process_names = ["ollama app.exe", "ollama.exe"]  # Order matters!
 
-                        if not pids:
-                            return PreCheckResult(
-                                "Local Ollama Check",
-                                True,
-                                "No local Ollama process found (using remote Ollama)",
-                                {"ssh_enabled": True, "platform": "Windows"}
-                            )
+                    for process_name in process_names:
+                        # Find processes
+                        result = subprocess.run(
+                            ['tasklist', '/FI', f'IMAGENAME eq {process_name}', '/FO', 'CSV', '/NH'],
+                            capture_output=True,
+                            text=True,
+                            timeout=5,
+                            encoding='utf-8'
+                        )
 
-                        # Kill all Ollama processes using taskkill
-                        killed_pids = []
-                        for pid in pids:
-                            try:
-                                kill_result = subprocess.run(
-                                    ['taskkill', '/F', '/PID', pid],
-                                    capture_output=True,
-                                    timeout=5
-                                )
-                                if kill_result.returncode == 0:
-                                    killed_pids.append(pid)
-                            except Exception as e:
-                                pass
+                        if result.returncode == 0 and process_name in result.stdout:
+                            # Parse CSV output to get PIDs
+                            pids = []
+                            reader = csv.reader(io.StringIO(result.stdout))
+                            for row in reader:
+                                if len(row) >= 2 and process_name in row[0]:
+                                    pids.append(row[1])  # PID is in second column
 
-                        if killed_pids:
-                            return PreCheckResult(
-                                "Local Ollama Check",
-                                True,
-                                f"Killed {len(killed_pids)} local Ollama process(es) (using remote Ollama)",
-                                {"killed_pids": killed_pids, "ssh_enabled": True, "platform": "Windows"}
-                            )
-                        else:
-                            return PreCheckResult(
-                                "Local Ollama Check",
-                                False,
-                                f"Found {len(pids)} local Ollama process(es) but failed to kill them",
-                                {"pids": pids, "ssh_enabled": True, "platform": "Windows"}
-                            )
+                            # Kill processes
+                            for pid in pids:
+                                try:
+                                    kill_result = subprocess.run(
+                                        ['taskkill', '/F', '/PID', pid],
+                                        capture_output=True,
+                                        timeout=5
+                                    )
+                                    if kill_result.returncode == 0:
+                                        all_killed_pids.append(f"{process_name}:{pid}")
+                                except Exception as e:
+                                    pass
+
+                    # Return result
+                    if all_killed_pids:
+                        return PreCheckResult(
+                            "Local Ollama Check",
+                            True,
+                            f"Killed {len(all_killed_pids)} local Ollama process(es) (using remote Ollama)",
+                            {"killed_pids": all_killed_pids, "ssh_enabled": True, "platform": "Windows"}
+                        )
                     else:
+                        # No processes found or all killed
                         return PreCheckResult(
                             "Local Ollama Check",
                             True,
