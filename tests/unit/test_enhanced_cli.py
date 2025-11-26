@@ -4,6 +4,12 @@
 Quick test for enhanced CLI features
 """
 
+import os
+import sys
+
+# Add project root to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
+
 from backend.cli import CLI
 from rich.console import Console
 

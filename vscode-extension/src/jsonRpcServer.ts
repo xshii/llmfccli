@@ -1,15 +1,19 @@
 /**
  * JSON-RPC server for handling requests from Claude-Qwen CLI
+ *
+ * This module handles VSCode-specific operations.
+ * Protocol logic is delegated to JsonRpcProtocol.
  */
 
 import * as vscode from 'vscode';
-import { JsonRpcRequest, JsonRpcResponse, FileInfo, Selection, DiffParams, ApplyChangesParams, OpenFileParams } from './types';
+import { JsonRpcProtocol, JsonRpcRequest, JsonRpcResponse } from './jsonRpcProtocol';
+import { FileInfo, Selection, DiffParams, ApplyChangesParams, OpenFileParams } from './types';
 
 export class JsonRpcServer {
-    private requestHandlers: Map<string, (params: any) => Promise<any>>;
+    private protocol: JsonRpcProtocol;
 
     constructor() {
-        this.requestHandlers = new Map();
+        this.protocol = new JsonRpcProtocol();
         this.registerHandlers();
     }
 
@@ -17,31 +21,33 @@ export class JsonRpcServer {
      * Register all JSON-RPC method handlers
      */
     private registerHandlers(): void {
-        this.requestHandlers.set('getActiveFile', this.handleGetActiveFile.bind(this));
-        this.requestHandlers.set('getSelection', this.handleGetSelection.bind(this));
-        this.requestHandlers.set('showDiff', this.handleShowDiff.bind(this));
-        this.requestHandlers.set('applyChanges', this.handleApplyChanges.bind(this));
-        this.requestHandlers.set('openFile', this.handleOpenFile.bind(this));
-        this.requestHandlers.set('getWorkspaceFolder', this.handleGetWorkspaceFolder.bind(this));
+        this.protocol.registerMethod('getActiveFile', this.handleGetActiveFile.bind(this));
+        this.protocol.registerMethod('getSelection', this.handleGetSelection.bind(this));
+        this.protocol.registerMethod('showDiff', this.handleShowDiff.bind(this));
+        this.protocol.registerMethod('applyChanges', this.handleApplyChanges.bind(this));
+        this.protocol.registerMethod('openFile', this.handleOpenFile.bind(this));
+        this.protocol.registerMethod('getWorkspaceFolder', this.handleGetWorkspaceFolder.bind(this));
     }
 
     /**
      * Process incoming JSON-RPC request
      */
     async processRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {
-        const { id, method, params } = request;
+        return this.protocol.processRequest(request);
+    }
 
-        try {
-            const handler = this.requestHandlers.get(method);
-            if (!handler) {
-                return this.errorResponse(id, -32601, `Method not found: ${method}`);
-            }
+    /**
+     * Process raw JSON string request
+     */
+    async processRawRequest(jsonString: string): Promise<JsonRpcResponse> {
+        return this.protocol.processRawRequest(jsonString);
+    }
 
-            const result = await handler(params);
-            return this.successResponse(id, result);
-        } catch (error: any) {
-            return this.errorResponse(id, -32603, error.message || 'Internal error');
-        }
+    /**
+     * Get the underlying protocol handler (for testing)
+     */
+    getProtocol(): JsonRpcProtocol {
+        return this.protocol;
     }
 
     /**
@@ -201,29 +207,7 @@ export class JsonRpcServer {
 
         return { success: true, folder: workspaceFolder.uri.fsPath };
     }
-
-    /**
-     * Create success response
-     */
-    private successResponse(id: number | string, result: any): JsonRpcResponse {
-        return {
-            jsonrpc: '2.0',
-            id,
-            result
-        };
-    }
-
-    /**
-     * Create error response
-     */
-    private errorResponse(id: number | string, code: number, message: string): JsonRpcResponse {
-        return {
-            jsonrpc: '2.0',
-            id,
-            error: {
-                code,
-                message
-            }
-        };
-    }
 }
+
+// Re-export types for convenience
+export { JsonRpcRequest, JsonRpcResponse, JsonRpcProtocol } from './jsonRpcProtocol';

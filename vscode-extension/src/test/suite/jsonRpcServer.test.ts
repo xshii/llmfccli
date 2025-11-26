@@ -24,7 +24,7 @@ suite('JSON-RPC Server Test Suite', () => {
 
     test('Process valid JSON-RPC request', async () => {
         const request = {
-            jsonrpc: '2.0',
+            jsonrpc: '2.0' as const,
             id: 1,
             method: 'getActiveFile',
             params: {}
@@ -39,7 +39,7 @@ suite('JSON-RPC Server Test Suite', () => {
 
     test('Handle unknown method', async () => {
         const request = {
-            jsonrpc: '2.0',
+            jsonrpc: '2.0' as const,
             id: 2,
             method: 'unknownMethod',
             params: {}
@@ -57,7 +57,7 @@ suite('JSON-RPC Server Test Suite', () => {
 
     test('Validate JSON-RPC 2.0 format', async () => {
         const request = {
-            jsonrpc: '2.0',
+            jsonrpc: '2.0' as const,
             id: 3,
             method: 'getWorkspaceFolder',
             params: {}
@@ -71,7 +71,7 @@ suite('JSON-RPC Server Test Suite', () => {
 
     test('Handle requests without parameters', async () => {
         const request = {
-            jsonrpc: '2.0',
+            jsonrpc: '2.0' as const,
             id: 4,
             method: 'getSelection',
             params: {}

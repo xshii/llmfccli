@@ -5,8 +5,13 @@ Simple test for tool confirmation workflow
 """
 
 import os
+import sys
 import tempfile
 from pathlib import Path
+
+# Add project root to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
+
 from backend.agent.tool_confirmation import ToolConfirmation, ConfirmAction
 
 
