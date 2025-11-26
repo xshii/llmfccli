@@ -78,6 +78,39 @@ class AgentLoop:
     def set_max_retries(self, max_retries: int):
         """Set maximum retry count"""
         self.max_retries = max_retries
+
+    def _get_current_file_context(self) -> str:
+        """Get current file context for LLM
+
+        Returns:
+            Formatted context string about current file, or empty string
+        """
+        try:
+            from backend.rpc.client import is_vscode_mode
+            from backend.tools import vscode
+
+            if is_vscode_mode():
+                # Get active file from VSCode
+                file_info = vscode.get_active_file()
+                if file_info and file_info.get('path'):
+                    path = file_info['path']
+                    language = file_info.get('language', 'unknown')
+                    lines = file_info.get('lineCount', 0)
+
+                    # Update tracked active file
+                    self.active_file = path
+
+                    return f"\n[Current file: {path} ({language}, {lines} lines)]"
+
+            elif self.active_file:
+                # Use tracked active file from recent operations
+                return f"\n[Current file: {self.active_file}]"
+
+        except Exception:
+            # Silently fail - context is optional
+            pass
+
+        return ""
     
     def run(self, user_input: str, stream: bool = False, on_chunk=None) -> str:
         """
@@ -91,8 +124,16 @@ class AgentLoop:
         Returns:
             Agent's final response
         """
+        # Get current file context
+        file_context = self._get_current_file_context()
+
+        # Add context to user input if available
+        enhanced_input = user_input
+        if file_context:
+            enhanced_input = file_context + "\n\n" + user_input
+
         # Add user message
-        user_message = {'role': 'user', 'content': user_input}
+        user_message = {'role': 'user', 'content': enhanced_input}
         self.conversation_history.append(user_message)
         
         # Update token count
@@ -235,8 +276,11 @@ class AgentLoop:
                 # Track active files (using executor to check if file operation)
                 if self.tool_executor.is_file_operation(tool_name):
                     file_path = arguments.get('path', '')
-                    if file_path and file_path not in self.active_files:
-                        self.active_files.append(file_path)
+                    if file_path:
+                        if file_path not in self.active_files:
+                            self.active_files.append(file_path)
+                        # Update current active file (most recent)
+                        self.active_file = file_path
 
                 # Add tool result to history
                 tool_message = {
