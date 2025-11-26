@@ -145,7 +145,7 @@ class OllamaClient:
                     print(f"Saved to: {request_file}")
                     print(f"=== END CURL REQUEST ===\n")
 
-                print(f"\033[90mExecuting: curl -s -N \"{self.base_url}/api/chat\" -d @{temp_file}\033[0m\n")
+                print(f"\033[90mExecuting: curl -s -N \"{self.base_url}/api/chat\" -d @{temp_file}\033[0m")
                 
                 # Stream response
                 process = subprocess.Popen(
