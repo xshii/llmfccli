@@ -206,7 +206,7 @@ class CLI:
 
     def _run_precheck(self):
         """Run environment pre-check"""
-        self.console.print("\n[cyan]运行环境检查...[/cyan]\n")
+        self.console.print("\n[cyan]运行环境检查...[/cyan]")
 
         # Run pre-checks (skip project structure check)
         results = []
@@ -250,7 +250,7 @@ class CLI:
                 self.console.print("\n[red]已取消启动[/red]")
                 sys.exit(1)
         else:
-            self.console.print("\n[green]✓ 环境检查通过[/green]\n")
+            self.console.print("\n[green]✓ 环境检查通过[/green]")
 
     def _confirm_tool_execution(self, tool_name: str, category: str, arguments: dict) -> ConfirmAction:
         """Prompt user to confirm tool execution
@@ -389,7 +389,7 @@ class CLI:
                 self.tool_outputs = []
 
                 # Execute task
-                self.console.print("\n[cyan]执行中...[/cyan]\n")
+                self.console.print("\n[cyan]执行中...[/cyan]")
 
                 try:
                     # Check if streaming is enabled in config
