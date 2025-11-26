@@ -17,6 +17,7 @@ UNIT_TESTS = [
     ('unit/test_executor.py', 'Bash/Executor 工具测试'),
     ('unit/test_precheck.py', 'PreCheck 环境检查测试'),
     ('unit/test_confirmation.py', '工具确认系统测试'),
+    ('unit/test_enhanced_cli.py', '增强 CLI 功能测试'),
 ]
 
 
