@@ -1,0 +1,187 @@
+{
+  "name": "claude-qwen",
+  "displayName": "Claude-Qwen AI Assistant",
+  "description": "AI-powered C/C++ programming assistant with local Qwen3 model",
+  "version": "0.1.0",
+  "publisher": "claude-qwen",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xshii/llmfccli"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "assistant",
+    "cpp",
+    "c++",
+    "qwen",
+    "ollama",
+    "code-completion",
+    "refactoring"
+  ],
+  "activationEvents": [
+    "onLanguage:cpp",
+    "onLanguage:c",
+    "onCommand:claude-qwen.start",
+    "onCommand:claude-qwen.stop",
+    "onCommand:claude-qwen.testIntegration"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claude-qwen.start",
+        "title": "Start Claude-Qwen Assistant",
+        "category": "Claude-Qwen"
+      },
+      {
+        "command": "claude-qwen.stop",
+        "title": "Stop Claude-Qwen Assistant",
+        "category": "Claude-Qwen"
+      },
+      {
+        "command": "claude-qwen.testIntegration",
+        "title": "Test VSCode Integration",
+        "category": "Claude-Qwen"
+      },
+      {
+        "command": "claude-qwen.fixCompileErrors",
+        "title": "Fix Compile Errors",
+        "category": "Claude-Qwen"
+      },
+      {
+        "command": "claude-qwen.generateTests",
+        "title": "Generate Unit Tests",
+        "category": "Claude-Qwen"
+      },
+      {
+        "command": "claude-qwen.explainCode",
+        "title": "Explain Selected Code",
+        "category": "Claude-Qwen"
+      }
+    ],
+    "configuration": {
+      "title": "Claude-Qwen",
+      "properties": {
+        "claude-qwen.cliPath": {
+          "type": "string",
+          "default": "claude-qwen",
+          "description": "Path to claude-qwen CLI executable"
+        },
+        "claude-qwen.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Path to Python interpreter"
+        },
+        "claude-qwen.communicationMode": {
+          "type": "string",
+          "enum": ["ipc", "socket"],
+          "default": "ipc",
+          "description": "Communication mode with CLI (IPC via stdin/stdout or Socket)"
+        },
+        "claude-qwen.socketPath": {
+          "type": "string",
+          "default": "/tmp/claude-qwen.sock",
+          "description": "Socket path (only for socket mode)"
+        },
+        "claude-qwen.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start CLI when opening C/C++ files"
+        },
+        "claude-qwen.logLevel": {
+          "type": "string",
+          "enum": ["debug", "info", "warn", "error"],
+          "default": "info",
+          "description": "Log level for extension"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "when": "editorHasSelection && resourceLangId == cpp",
+          "command": "claude-qwen.explainCode",
+          "group": "claude-qwen@1"
+        },
+        {
+          "when": "resourceLangId == cpp",
+          "command": "claude-qwen.generateTests",
+          "group": "claude-qwen@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "claude-qwen.start",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "claude-qwen.stop",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "claude-qwen.testIntegration",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "claude-qwen.fixCompileErrors",
+          "when": "resourceLangId == cpp || resourceLangId == c"
+        },
+        {
+          "command": "claude-qwen.generateTests",
+          "when": "resourceLangId == cpp || resourceLangId == c"
+        },
+        {
+          "command": "claude-qwen.explainCode",
+          "when": "editorHasSelection && (resourceLangId == cpp || resourceLangId == c)"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "claude-qwen.explainCode",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorTextFocus && editorHasSelection && (resourceLangId == cpp || resourceLangId == c)"
+      },
+      {
+        "command": "claude-qwen.generateTests",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t",
+        "when": "editorTextFocus && (resourceLangId == cpp || resourceLangId == c)"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^18.x",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/test-electron": "^2.3.0",
+    "@vscode/vsce": "^2.19.0",
+    "eslint": "^8.40.0",
+    "glob": "^10.3.0",
+    "mocha": "^10.2.0",
+    "typescript": "^5.1.0"
+  },
+  "dependencies": {}
+}

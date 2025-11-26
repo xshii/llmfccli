@@ -11,6 +11,9 @@ from .filesystem import (
     list_dir,
 )
 
+# VSCode integration tools (for testing)
+from . import vscode
+
 # executor and analyzer will be imported when implemented
 # from .executor import bash_run, cmake_build, parse_compile_errors
 # from .analyzer import parse_cpp, find_functions, get_dependencies
@@ -21,4 +24,5 @@ __all__ = [
     'create_file',
     'grep_search',
     'list_dir',
+    'vscode',
 ]

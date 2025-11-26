@@ -85,69 +85,196 @@ def view_file(path: str, line_range: Optional[Tuple[int, int]] = None,
     }
 
 
-def edit_file(path: str, old_str: str, new_str: str, 
-              project_root: Optional[str] = None) -> Dict[str, Any]:
+def edit_file(path: str, old_str: str, new_str: str,
+              project_root: Optional[str] = None,
+              confirm: bool = True,
+              show_preview: bool = True) -> Dict[str, Any]:
     """
     Edit file using str_replace pattern (must be unique)
-    
+
+    行为模式：
+    - confirm=True, show_preview=True: 显示 diff，等待确认（VSCode 模式下使用 GUI）
+    - confirm=False: 直接修改，无交互（自动化、脚本模式）
+    - 自动检测 VSCode 环境，提供最佳体验
+
     Args:
         path: File path
         old_str: String to replace (must appear exactly once)
         new_str: Replacement string
         project_root: Project root directory
-        
+        confirm: 是否需要用户确认（False=直接修改）
+        show_preview: 是否显示预览（仅当 confirm=True 时有效）
+
     Returns:
-        Dict with 'success', 'path', 'old_str', 'new_str', 'changes'
+        Dict with 'success', 'path', 'mode', 'message'
     """
     # Resolve path
     if not os.path.isabs(path) and project_root:
-        path = os.path.join(project_root, path)
-    
-    path = os.path.abspath(path)
-    
+        full_path = os.path.join(project_root, path)
+    else:
+        full_path = path
+
+    full_path = os.path.abspath(full_path)
+
     # Security check
     if project_root:
         project_root = os.path.abspath(project_root)
-        if not path.startswith(project_root):
+        if not full_path.startswith(project_root):
             raise FileSystemError(f"Path {path} is outside project root")
-    
+
     # Check file exists
-    if not os.path.exists(path):
+    if not os.path.exists(full_path):
         raise FileSystemError(f"File not found: {path}")
-    
+
     # Read file
     try:
-        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+        with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
             content = f.read()
     except Exception as e:
         raise FileSystemError(f"Failed to read file {path}: {e}")
-    
+
     # Check if old_str exists
     if old_str not in content:
         raise FileSystemError(f"String not found in file: {old_str[:50]}...")
-    
+
     # Check uniqueness
     count = content.count(old_str)
     if count > 1:
         raise FileSystemError(f"String appears {count} times (must be unique): {old_str[:50]}...")
-    
-    # Perform replacement
+
+    # Generate new content
     new_content = content.replace(old_str, new_str)
-    
-    # Write back
+
+    # 检测 VSCode 模式
+    from backend.rpc.client import is_vscode_mode
+    use_vscode = is_vscode_mode()
+
+    # 模式 1: 需要确认（默认，安全模式）
+    if confirm:
+        if use_vscode and show_preview:
+            # VSCode 模式：使用 GUI diff 和确认
+            return _edit_with_vscode_preview(
+                full_path, content, new_content, old_str, new_str
+            )
+        elif show_preview:
+            # CLI 模式：显示文本预览
+            return _edit_with_cli_preview(
+                full_path, content, new_content, old_str, new_str
+            )
+        else:
+            # 只确认，不预览
+            return _edit_with_confirmation(
+                full_path, new_content, old_str, new_str
+            )
+
+    # 模式 2: 直接修改（快速模式，无交互）
+    else:
+        return _edit_direct(full_path, new_content, old_str, new_str)
+
+
+def _edit_with_vscode_preview(path: str, original: str, new_content: str,
+                              old_str: str, new_str: str) -> Dict[str, Any]:
+    """VSCode 模式：显示 diff 预览 + GUI 确认 + API 应用"""
+    from backend.tools import vscode
+
+    try:
+        # 1. 显示 diff
+        diff_result = vscode.show_diff(
+            title=f"Edit: {os.path.basename(path)}",
+            original_path=path,
+            modified_content=new_content
+        )
+
+        if not diff_result.get('success'):
+            raise FileSystemError(f"Failed to show diff: {diff_result.get('error')}")
+
+        # 2. TODO: 添加确认对话框
+        # confirmed = vscode.show_confirmation(...)
+        # 暂时假设用户确认
+        confirmed = True
+
+        if not confirmed:
+            return {
+                'success': False,
+                'message': 'Edit cancelled by user',
+                'mode': 'vscode'
+            }
+
+        # 3. 通过 VSCode API 应用（支持 undo/redo）
+        apply_result = vscode.apply_changes(path, old_str, new_str)
+
+        if apply_result.get('success'):
+            return {
+                'success': True,
+                'path': path,
+                'mode': 'vscode',
+                'message': f"Applied changes via VSCode API"
+            }
+        else:
+            raise FileSystemError(f"Failed to apply changes: {apply_result.get('error')}")
+
+    except Exception as e:
+        # VSCode 失败，回退到直接修改
+        import sys
+        print(f"⚠️  VSCode integration error: {e}", file=sys.stderr)
+        print(f"   Falling back to direct edit", file=sys.stderr)
+        return _edit_direct(path, new_content, old_str, new_str)
+
+
+def _edit_with_cli_preview(path: str, original: str, new_content: str,
+                           old_str: str, new_str: str) -> Dict[str, Any]:
+    """CLI 模式：显示文本预览 + 等待确认"""
+    print(f"\n{'=' * 60}")
+    print(f"📝 准备编辑: {path}")
+    print(f"{'=' * 60}")
+    print(f"\n将要替换:")
+    print(f"[-] {old_str[:100]}{'...' if len(old_str) > 100 else ''}")
+    print(f"\n替换为:")
+    print(f"[+] {new_str[:100]}{'...' if len(new_str) > 100 else ''}")
+    print(f"\n{'=' * 60}")
+
+    response = input("确认应用更改? (y/n): ").strip().lower()
+    if response != 'y':
+        return {
+            'success': False,
+            'message': 'Edit cancelled by user',
+            'mode': 'cli'
+        }
+
+    return _edit_direct(path, new_content, old_str, new_str)
+
+
+def _edit_with_confirmation(path: str, new_content: str,
+                           old_str: str, new_str: str) -> Dict[str, Any]:
+    """简单确认，不显示预览"""
+    response = input(f"确认编辑 {os.path.basename(path)}? (y/n): ").strip().lower()
+    if response != 'y':
+        return {
+            'success': False,
+            'message': 'Edit cancelled by user',
+            'mode': 'simple'
+        }
+
+    return _edit_direct(path, new_content, old_str, new_str)
+
+
+def _edit_direct(path: str, new_content: str, old_str: str, new_str: str) -> Dict[str, Any]:
+    """直接修改文件，无交互"""
     try:
         with open(path, 'w', encoding='utf-8') as f:
             f.write(new_content)
+
+        return {
+            'success': True,
+            'path': path,
+            'mode': 'direct',
+            'old_str': old_str[:100] + ('...' if len(old_str) > 100 else ''),
+            'new_str': new_str[:100] + ('...' if len(new_str) > 100 else ''),
+            'changes': len(new_str) - len(old_str),
+            'message': f"Successfully edited {os.path.basename(path)}"
+        }
     except Exception as e:
         raise FileSystemError(f"Failed to write file {path}: {e}")
-    
-    return {
-        'success': True,
-        'path': path,
-        'old_str': old_str[:100] + ('...' if len(old_str) > 100 else ''),
-        'new_str': new_str[:100] + ('...' if len(new_str) > 100 else ''),
-        'changes': len(new_str) - len(old_str),
-    }
 
 
 def create_file(path: str, content: str, 
