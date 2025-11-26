@@ -8,11 +8,11 @@ import sys
 import os
 import subprocess
 
-# RPC 测试列表
+# RPC 测试列表（位于 tests/extension/ 目录）
 RPC_TESTS = [
-    ('test_rpc_integration.py', 'RPC 基础功能测试'),
-    ('unit/test_vscode.py', 'VSCode 工具 Mock 模式测试'),
-    ('test_rpc_e2e_simple.py', 'RPC E2E 集成测试'),
+    ('extension/test_rpc_integration.py', 'RPC 基础功能测试'),
+    ('extension/test_vscode.py', 'VSCode 工具 Mock 模式测试'),
+    ('extension/test_rpc_e2e_simple.py', 'RPC E2E 集成测试'),
 ]
 
 
