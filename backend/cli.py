@@ -222,51 +222,60 @@ class CLI:
 
     def _run_precheck(self):
         """Run environment pre-check"""
-        self.console.print("\n[cyan]运行环境检查...[/cyan]")
+        while True:
+            self.console.print("\n[cyan]运行环境检查...[/cyan]")
 
-        # Run pre-checks (skip project structure check)
-        results = []
-        # First check and kill local Ollama if using remote
-        results.append(PreCheck.check_and_kill_local_ollama())
-        results.append(PreCheck.check_ssh_tunnel())
-        results.append(PreCheck.check_ollama_connection())
-        results.append(PreCheck.check_ollama_model(model_name="qwen3:latest"))
+            # Run pre-checks (skip project structure check)
+            results = []
+            # First check and kill local Ollama if using remote
+            results.append(PreCheck.check_and_kill_local_ollama())
+            results.append(PreCheck.check_ssh_tunnel())
+            results.append(PreCheck.check_ollama_connection())
+            results.append(PreCheck.check_ollama_model(model_name="qwen3:latest"))
 
-        # Display results
-        all_passed = all(r.success for r in results)
-
-        for result in results:
-            status = "✓" if result.success else "✗"
-            color = "green" if result.success else "red"
-            self.console.print(f"[{color}]{status}[/{color}] {result.message}")
-
-        if not all_passed:
-            self.console.print("\n[yellow]⚠ 环境检查失败[/yellow]")
-            self.console.print("\n[yellow]建议操作:[/yellow]")
+            # Display results
+            all_passed = all(r.success for r in results)
 
             for result in results:
-                if not result.success:
-                    if "SSH Tunnel" in result.name:
-                        self.console.print("  • 启动 SSH 隧道: [cyan]ssh -fN ollama-tunnel[/cyan]")
-                    elif "Ollama Connection" in result.name:
-                        self.console.print("  • 验证远程服务器上的 Ollama 服务是否运行")
-                    elif "Ollama Model" in result.name:
-                        model = result.details.get('model', 'qwen3:latest')
-                        self.console.print(f"  • 拉取模型: [cyan]ollama pull {model}[/cyan]")
+                status = "✓" if result.success else "✗"
+                color = "green" if result.success else "red"
+                self.console.print(f"[{color}]{status}[/{color}] {result.message}")
 
-            self.console.print("\n[yellow]提示: 使用 --skip-precheck 参数跳过环境检查[/yellow]\n")
+            if not all_passed:
+                self.console.print("\n[yellow]⚠ 环境检查失败[/yellow]")
+                self.console.print("\n[yellow]建议操作:[/yellow]")
 
-            # Ask user if they want to continue
-            try:
-                response = input("是否继续? (y/N): ").strip().lower()
-                if response not in ['y', 'yes']:
-                    self.console.print("[red]已取消启动[/red]")
+                for result in results:
+                    if not result.success:
+                        if "SSH Tunnel" in result.name:
+                            self.console.print("  • 启动 SSH 隧道: [cyan]ssh -fN ollama-tunnel[/cyan]")
+                        elif "Ollama Connection" in result.name:
+                            self.console.print("  • 验证远程服务器上的 Ollama 服务是否运行")
+                        elif "Ollama Model" in result.name:
+                            model = result.details.get('model', 'qwen3:latest')
+                            self.console.print(f"  • 拉取模型: [cyan]ollama pull {model}[/cyan]")
+
+                self.console.print("\n[yellow]提示: 使用 --skip-precheck 参数跳过环境检查[/yellow]\n")
+
+                # Ask user if they want to continue, retry, or quit
+                try:
+                    response = input("选择操作 - [r]重试 / [y]继续 / [N]退出: ").strip().lower()
+                    if response == 'r':
+                        # Retry - continue the while loop
+                        continue
+                    elif response in ['y', 'yes']:
+                        # Continue despite failures
+                        break
+                    else:
+                        # Quit (default)
+                        self.console.print("[red]已取消启动[/red]")
+                        sys.exit(1)
+                except (KeyboardInterrupt, EOFError):
+                    self.console.print("\n[red]已取消启动[/red]")
                     sys.exit(1)
-            except (KeyboardInterrupt, EOFError):
-                self.console.print("\n[red]已取消启动[/red]")
-                sys.exit(1)
-        else:
-            self.console.print("\n[green]✓ 环境检查通过[/green]")
+            else:
+                self.console.print("\n[green]✓ 环境检查通过[/green]")
+                break
 
     def _confirm_tool_execution(self, tool_name: str, category: str, arguments: dict) -> ConfirmAction:
         """Prompt user to confirm tool execution
