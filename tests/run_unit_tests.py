@@ -17,6 +17,7 @@ UNIT_TESTS = [
     ('unit/test_executor.py', 'Bash/Executor 工具测试'),
     ('unit/test_precheck.py', 'PreCheck 环境检查测试'),
     ('unit/test_confirmation.py', '工具确认系统测试'),
+    ('unit/test_edit_file_confirmation.py', '双层确认集成测试'),
     ('unit/test_enhanced_cli.py', '增强 CLI 功能测试'),
     ('extension/test_vscode.py', 'VSCode 集成测试'),
     ('extension/test_rpc_integration.py', 'RPC 基础功能测试'),
