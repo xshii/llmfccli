@@ -213,7 +213,6 @@ class CLI:
                 elements.append(output_panel)
 
         # Print all elements
-        self.console.print("\n")
         for element in elements:
             self.console.print(element)
 
