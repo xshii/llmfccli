@@ -38,6 +38,13 @@ class CLI:
         self.console = Console()
         self.project_root = project_root or str(Path.cwd())
 
+        # Check if in VSCode integration mode
+        self.vscode_mode = os.getenv('VSCODE_INTEGRATION', '').lower() == 'true'
+
+        # Initialize RPC client if in VSCode mode
+        if self.vscode_mode:
+            self._init_rpc_client()
+
         # Run pre-check unless explicitly skipped
         if not skip_precheck:
             self._run_precheck()
@@ -65,6 +72,16 @@ class CLI:
         self.current_command = ""
         self.command_start_time = None
         self.tool_outputs = []  # [{'tool', 'output', 'args', 'collapsed', 'lines'}]
+
+    def _init_rpc_client(self):
+        """Initialize JSON-RPC client for VSCode communication"""
+        from backend.rpc.client import get_client
+
+        try:
+            rpc_client = get_client()
+            self.console.print("[dim]✓ RPC 客户端已启动（VSCode 集成模式）[/dim]")
+        except Exception as e:
+            self.console.print(f"[yellow]⚠ RPC 客户端启动失败: {e}[/yellow]")
 
     def add_tool_output(self, tool_name: str, output: str, args: dict = None, auto_collapse: bool = True):
         """Add tool output with automatic collapse for long outputs

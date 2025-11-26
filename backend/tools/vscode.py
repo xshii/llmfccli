@@ -209,13 +209,24 @@ def get_active_file() -> Dict[str, Any]:
             'lineCount': int
         }
     """
-    client = get_vscode_client()
-    response = client._send_request("getActiveFile", {})
+    # Check if in VSCode integration mode
+    from backend.rpc.client import is_vscode_mode, send_vscode_request
 
-    if response.get("success"):
-        return response["file"]
+    if is_vscode_mode():
+        # Use actual RPC communication
+        response = send_vscode_request("getActiveFile", {})
+        if response.get("success"):
+            return response["file"]
+        else:
+            raise VSCodeError(response.get("error", "Failed to get active file"))
     else:
-        raise VSCodeError(response.get("error", "Failed to get active file"))
+        # Use mock client
+        client = get_vscode_client()
+        response = client._send_request("getActiveFile", {})
+        if response.get("success"):
+            return response["file"]
+        else:
+            raise VSCodeError(response.get("error", "Failed to get active file"))
 
 
 def get_selection() -> Dict[str, Any]:
@@ -228,13 +239,21 @@ def get_selection() -> Dict[str, Any]:
             'end': {'line': int, 'character': int}
         }
     """
-    client = get_vscode_client()
-    response = client._send_request("getSelection", {})
+    from backend.rpc.client import is_vscode_mode, send_vscode_request
 
-    if response.get("success"):
-        return response["selection"]
+    if is_vscode_mode():
+        response = send_vscode_request("getSelection", {})
+        if response.get("success"):
+            return response["selection"]
+        else:
+            raise VSCodeError(response.get("error", "Failed to get selection"))
     else:
-        raise VSCodeError(response.get("error", "Failed to get selection"))
+        client = get_vscode_client()
+        response = client._send_request("getSelection", {})
+        if response.get("success"):
+            return response["selection"]
+        else:
+            raise VSCodeError(response.get("error", "Failed to get selection"))
 
 
 def show_diff(title: str, original_path: str, modified_content: str) -> Dict[str, Any]:
@@ -248,14 +267,21 @@ def show_diff(title: str, original_path: str, modified_content: str) -> Dict[str
     Returns:
         dict: {'success': bool, 'message': str}
     """
-    client = get_vscode_client()
-    response = client._send_request("showDiff", {
-        "title": title,
-        "originalPath": original_path,
-        "modifiedContent": modified_content
-    })
+    from backend.rpc.client import is_vscode_mode, send_vscode_request
 
-    return response
+    if is_vscode_mode():
+        return send_vscode_request("showDiff", {
+            "title": title,
+            "originalPath": original_path,
+            "modifiedContent": modified_content
+        })
+    else:
+        client = get_vscode_client()
+        return client._send_request("showDiff", {
+            "title": title,
+            "originalPath": original_path,
+            "modifiedContent": modified_content
+        })
 
 
 def apply_changes(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
@@ -269,14 +295,21 @@ def apply_changes(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
     Returns:
         dict: {'success': bool, 'message': str}
     """
-    client = get_vscode_client()
-    response = client._send_request("applyChanges", {
-        "path": path,
-        "oldStr": old_str,
-        "newStr": new_str
-    })
+    from backend.rpc.client import is_vscode_mode, send_vscode_request
 
-    return response
+    if is_vscode_mode():
+        return send_vscode_request("applyChanges", {
+            "path": path,
+            "oldStr": old_str,
+            "newStr": new_str
+        })
+    else:
+        client = get_vscode_client()
+        return client._send_request("applyChanges", {
+            "path": path,
+            "oldStr": old_str,
+            "newStr": new_str
+        })
 
 
 def open_file(path: str, line: Optional[int] = None, column: Optional[int] = None) -> Dict[str, Any]:
@@ -290,15 +323,19 @@ def open_file(path: str, line: Optional[int] = None, column: Optional[int] = Non
     Returns:
         dict: {'success': bool, 'message': str}
     """
-    client = get_vscode_client()
+    from backend.rpc.client import is_vscode_mode, send_vscode_request
+
     params = {"path": path}
     if line is not None:
         params["line"] = line
     if column is not None:
         params["column"] = column
 
-    response = client._send_request("openFile", params)
-    return response
+    if is_vscode_mode():
+        return send_vscode_request("openFile", params)
+    else:
+        client = get_vscode_client()
+        return client._send_request("openFile", params)
 
 
 def get_workspace_folder() -> str:
@@ -307,10 +344,18 @@ def get_workspace_folder() -> str:
     Returns:
         str: Workspace folder path
     """
-    client = get_vscode_client()
-    response = client._send_request("getWorkspaceFolder", {})
+    from backend.rpc.client import is_vscode_mode, send_vscode_request
 
-    if response.get("success"):
-        return response["folder"]
+    if is_vscode_mode():
+        response = send_vscode_request("getWorkspaceFolder", {})
+        if response.get("success"):
+            return response["folder"]
+        else:
+            raise VSCodeError(response.get("error", "Failed to get workspace folder"))
     else:
-        raise VSCodeError(response.get("error", "Failed to get workspace folder"))
+        client = get_vscode_client()
+        response = client._send_request("getWorkspaceFolder", {})
+        if response.get("success"):
+            return response["folder"]
+        else:
+            raise VSCodeError(response.get("error", "Failed to get workspace folder"))
