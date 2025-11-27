@@ -492,14 +492,39 @@ class CLI:
             border_style="blue"
         ))
     
+    def _show_token_status(self):
+        """Display current token usage before prompt"""
+        if hasattr(self.agent, 'token_counter'):
+            total_tokens = self.agent.token_counter.usage.get('total', 0)
+            max_tokens = self.agent.token_counter.max_tokens
+
+            # Format tokens in K (thousands)
+            if total_tokens >= 1000:
+                total_str = f"{total_tokens/1000:.1f}K"
+            else:
+                total_str = str(total_tokens)
+
+            if max_tokens >= 1000:
+                max_str = f"{max_tokens/1000:.0f}K"
+            else:
+                max_str = str(max_tokens)
+
+            usage_pct = (total_tokens / max_tokens * 100) if max_tokens > 0 else 0
+
+            # Display token info
+            self.console.print(f"[dim]Tokens: {total_str}/{max_str} ({usage_pct:.0f}%)[/dim]")
+
     def run(self):
         """Run interactive loop"""
         self.show_welcome()
-        
+
         while True:
             try:
+                # Show token usage before prompt
+                self._show_token_status()
+
                 # Get user input
-                user_input = self.session.prompt('\n> ').strip()
+                user_input = self.session.prompt('> ').strip()
                 
                 if not user_input:
                     continue
