@@ -596,7 +596,7 @@ class CLI:
                 self.tool_outputs = []
 
                 # Execute task
-                self.console.print("\n[cyan]执行中...[/cyan]")
+                self.console.print("[cyan]执行中...[/cyan]")
 
                 try:
                     # Check if streaming is enabled in config
