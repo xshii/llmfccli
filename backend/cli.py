@@ -114,6 +114,25 @@ class CLI:
         lines = output.count('\n')
         should_collapse = auto_collapse and lines > 20
 
+        # Immediately display tool call with arguments
+        from rich.text import Text
+        tool_call_line = Text()
+        tool_call_line.append("🔧 ", style="yellow")
+        tool_call_line.append(f"{tool_name}", style="cyan bold")
+
+        # Format arguments inline
+        if args:
+            args_parts = []
+            for key, value in args.items():
+                value_str = str(value)
+                # Truncate long values
+                if len(value_str) > 60:
+                    value_str = value_str[:57] + "..."
+                args_parts.append(f"{key}={repr(value_str)}")
+            tool_call_line.append(f"({', '.join(args_parts)})", style="dim")
+
+        self.console.print(tool_call_line)
+
         self.tool_outputs.append({
             'tool': tool_name,
             'output': output,
