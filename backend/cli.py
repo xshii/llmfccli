@@ -368,6 +368,8 @@ class CLI:
 - `/usage` - 显示 Token 使用情况
 - `/reset-confirmations` - 重置工具执行确认
 - `/model` - 管理 Ollama 模型（list/create/pull/health）
+- `/cmd <command>` - 执行本地终端命令
+- `/cmdremote <command>` - 执行远程终端命令（SSH）
 - `/expand` / `/collapse` / `/toggle` - 展开/折叠工具输出
 - `/exit` - 退出
 
@@ -517,6 +519,26 @@ class CLI:
         elif cmd == '/model':
             # Handle model management commands
             self.handle_model_command(command)
+
+        elif cmd == '/cmd':
+            # Execute local command
+            parts = command.split(maxsplit=1)
+            if len(parts) > 1:
+                cmd_to_run = parts[1]
+                self.remote_commands.execute_local_command(cmd_to_run)
+            else:
+                self.console.print("[yellow]用法: /cmd <command>[/yellow]")
+                self.console.print("示例: /cmd ls -la")
+
+        elif cmd == '/cmdremote':
+            # Execute remote command
+            parts = command.split(maxsplit=1)
+            if len(parts) > 1:
+                cmd_to_run = parts[1]
+                self.remote_commands.execute_remote_command(cmd_to_run)
+            else:
+                self.console.print("[yellow]用法: /cmdremote <command>[/yellow]")
+                self.console.print("示例: /cmdremote ps aux | grep ollama")
 
         elif cmd == '/expand':
             # Expand last collapsed output
@@ -848,6 +870,10 @@ int main() {
 - `/model pull <name>` - 拉取模型
 - `/model health` - 检查 Ollama 服务器状态
 
+### 命令透传
+- `/cmd <command>` - 在本地执行终端命令
+- `/cmdremote <command>` - 在远程服务器执行终端命令（通过 SSH）
+
 ## 示例用法
 
 **文件操作**:
@@ -870,6 +896,14 @@ int main() {
 ```
 分析项目结构
 查找所有网络相关的函数
+```
+
+**命令透传**:
+```
+/cmd ls -la                    # 查看本地目录
+/cmd ps aux | grep ollama      # 查看本地进程
+/cmdremote ollama list         # 在远程服务器列出模型
+/cmdremote nvidia-smi          # 查看远程 GPU 状态
 ```
 
 **工具输出管理**:

@@ -131,3 +131,51 @@ class RemoteCommands:
             self.console.print(f"[red]✗ Failed to pull model: {output}[/red]")
 
         return success
+
+    def execute_local_command(self, command):
+        """Execute command locally"""
+        if not command:
+            self.console.print("[red]Error: Command required[/red]")
+            return False
+
+        self.console.print(f"[cyan]Executing locally:[/cyan] {command}")
+        success, stdout, stderr = self.client._local_command(command, timeout=60)
+
+        if success:
+            if stdout:
+                self.console.print(stdout)
+            self.console.print(f"[green]✓ Command completed successfully[/green]")
+        else:
+            if stdout:
+                self.console.print(stdout)
+            if stderr:
+                self.console.print(f"[red]Error: {stderr}[/red]")
+            self.console.print(f"[red]✗ Command failed[/red]")
+
+        return success
+
+    def execute_remote_command(self, command):
+        """Execute command on remote server via SSH"""
+        if not command:
+            self.console.print("[red]Error: Command required[/red]")
+            return False
+
+        if not self.client.ssh_enabled:
+            self.console.print("[yellow]⚠ SSH not enabled in config, using local execution[/yellow]")
+            return self.execute_local_command(command)
+
+        self.console.print(f"[cyan]Executing on remote ({self.client.ssh_host}):[/cyan] {command}")
+        success, stdout, stderr = self.client._ssh_command(command, timeout=60)
+
+        if success:
+            if stdout:
+                self.console.print(stdout)
+            self.console.print(f"[green]✓ Remote command completed successfully[/green]")
+        else:
+            if stdout:
+                self.console.print(stdout)
+            if stderr:
+                self.console.print(f"[red]Error: {stderr}[/red]")
+            self.console.print(f"[red]✗ Remote command failed[/red]")
+
+        return success
