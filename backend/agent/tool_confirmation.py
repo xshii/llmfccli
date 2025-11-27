@@ -61,10 +61,14 @@ class ToolConfirmation:
                 'allowed_bash_commands': list(self.allowed_bash_commands),
                 'denied_tools': list(self.denied_tools)
             }
+            # Ensure parent directory exists
+            self.confirmation_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.confirmation_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception as e:
+            import traceback
             print(f"Warning: Failed to save confirmations: {e}")
+            traceback.print_exc()
 
     def set_confirmation_callback(self, callback: Callable[[str, str, Dict], ConfirmAction]):
         """Set the confirmation callback function"""
