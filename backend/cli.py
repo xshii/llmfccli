@@ -91,6 +91,42 @@ class CLI:
         self.current_command = ""
         self.command_start_time = None
         self.tool_outputs = []  # [{'tool', 'output', 'args', 'collapsed', 'lines'}]
+        self.current_tool_status = None  # Rich Status object for live updates
+
+    def _compress_path(self, path: str, max_length: int = 50) -> str:
+        """Compress long paths by keeping start and filename
+
+        Examples:
+            /home/user/very/long/path/to/file.cpp -> /home/.../file.cpp
+            src/backend/agent/tool_confirmation.py -> src/.../tool_confirmation.py
+        """
+        if len(path) <= max_length:
+            return path
+
+        # Detect path separator (/ or \)
+        sep = '\\' if '\\' in path else '/'
+
+        # Split path into parts
+        parts = path.split(sep)
+
+        # Filter out empty parts (from leading /)
+        parts = [p for p in parts if p]
+
+        if len(parts) <= 2:
+            # Too short to compress
+            return path
+
+        # Keep first part and last part (filename)
+        filename = parts[-1]
+        first_part = parts[0]
+
+        # Check if original path started with separator
+        prefix = sep if path.startswith(sep) else ""
+
+        # Build compressed path
+        compressed = f"{prefix}{first_part}{sep}...{sep}{filename}"
+
+        return compressed
 
     def _init_rpc_client(self):
         """Initialize JSON-RPC client for VSCode communication"""
@@ -111,8 +147,35 @@ class CLI:
             args: Tool arguments (optional)
             auto_collapse: Auto-collapse if output >20 lines
         """
+        # Special handling for assistant thinking message
+        if tool_name == '__assistant_thinking__':
+            # Stop previous status if exists
+            if self.current_tool_status:
+                self.current_tool_status.stop()
+                self.current_tool_status = None
+
+            # Display thinking message
+            from rich.text import Text
+            thinking_line = Text()
+            thinking_line.append(output, style="dim italic")
+            self.console.print(thinking_line)
+            return  # Don't add to tool_outputs
+
         lines = output.count('\n')
         should_collapse = auto_collapse and lines > 20
+
+        # Stop previous status if exists
+        if self.current_tool_status:
+            self.current_tool_status.stop()
+            self.current_tool_status = None
+
+        # Display tool call with arguments (single line, updated in-place)
+        status_text = self._format_tool_call(tool_name, args)
+
+        # Use Rich status for live updating (spinner + text)
+        from rich.status import Status
+        self.current_tool_status = Status(status_text, console=self.console, spinner="dots")
+        self.current_tool_status.start()
 
         self.tool_outputs.append({
             'tool': tool_name,
@@ -121,6 +184,28 @@ class CLI:
             'collapsed': should_collapse,
             'lines': lines
         })
+
+    def _format_tool_call(self, tool_name: str, args: dict = None) -> str:
+        """Format tool call as single line with compressed paths"""
+        parts = [f"[cyan bold]{tool_name}[/cyan bold]"]
+
+        if args:
+            args_parts = []
+            for key, value in args.items():
+                value_str = str(value)
+
+                # Compress paths (check common path-like keys)
+                if key in ('file_path', 'path', 'directory', 'project_root', 'scope') and '/' in value_str:
+                    value_str = self._compress_path(value_str, max_length=40)
+                # Truncate other long values
+                elif len(value_str) > 50:
+                    value_str = value_str[:47] + "..."
+
+                args_parts.append(f"{key}={value_str}")
+
+            parts.append(f"[dim]({', '.join(args_parts)})[/dim]")
+
+        return " ".join(parts)
 
     def toggle_output(self, index: int):
         """Toggle collapse state of specific output"""
@@ -134,6 +219,11 @@ class CLI:
 
     def display_tool_outputs_summary(self):
         """Display summary of all tool outputs"""
+        # Stop any active tool status display
+        if self.current_tool_status:
+            self.current_tool_status.stop()
+            self.current_tool_status = None
+
         if not self.tool_outputs:
             return
 

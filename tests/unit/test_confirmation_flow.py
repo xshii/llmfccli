@@ -75,15 +75,16 @@ def test_session_level_confirmation():
 
     # Check internal state
     print(f"\n[Test] Internal state after confirmation:")
-    print(f"  allowed_tools: {confirmation.allowed_tools}")
-    print(f"  allowed_bash_commands: {confirmation.allowed_bash_commands}")
+    print(f"  allowed_tool_calls: {confirmation.allowed_tool_calls}")
     print(f"  denied_tools: {confirmation.denied_tools}")
 
-    assert 'view_file' in confirmation.allowed_tools, "Tool name should be in allowed_tools"
-    assert 'call_abc123' not in confirmation.allowed_tools, "ID should NOT be in allowed_tools"
+    # For file tools, signature is just the tool name (not file-specific)
+    expected_signature = "view_file"
+    assert expected_signature in confirmation.allowed_tool_calls, f"Tool signature '{expected_signature}' should be in allowed_tool_calls"
+    assert 'call_abc123' not in confirmation.allowed_tool_calls, "ID should NOT be in allowed_tool_calls"
 
     # Second check in same instance - should NOT need confirmation
-    print(f"\n=== Second Check (same instance) ===")
+    print(f"\n=== Second Check (same instance, same file) ===")
     needs_confirm_2 = confirmation.needs_confirmation(tool_name, arguments)
     print(f"[Test] Needs confirmation: {needs_confirm_2}")
 
@@ -93,22 +94,36 @@ def test_session_level_confirmation():
     else:
         print(f"  ✅ PASSED: No confirmation needed in same instance")
 
-    # Third check: Create new instance - should need confirmation (session-level)
-    print(f"\n=== Third Check (new instance - session-level) ===")
-    confirmation2 = ToolConfirmation()
-    needs_confirm_3 = confirmation2.needs_confirmation(tool_name, arguments)
-    print(f"[Test] Needs confirmation in new instance: {needs_confirm_3}")
-    print(f"  allowed_tools in new instance: {confirmation2.allowed_tools}")
+    # Third check: Same tool, different file - should ALSO NOT need confirmation
+    # (File operations allow all files once approved)
+    print(f"\n=== Third Check (same tool, different file) ===")
+    different_file_args = {'file_path': '/test/other_file.cpp'}
+    needs_confirm_3 = confirmation.needs_confirmation(tool_name, different_file_args)
+    print(f"[Test] Needs confirmation for different file: {needs_confirm_3}")
 
-    if not needs_confirm_3:
+    if needs_confirm_3:
+        print(f"  ❌ FAILED: File operations should allow all files once approved")
+        return False
+    else:
+        print(f"  ✅ PASSED: Different file does NOT need confirmation (correct behavior)")
+
+    # Fourth check: Create new instance - should need confirmation (session-level)
+    print(f"\n=== Fourth Check (new instance - session-level) ===")
+    confirmation2 = ToolConfirmation()
+    needs_confirm_4 = confirmation2.needs_confirmation(tool_name, arguments)
+    print(f"[Test] Needs confirmation in new instance: {needs_confirm_4}")
+    print(f"  allowed_tool_calls in new instance: {confirmation2.allowed_tool_calls}")
+
+    if not needs_confirm_4:
         print(f"  ❌ FAILED: Should need confirmation in new instance (session-level)")
         return False
     else:
         print(f"  ✅ PASSED: Confirmation needed in new instance (session-level behavior correct)")
 
     print("\n✅ All tests passed!")
-    print("✓ Tool name (not ID) is stored in memory")
-    print("✓ ALLOW_ALWAYS works within same session")
+    print("✓ File tools use tool name only (allow all files of same operation type)")
+    print("✓ ALLOW_ALWAYS works within same session for tool type")
+    print("✓ Different files with same tool do NOT require re-confirmation")
     print("✓ New instance requires new confirmation (session-level)")
     return True
 

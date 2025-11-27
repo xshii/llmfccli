@@ -30,8 +30,8 @@ class ToolConfirmation:
         # The confirmation_file parameter is kept for backward compatibility but not used
 
         # In-memory confirmation state (session-level)
-        self.allowed_tools: Set[str] = set()
-        self.allowed_bash_commands: Set[str] = set()
+        # Store tool call signatures (tool_name + key arguments) instead of just tool names
+        self.allowed_tool_calls: Set[str] = set()  # Stores "tool_name:key_arg_value"
         self.denied_tools: Set[str] = set()
 
         # Callback for user confirmation (set by CLI)
@@ -50,6 +50,34 @@ class ToolConfirmation:
     def set_confirmation_callback(self, callback: Callable[[str, str, Dict], ConfirmAction]):
         """Set the confirmation callback function"""
         self.confirm_callback = callback
+
+    def _get_tool_signature(self, tool_name: str, arguments: Dict) -> str:
+        """
+        Get unique signature for a tool call
+
+        For most tools (file operations, etc.), just use the tool name to allow
+        all calls of that type after one approval.
+
+        For bash_run and similar executor tools, use specific command for
+        fine-grained control.
+
+        Args:
+            tool_name: Tool name
+            arguments: Tool arguments
+
+        Returns:
+            Signature string like "edit_file" or "bash_run:ls"
+        """
+        # Only bash_run and executor tools need fine-grained control
+        if tool_name == 'bash_run':
+            command = arguments.get('command', '')
+            # Extract just the base command
+            base_cmd = command.split()[0] if command else ''
+            return f"{tool_name}:{base_cmd}"
+
+        # For all other tools (file operations, etc.), just use tool name
+        # This allows all calls to that tool type after one approval
+        return tool_name
 
     def get_tool_category(self, tool_name: str) -> str:
         """
@@ -88,37 +116,30 @@ class ToolConfirmation:
         import os
         debug = os.getenv('DEBUG_CONFIRMATION', False)
 
+        # Get tool call signature
+        signature = self._get_tool_signature(tool_name, arguments)
+
         if debug:
             print(f"[DEBUG] Checking confirmation for tool: {tool_name}")
-            print(f"[DEBUG] allowed_tools: {self.allowed_tools}")
-            print(f"[DEBUG] allowed_bash_commands: {self.allowed_bash_commands}")
+            print(f"[DEBUG] Tool signature: {signature}")
+            print(f"[DEBUG] allowed_tool_calls: {self.allowed_tool_calls}")
             print(f"[DEBUG] denied_tools: {self.denied_tools}")
 
-        # Check if tool is denied
+        # Check if tool is denied (by tool name only)
         if tool_name in self.denied_tools:
             if debug:
                 print(f"[DEBUG] Tool {tool_name} is DENIED")
             return True
 
-        # Check if tool is allowed
-        if tool_name in self.allowed_tools:
+        # Check if this specific tool call is allowed
+        if signature in self.allowed_tool_calls:
             if debug:
-                print(f"[DEBUG] Tool {tool_name} is ALLOWED (no confirmation needed)")
+                print(f"[DEBUG] Tool call {signature} is ALLOWED (no confirmation needed)")
             return False
 
-        # Special handling for bash_run
-        if tool_name == 'bash_run':
-            command = arguments.get('command', '')
-            # Extract base command
-            base_cmd = command.split()[0] if command else ''
-            is_allowed = base_cmd in self.allowed_bash_commands
-            if debug:
-                print(f"[DEBUG] bash_run command: {base_cmd}, is_allowed: {is_allowed}")
-            return not is_allowed
-
-        # First time seeing this tool, needs confirmation
+        # First time seeing this specific tool call, needs confirmation
         if debug:
-            print(f"[DEBUG] Tool {tool_name} needs confirmation (first time)")
+            print(f"[DEBUG] Tool call {signature} needs confirmation (first time)")
         return True
 
     def confirm_tool_execution(self, tool_name: str, arguments: Dict) -> ConfirmAction:
@@ -147,24 +168,15 @@ class ToolConfirmation:
         debug = os.getenv('DEBUG_CONFIRMATION', False)
 
         if action == ConfirmAction.ALLOW_ALWAYS:
-            if tool_name == 'bash_run':
-                # For bash_run, allow the specific command
-                command = arguments.get('command', '')
-                base_cmd = command.split()[0] if command else ''
-                if base_cmd:
-                    self.allowed_bash_commands.add(base_cmd)
-                    if debug:
-                        print(f"[DEBUG] Added bash command '{base_cmd}' to allowed_bash_commands")
-                        print(f"[DEBUG] allowed_bash_commands now: {self.allowed_bash_commands}")
-            else:
-                self.allowed_tools.add(tool_name)
-                if debug:
-                    print(f"[DEBUG] Added tool '{tool_name}' to allowed_tools")
-                    print(f"[DEBUG] allowed_tools now: {self.allowed_tools}")
+            # Get tool call signature and add to allowed set
+            signature = self._get_tool_signature(tool_name, arguments)
+            self.allowed_tool_calls.add(signature)
+
+            if debug:
+                print(f"[DEBUG] Added tool call '{signature}' to allowed_tool_calls")
+                print(f"[DEBUG] allowed_tool_calls now: {self.allowed_tool_calls}")
 
             self._save_confirmations()
-            if debug:
-                print(f"[DEBUG] Confirmations saved to {self.confirmation_file}")
 
         elif action == ConfirmAction.DENY:
             self.denied_tools.add(tool_name)
@@ -176,15 +188,13 @@ class ToolConfirmation:
 
     def reset_confirmations(self):
         """Reset all confirmations (session-level only)"""
-        self.allowed_tools.clear()
-        self.allowed_bash_commands.clear()
+        self.allowed_tool_calls.clear()
         self.denied_tools.clear()
         # Note: No file to delete - confirmations are session-level only
 
     def get_confirmation_status(self) -> Dict:
         """Get current confirmation status"""
         return {
-            'allowed_tools': list(self.allowed_tools),
-            'allowed_bash_commands': list(self.allowed_bash_commands),
+            'allowed_tool_calls': list(self.allowed_tool_calls),
             'denied_tools': list(self.denied_tools)
         }
