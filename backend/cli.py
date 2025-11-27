@@ -91,7 +91,6 @@ class CLI:
         self.current_command = ""
         self.command_start_time = None
         self.tool_outputs = []  # [{'tool', 'output', 'args', 'collapsed', 'lines'}]
-        self.current_tool_status = None  # Rich Status object for live updates
 
     def _compress_path(self, path: str, max_length: int = 50) -> str:
         """Compress long paths by keeping start and filename
@@ -149,11 +148,6 @@ class CLI:
         """
         # Special handling for assistant thinking message
         if tool_name == '__assistant_thinking__':
-            # Stop previous status if exists
-            if self.current_tool_status:
-                self.current_tool_status.stop()
-                self.current_tool_status = None
-
             # Display thinking message
             from rich.text import Text
             thinking_line = Text()
@@ -164,18 +158,18 @@ class CLI:
         lines = output.count('\n')
         should_collapse = auto_collapse and lines > 20
 
-        # Stop previous status if exists
-        if self.current_tool_status:
-            self.current_tool_status.stop()
-            self.current_tool_status = None
+        # Display tool call with arguments (persistent line, stays on screen)
+        from rich.text import Text
+        tool_line = Text()
+        tool_line.append("🔧 ", style="yellow")
 
-        # Display tool call with arguments (single line, updated in-place)
-        status_text = self._format_tool_call(tool_name, args)
+        # Format tool call
+        formatted_call = self._format_tool_call(tool_name, args)
+        # Parse rich markup and add to Text object
+        from rich.markup import render
+        tool_line.append_text(render(formatted_call))
 
-        # Use Rich status for live updating (spinner + text)
-        from rich.status import Status
-        self.current_tool_status = Status(status_text, console=self.console, spinner="dots")
-        self.current_tool_status.start()
+        self.console.print(tool_line)
 
         self.tool_outputs.append({
             'tool': tool_name,
@@ -219,11 +213,6 @@ class CLI:
 
     def display_tool_outputs_summary(self):
         """Display summary of all tool outputs"""
-        # Stop any active tool status display
-        if self.current_tool_status:
-            self.current_tool_status.stop()
-            self.current_tool_status = None
-
         if not self.tool_outputs:
             return
 
@@ -503,18 +492,46 @@ class CLI:
             border_style="blue"
         ))
     
+    def _show_token_status(self):
+        """Display current token usage before prompt"""
+        if hasattr(self.agent, 'token_counter'):
+            total_tokens = self.agent.token_counter.usage.get('total', 0)
+            max_tokens = self.agent.token_counter.max_tokens
+
+            # Format tokens in K (thousands)
+            if total_tokens >= 1000:
+                total_str = f"{total_tokens/1000:.1f}K"
+            else:
+                total_str = str(total_tokens)
+
+            if max_tokens >= 1000:
+                max_str = f"{max_tokens/1000:.0f}K"
+            else:
+                max_str = str(max_tokens)
+
+            usage_pct = (total_tokens / max_tokens * 100) if max_tokens > 0 else 0
+
+            # Display token info
+            self.console.print(f"[dim]Tokens: {total_str}/{max_str} ({usage_pct:.0f}%)[/dim]")
+
     def run(self):
         """Run interactive loop"""
         self.show_welcome()
-        
+        first_prompt = True
+
         while True:
             try:
+                # Show token usage at the bottom before next prompt (except first time)
+                if not first_prompt:
+                    self._show_token_status()
+                first_prompt = False
+
                 # Get user input
                 user_input = self.session.prompt('\n> ').strip()
-                
+
                 if not user_input:
                     continue
-                
+
                 # Handle commands
                 if user_input.startswith('/'):
                     if not self.handle_command(user_input):
@@ -564,9 +581,8 @@ class CLI:
                             border_style="green"
                         ))
 
-                    # Display tool outputs summary if any
-                    if self.tool_outputs:
-                        self.display_tool_outputs_summary()
+                    # Tool outputs are already displayed inline during execution
+                    # No need for summary display
 
                 except Exception as e:
                     self.console.print(f"[red]错误: {e}[/red]")
