@@ -55,9 +55,9 @@ class PersistentShellSession:
         """Get the appropriate shell command for this platform"""
         if self.is_windows:
             # Use cmd.exe on Windows
-            # /Q: Turn echo off
+            # /Q: Turns echo off (though we also send @echo off explicitly)
             # /K: Keep window open (for interactive use)
-            return ['cmd.exe', '/Q', '/K', 'prompt $G$S']  # Set simple prompt
+            return ['cmd.exe', '/Q', '/K']
         else:
             # Use bash on Linux/Mac
             return ['/bin/bash', '--norc', '--noprofile']
@@ -100,6 +100,12 @@ class PersistentShellSession:
             # Wait for shell to initialize and clear startup output
             time.sleep(0.2)
             self._drain_output(timeout=0.3)
+
+            # Windows-specific: Disable command echo and set minimal prompt
+            if self.is_windows:
+                self._send_raw_command('@echo off')
+                self._send_raw_command('prompt $S')  # Single space prompt to minimize interference
+                self._drain_output(timeout=0.2)
 
             # Set initial directory (platform-specific)
             if self.is_windows:
@@ -191,19 +197,29 @@ class PersistentShellSession:
             exit_code = 0
             found_marker = False
 
+            # Debug flag (set via environment variable DEBUG_SHELL_SESSION=1)
+            debug_marker = os.environ.get('DEBUG_SHELL_SESSION', '0') == '1'
+
             start_time = time.time()
             while time.time() - start_time < timeout:
                 try:
                     line = self.stdout_queue.get(timeout=0.1)
                     line = line.rstrip('\r\n')  # Strip both Windows (\r\n) and Unix (\n) line endings
 
+                    if debug_marker and self.is_windows:
+                        print(f"[DEBUG] Line: {repr(line)}")
+
                     # Check for completion marker
                     if line.startswith(marker):
+                        if debug_marker and self.is_windows:
+                            print(f"[DEBUG] Found marker: {repr(line)}")
                         parts = line.split(':')
                         if len(parts) == 2:
                             try:
                                 exit_code = int(parts[1])
                             except ValueError:
+                                if debug_marker and self.is_windows:
+                                    print(f"[DEBUG] Failed to parse exit code from: {repr(parts[1])}")
                                 pass
                         found_marker = True
                         break
@@ -219,6 +235,9 @@ class PersistentShellSession:
                     pass
 
             if not found_marker:
+                if debug_marker and self.is_windows:
+                    print(f"[DEBUG] Marker not found. Expected: {marker}")
+                    print(f"[DEBUG] Stdout lines: {stdout_lines}")
                 return False, '\n'.join(stdout_lines), "Command timed out"
 
             # Drain any remaining output
