@@ -71,7 +71,6 @@ class ClaudeQwenCompleter(Completer):
             Completion objects
         """
         text = document.text_before_cursor
-        words = text.split()
 
         # If empty or not starting with /, no completions
         if not text:
@@ -79,9 +78,25 @@ class ClaudeQwenCompleter(Completer):
 
         # Complete slash commands
         if text.startswith('/'):
-            if len(words) <= 1:
+            # Split while preserving information about trailing spaces
+            words = text.split()
+            has_trailing_space = text.endswith(' ')
+
+            # Determine if we're completing main command or subcommand
+            if len(words) == 0:
+                word = '/'
                 # Complete main command
-                word = words[0] if words else '/'
+                for cmd, desc in self.commands.items():
+                    if cmd.startswith(word):
+                        yield Completion(
+                            cmd,
+                            start_position=-len(word),
+                            display=cmd,
+                            display_meta=desc
+                        )
+            elif len(words) == 1 and not has_trailing_space:
+                # Still completing the main command
+                word = words[0]
                 for cmd, desc in self.commands.items():
                     if cmd.startswith(word):
                         yield Completion(
@@ -91,12 +106,12 @@ class ClaudeQwenCompleter(Completer):
                             display_meta=desc
                         )
             else:
-                # Complete subcommands
+                # Complete subcommands (either we have 2+ words, or 1 word + trailing space)
                 main_cmd = words[0].lower()
 
                 # /model subcommands
-                if main_cmd == '/model' and len(words) <= 2:
-                    partial = words[1] if len(words) == 2 else ''
+                if main_cmd == '/model':
+                    partial = words[1] if len(words) >= 2 else ''
                     for subcmd, desc in self.model_subcommands.items():
                         if subcmd.startswith(partial):
                             yield Completion(
@@ -107,8 +122,8 @@ class ClaudeQwenCompleter(Completer):
                             )
 
                 # /cmd and /cmdremote shell command suggestions
-                elif main_cmd in ['/cmd', '/cmdremote'] and len(words) <= 2:
-                    partial = words[1] if len(words) == 2 else ''
+                elif main_cmd in ['/cmd', '/cmdremote']:
+                    partial = words[1] if len(words) >= 2 else ''
                     for shell_cmd in self.shell_commands:
                         if shell_cmd.startswith(partial):
                             yield Completion(
