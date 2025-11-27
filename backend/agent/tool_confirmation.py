@@ -24,51 +24,28 @@ class ToolConfirmation:
         Initialize tool confirmation manager
 
         Args:
-            confirmation_file: Path to confirmation config file
+            confirmation_file: Path to confirmation config file (kept for compatibility, but not used for session-level confirmations)
         """
-        if confirmation_file is None:
-            confirmation_file = str(Path.home() / '.claude_qwen_confirmations.json')
+        # Note: Confirmations are now session-level only (not persisted to disk)
+        # The confirmation_file parameter is kept for backward compatibility but not used
 
-        self.confirmation_file = Path(confirmation_file)
-
-        # Load saved confirmations
+        # In-memory confirmation state (session-level)
         self.allowed_tools: Set[str] = set()
         self.allowed_bash_commands: Set[str] = set()
         self.denied_tools: Set[str] = set()
-
-        self._load_confirmations()
 
         # Callback for user confirmation (set by CLI)
         self.confirm_callback: Optional[Callable[[str, str, Dict], ConfirmAction]] = None
 
     def _load_confirmations(self):
-        """Load confirmations from file"""
-        if self.confirmation_file.exists():
-            try:
-                with open(self.confirmation_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.allowed_tools = set(data.get('allowed_tools', []))
-                    self.allowed_bash_commands = set(data.get('allowed_bash_commands', []))
-                    self.denied_tools = set(data.get('denied_tools', []))
-            except Exception as e:
-                print(f"Warning: Failed to load confirmations: {e}")
+        """Load confirmations from file (disabled - session-level only)"""
+        # Session-level only: do not load from file
+        pass
 
     def _save_confirmations(self):
-        """Save confirmations to file"""
-        try:
-            data = {
-                'allowed_tools': list(self.allowed_tools),
-                'allowed_bash_commands': list(self.allowed_bash_commands),
-                'denied_tools': list(self.denied_tools)
-            }
-            # Ensure parent directory exists
-            self.confirmation_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.confirmation_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            import traceback
-            print(f"Warning: Failed to save confirmations: {e}")
-            traceback.print_exc()
+        """Save confirmations to file (disabled - session-level only)"""
+        # Session-level only: do not save to file
+        pass
 
     def set_confirmation_callback(self, callback: Callable[[str, str, Dict], ConfirmAction]):
         """Set the confirmation callback function"""
@@ -198,13 +175,11 @@ class ToolConfirmation:
         return action
 
     def reset_confirmations(self):
-        """Reset all confirmations"""
+        """Reset all confirmations (session-level only)"""
         self.allowed_tools.clear()
         self.allowed_bash_commands.clear()
         self.denied_tools.clear()
-
-        if self.confirmation_file.exists():
-            self.confirmation_file.unlink()
+        # Note: No file to delete - confirmations are session-level only
 
     def get_confirmation_status(self) -> Dict:
         """Get current confirmation status"""
