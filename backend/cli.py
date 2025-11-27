@@ -24,6 +24,7 @@ from .utils.precheck import PreCheck
 from .agent.tool_confirmation import ConfirmAction
 from .remotectl.commands import RemoteCommands
 from .cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
+from .shell_session import PersistentShellSession
 
 
 class CLI:
@@ -82,6 +83,9 @@ class CLI:
 
         # Initialize remote commands (for /model commands)
         self.remote_commands = RemoteCommands(self.console)
+
+        # Initialize persistent shell session for /cmd
+        self.shell_session = PersistentShellSession(initial_cwd=self.project_root)
 
         # Tool output management (for enhanced display)
         self.current_command = ""
@@ -384,7 +388,9 @@ class CLI:
 - `/cache` - 查看文件补全缓存状态
 - `/reset-confirmations` - 重置工具执行确认
 - `/model` - 管理 Ollama 模型（list/create/pull/health）
-- `/cmd <command>` - 执行本地终端命令
+- `/cmd <command>` - 执行本地终端命令（持久化会话）
+- `/cmdpwd` - 查看 shell 当前目录
+- `/cmdclear` - 重置 shell 会话
 - `/cmdremote <command>` - 执行远程终端命令（SSH）
 - `/expand` / `/collapse` / `/toggle` - 展开/折叠工具输出
 - `/exit` - 退出
@@ -584,14 +590,26 @@ class CLI:
             self.handle_model_command(command)
 
         elif cmd == '/cmd':
-            # Execute local command
+            # Execute local command in persistent shell
             parts = command.split(maxsplit=1)
             if len(parts) > 1:
                 cmd_to_run = parts[1]
-                self.remote_commands.execute_local_command(cmd_to_run)
+                self.console.print(f"[cyan]执行命令:[/cyan] {cmd_to_run}")
+                success, stdout, stderr = self.shell_session.execute(cmd_to_run)
+
+                if stdout:
+                    self.console.print(stdout)
+                if stderr:
+                    self.console.print(f"[red]{stderr}[/red]")
+
+                if success:
+                    self.console.print(f"[green]✓ 命令执行成功[/green]")
+                else:
+                    self.console.print(f"[red]✗ 命令执行失败[/red]")
             else:
                 self.console.print("[yellow]用法: /cmd <command>[/yellow]")
                 self.console.print("示例: /cmd ls -la")
+                self.console.print("[dim]提示: 持久化会话，cd 等命令会保留状态[/dim]")
 
         elif cmd == '/cmdremote':
             # Execute remote command
@@ -602,6 +620,17 @@ class CLI:
             else:
                 self.console.print("[yellow]用法: /cmdremote <command>[/yellow]")
                 self.console.print("示例: /cmdremote ps aux | grep ollama")
+
+        elif cmd == '/cmdpwd':
+            # Show current working directory of persistent shell
+            cwd = self.shell_session.get_cwd()
+            self.console.print(f"[cyan]当前工作目录:[/cyan] {cwd}")
+
+        elif cmd == '/cmdclear':
+            # Reset persistent shell session
+            self.console.print("[yellow]重置 shell 会话...[/yellow]")
+            self.shell_session.reset()
+            self.console.print(f"[green]✓ Shell 会话已重置到初始目录: {self.project_root}[/green]")
 
         elif cmd == '/expand':
             # Expand last collapsed output
@@ -935,8 +964,10 @@ int main() {
 - `/model pull <name>` - 拉取模型
 - `/model health` - 检查 Ollama 服务器状态
 
-### 命令透传
-- `/cmd <command>` - 在本地执行终端命令
+### 命令透传（持久化会话）
+- `/cmd <command>` - 在本地执行终端命令（持久化 shell 会话，保留工作目录和环境变量）
+- `/cmdpwd` - 查看持久化 shell 的当前工作目录
+- `/cmdclear` - 重置持久化 shell 会话到初始状态
 - `/cmdremote <command>` - 在远程服务器执行终端命令（通过 SSH）
 
 ## 示例用法
@@ -963,9 +994,13 @@ int main() {
 查找所有网络相关的函数
 ```
 
-**命令透传**:
+**命令透传（持久化会话）**:
 ```
 /cmd ls -la                    # 查看本地目录
+/cmd cd backend                # 切换目录（状态会保留）
+/cmd pwd                       # 仍在 backend 目录下
+/cmdpwd                        # 查看当前目录
+/cmdclear                      # 重置 shell 会话
 /cmd ps aux | grep ollama      # 查看本地进程
 /cmdremote ollama list         # 在远程服务器列出模型
 /cmdremote nvidia-smi          # 查看远程 GPU 状态
