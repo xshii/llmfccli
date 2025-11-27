@@ -66,9 +66,9 @@ class TokenCounter:
             import certifi
             # Try with SSL context
             self.encoder = tiktoken.get_encoding("cl100k_base")
-        except Exception as e:
-            # Fallback: use simple character-based estimation
-            print(f"Warning: tiktoken failed ({e}), using character-based estimation")
+        except Exception:
+            # Fallback: use simple character-based estimation (silently)
+            # This happens when tiktoken can't download vocabulary files
             self.encoder = None
         
         # Track token usage by category

@@ -333,20 +333,20 @@ def create_file(path: str, content: str,
     }
 
 
-def grep_search(pattern: str, scope: str = ".", 
+def grep_search(pattern: str, scope: str,
                 project_root: Optional[str] = None,
                 max_results: int = 50,
                 file_pattern: Optional[str] = None) -> Dict[str, Any]:
     """
     Search for pattern in files (regex supported)
-    
+
     Args:
         pattern: Search pattern (regex)
-        scope: Search scope directory
+        scope: Search scope directory (required, e.g., ".", "src/", "backend/")
         project_root: Project root directory
         max_results: Maximum number of results
         file_pattern: Optional file pattern filter (e.g., "*.cpp")
-        
+
     Returns:
         Dict with 'matches', 'total_files_searched', 'truncated'
     """

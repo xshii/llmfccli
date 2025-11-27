@@ -24,47 +24,28 @@ class ToolConfirmation:
         Initialize tool confirmation manager
 
         Args:
-            confirmation_file: Path to confirmation config file
+            confirmation_file: Path to confirmation config file (kept for compatibility, but not used for session-level confirmations)
         """
-        if confirmation_file is None:
-            confirmation_file = str(Path.home() / '.claude_qwen_confirmations.json')
+        # Note: Confirmations are now session-level only (not persisted to disk)
+        # The confirmation_file parameter is kept for backward compatibility but not used
 
-        self.confirmation_file = Path(confirmation_file)
-
-        # Load saved confirmations
+        # In-memory confirmation state (session-level)
         self.allowed_tools: Set[str] = set()
         self.allowed_bash_commands: Set[str] = set()
         self.denied_tools: Set[str] = set()
-
-        self._load_confirmations()
 
         # Callback for user confirmation (set by CLI)
         self.confirm_callback: Optional[Callable[[str, str, Dict], ConfirmAction]] = None
 
     def _load_confirmations(self):
-        """Load confirmations from file"""
-        if self.confirmation_file.exists():
-            try:
-                with open(self.confirmation_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.allowed_tools = set(data.get('allowed_tools', []))
-                    self.allowed_bash_commands = set(data.get('allowed_bash_commands', []))
-                    self.denied_tools = set(data.get('denied_tools', []))
-            except Exception as e:
-                print(f"Warning: Failed to load confirmations: {e}")
+        """Load confirmations from file (disabled - session-level only)"""
+        # Session-level only: do not load from file
+        pass
 
     def _save_confirmations(self):
-        """Save confirmations to file"""
-        try:
-            data = {
-                'allowed_tools': list(self.allowed_tools),
-                'allowed_bash_commands': list(self.allowed_bash_commands),
-                'denied_tools': list(self.denied_tools)
-            }
-            with open(self.confirmation_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"Warning: Failed to save confirmations: {e}")
+        """Save confirmations to file (disabled - session-level only)"""
+        # Session-level only: do not save to file
+        pass
 
     def set_confirmation_callback(self, callback: Callable[[str, str, Dict], ConfirmAction]):
         """Set the confirmation callback function"""
@@ -104,12 +85,25 @@ class ToolConfirmation:
         Returns:
             True if confirmation needed
         """
+        import os
+        debug = os.getenv('DEBUG_CONFIRMATION', False)
+
+        if debug:
+            print(f"[DEBUG] Checking confirmation for tool: {tool_name}")
+            print(f"[DEBUG] allowed_tools: {self.allowed_tools}")
+            print(f"[DEBUG] allowed_bash_commands: {self.allowed_bash_commands}")
+            print(f"[DEBUG] denied_tools: {self.denied_tools}")
+
         # Check if tool is denied
         if tool_name in self.denied_tools:
+            if debug:
+                print(f"[DEBUG] Tool {tool_name} is DENIED")
             return True
 
         # Check if tool is allowed
         if tool_name in self.allowed_tools:
+            if debug:
+                print(f"[DEBUG] Tool {tool_name} is ALLOWED (no confirmation needed)")
             return False
 
         # Special handling for bash_run
@@ -117,9 +111,14 @@ class ToolConfirmation:
             command = arguments.get('command', '')
             # Extract base command
             base_cmd = command.split()[0] if command else ''
-            return base_cmd not in self.allowed_bash_commands
+            is_allowed = base_cmd in self.allowed_bash_commands
+            if debug:
+                print(f"[DEBUG] bash_run command: {base_cmd}, is_allowed: {is_allowed}")
+            return not is_allowed
 
         # First time seeing this tool, needs confirmation
+        if debug:
+            print(f"[DEBUG] Tool {tool_name} needs confirmation (first time)")
         return True
 
     def confirm_tool_execution(self, tool_name: str, arguments: Dict) -> ConfirmAction:
@@ -144,6 +143,9 @@ class ToolConfirmation:
         action = self.confirm_callback(tool_name, category, arguments)
 
         # Update allowed/denied lists based on action
+        import os
+        debug = os.getenv('DEBUG_CONFIRMATION', False)
+
         if action == ConfirmAction.ALLOW_ALWAYS:
             if tool_name == 'bash_run':
                 # For bash_run, allow the specific command
@@ -151,25 +153,33 @@ class ToolConfirmation:
                 base_cmd = command.split()[0] if command else ''
                 if base_cmd:
                     self.allowed_bash_commands.add(base_cmd)
+                    if debug:
+                        print(f"[DEBUG] Added bash command '{base_cmd}' to allowed_bash_commands")
+                        print(f"[DEBUG] allowed_bash_commands now: {self.allowed_bash_commands}")
             else:
                 self.allowed_tools.add(tool_name)
+                if debug:
+                    print(f"[DEBUG] Added tool '{tool_name}' to allowed_tools")
+                    print(f"[DEBUG] allowed_tools now: {self.allowed_tools}")
 
             self._save_confirmations()
+            if debug:
+                print(f"[DEBUG] Confirmations saved to {self.confirmation_file}")
 
         elif action == ConfirmAction.DENY:
             self.denied_tools.add(tool_name)
             self._save_confirmations()
+            if debug:
+                print(f"[DEBUG] Added tool '{tool_name}' to denied_tools")
 
         return action
 
     def reset_confirmations(self):
-        """Reset all confirmations"""
+        """Reset all confirmations (session-level only)"""
         self.allowed_tools.clear()
         self.allowed_bash_commands.clear()
         self.denied_tools.clear()
-
-        if self.confirmation_file.exists():
-            self.confirmation_file.unlink()
+        # Note: No file to delete - confirmations are session-level only
 
     def get_confirmation_status(self) -> Dict:
         """Get current confirmation status"""
