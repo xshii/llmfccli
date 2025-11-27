@@ -450,26 +450,26 @@ class CLI:
         if tool_name == 'bash_run':
             command = arguments.get('command', '')
             self.console.print(Panel(
-                f"[yellow]⚠ 工具执行确认[/yellow]\n\n"
+                f"[yellow]⚠ 工具执行确认[/yellow]\n"
                 f"[bold]工具:[/bold] {tool_name}\n"
                 f"[bold]类别:[/bold] {category}\n"
-                f"[bold]命令:[/bold] [cyan]{command}[/cyan]\n\n"
+                f"[bold]命令:[/bold] [cyan]{command}[/cyan]\n"
                 f"[dim]参数:[/dim]\n{args_text}",
                 title="需要确认",
                 border_style="yellow"
             ))
         else:
             self.console.print(Panel(
-                f"[yellow]⚠ 工具执行确认[/yellow]\n\n"
+                f"[yellow]⚠ 工具执行确认[/yellow]\n"
                 f"[bold]工具:[/bold] {tool_name}\n"
-                f"[bold]类别:[/bold] {category}\n\n"
+                f"[bold]类别:[/bold] {category}\n"
                 f"[dim]参数:[/dim]\n{args_text}",
                 title="需要确认",
                 border_style="yellow"
             ))
 
         # Prompt for action
-        self.console.print("\n[bold]选择操作:[/bold]")
+        self.console.print("[bold]选择操作:[/bold]")
         self.console.print("  [green]1[/green] - 本次允许 (ALLOW_ONCE)")
         self.console.print("  [blue]2[/blue] - 始终允许 (ALLOW_ALWAYS)")
         self.console.print("  [red]3[/red] - 拒绝并停止 (DENY)")
@@ -479,7 +479,7 @@ class CLI:
                 choice = input("\n请输入选择 (1/2/3): ").strip()
 
                 if choice == '1':
-                    self.console.print("[green]✓ 本次允许执行[/green]\n")
+                    self.console.print("[green]✓ 本次允许执行[/green]")
                     return ConfirmAction.ALLOW_ONCE
                 elif choice == '2':
                     # Get tool signature for display
@@ -493,15 +493,15 @@ class CLI:
                         self.console.print(f"[blue]✓ 始终允许工具: {tool_name}[/blue]")
 
                     # Show the signature key that will be allowed
-                    self.console.print(f"[dim]  允许标识: {signature}[/dim]\n")
+                    self.console.print(f"[dim]  允许标识: {signature}[/dim]")
                     return ConfirmAction.ALLOW_ALWAYS
                 elif choice == '3':
-                    self.console.print("[red]✗ 已拒绝，停止执行[/red]\n")
+                    self.console.print("[red]✗ 已拒绝，停止执行[/red]")
                     return ConfirmAction.DENY
                 else:
                     self.console.print("[yellow]无效选择，请输入 1、2 或 3[/yellow]")
             except (KeyboardInterrupt, EOFError):
-                self.console.print("\n[red]✗ 已取消，停止执行[/red]\n")
+                self.console.print("[red]✗ 已取消，停止执行[/red]")
                 return ConfirmAction.DENY
 
     def show_welcome(self):
