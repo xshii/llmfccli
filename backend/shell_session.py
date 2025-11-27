@@ -55,7 +55,9 @@ class PersistentShellSession:
         """Get the appropriate shell command for this platform"""
         if self.is_windows:
             # Use cmd.exe on Windows
-            return ['cmd.exe', '/Q']  # /Q disables echo
+            # /Q: Turn echo off
+            # /K: Keep window open (for interactive use)
+            return ['cmd.exe', '/Q', '/K', 'prompt $G$S']  # Set simple prompt
         else:
             # Use bash on Linux/Mac
             return ['/bin/bash', '--norc', '--noprofile']
@@ -94,6 +96,10 @@ class PersistentShellSession:
 
             self.stdout_thread.start()
             self.stderr_thread.start()
+
+            # Wait for shell to initialize and clear startup output
+            time.sleep(0.2)
+            self._drain_output(timeout=0.3)
 
             # Set initial directory (platform-specific)
             if self.is_windows:
@@ -172,8 +178,8 @@ class PersistentShellSession:
 
             if self.is_windows:
                 # Windows cmd.exe syntax
-                self._send_raw_command(f'set {exit_code_var}=%ERRORLEVEL%')
-                self._send_raw_command(f'echo {marker}:%{exit_code_var}%')
+                # Directly use %ERRORLEVEL% to avoid variable expansion issues
+                self._send_raw_command(f'echo {marker}:%ERRORLEVEL%')
             else:
                 # Unix bash syntax
                 self._send_raw_command(f'{exit_code_var}=$?')
