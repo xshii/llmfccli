@@ -31,7 +31,16 @@ class PersistentShellSession:
         Args:
             initial_cwd: Initial working directory (defaults to current directory)
         """
-        self.initial_cwd = initial_cwd or os.getcwd()
+        # Validate and set initial working directory
+        if initial_cwd:
+            if os.path.isdir(initial_cwd):
+                self.initial_cwd = initial_cwd
+            else:
+                # Fallback to current directory if initial_cwd doesn't exist
+                self.initial_cwd = os.getcwd()
+        else:
+            self.initial_cwd = os.getcwd()
+
         self.process: Optional[subprocess.Popen] = None
         self.stdout_queue: Queue = Queue()
         self.stderr_queue: Queue = Queue()
