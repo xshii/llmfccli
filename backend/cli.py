@@ -91,7 +91,6 @@ class CLI:
         self.current_command = ""
         self.command_start_time = None
         self.tool_outputs = []  # [{'tool', 'output', 'args', 'collapsed', 'lines'}]
-        self.current_tool_status = None  # Rich Status object for live updates
 
     def _compress_path(self, path: str, max_length: int = 50) -> str:
         """Compress long paths by keeping start and filename
@@ -149,11 +148,6 @@ class CLI:
         """
         # Special handling for assistant thinking message
         if tool_name == '__assistant_thinking__':
-            # Stop previous status if exists
-            if self.current_tool_status:
-                self.current_tool_status.stop()
-                self.current_tool_status = None
-
             # Display thinking message
             from rich.text import Text
             thinking_line = Text()
@@ -164,18 +158,18 @@ class CLI:
         lines = output.count('\n')
         should_collapse = auto_collapse and lines > 20
 
-        # Stop previous status if exists
-        if self.current_tool_status:
-            self.current_tool_status.stop()
-            self.current_tool_status = None
+        # Display tool call with arguments (persistent line, stays on screen)
+        from rich.text import Text
+        tool_line = Text()
+        tool_line.append("🔧 ", style="yellow")
 
-        # Display tool call with arguments (single line, updated in-place)
-        status_text = self._format_tool_call(tool_name, args)
+        # Format tool call
+        formatted_call = self._format_tool_call(tool_name, args)
+        # Parse rich markup and add to Text object
+        from rich.markup import render
+        tool_line.append_text(render(formatted_call))
 
-        # Use Rich status for live updating (spinner + text)
-        from rich.status import Status
-        self.current_tool_status = Status(status_text, console=self.console, spinner="dots")
-        self.current_tool_status.start()
+        self.console.print(tool_line)
 
         self.tool_outputs.append({
             'tool': tool_name,
@@ -219,11 +213,6 @@ class CLI:
 
     def display_tool_outputs_summary(self):
         """Display summary of all tool outputs"""
-        # Stop any active tool status display
-        if self.current_tool_status:
-            self.current_tool_status.stop()
-            self.current_tool_status = None
-
         if not self.tool_outputs:
             return
 
