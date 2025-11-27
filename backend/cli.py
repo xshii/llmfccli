@@ -147,6 +147,20 @@ class CLI:
             args: Tool arguments (optional)
             auto_collapse: Auto-collapse if output >20 lines
         """
+        # Special handling for assistant thinking message
+        if tool_name == '__assistant_thinking__':
+            # Stop previous status if exists
+            if self.current_tool_status:
+                self.current_tool_status.stop()
+                self.current_tool_status = None
+
+            # Display thinking message
+            from rich.text import Text
+            thinking_line = Text()
+            thinking_line.append(output, style="dim italic")
+            self.console.print(thinking_line)
+            return  # Don't add to tool_outputs
+
         lines = output.count('\n')
         should_collapse = auto_collapse and lines > 20
 

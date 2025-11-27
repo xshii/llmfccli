@@ -161,14 +161,26 @@ class AgentLoop:
             
             # Execute tool calls
             self.tool_calls.extend(tool_calls)
-            
+
             # Add assistant message with tool calls
             self.conversation_history.append({
                 'role': 'assistant',
                 'content': content,
                 'tool_calls': tool_calls
             })
-            
+
+            # Display assistant's thinking before executing tools
+            if self.tool_output_callback:
+                try:
+                    # Show assistant's content or a witty message
+                    if content and content.strip():
+                        self.tool_output_callback('__assistant_thinking__', content, {})
+                    else:
+                        self.tool_output_callback('__assistant_thinking__',
+                                                 '💭 AI正在指挥做事，没功夫说话...', {})
+                except Exception:
+                    pass
+
             # Execute each tool
             for tool_call in tool_calls:
                 tool_name = tool_call['function']['name']
