@@ -23,7 +23,6 @@ Claude-Qwen CLI 支持智能 tab 键补全，可以帮助您快速输入命令�
 /help          - Display help message
 /clear         - Clear conversation history
 /compact       - Manually trigger context compression
-/usage         - Show token usage
 /model         - Manage Ollama models
 /cmd           - Execute local terminal command
 /cmdremote     - Execute remote terminal command (SSH)
@@ -135,9 +134,7 @@ docs/README.md                        - File (.md)
 | `/help` | 显示帮助信息 |
 | `/clear` | 清除对话历史 |
 | `/compact` | 手动压缩上下文 |
-| `/usage` | 显示 Token 使用情况 |
 | `/root` | 查看或设置项目根目录 |
-| `/reset-confirmations` | 重置工具执行确认 |
 | `/exit`, `/quit` | 退出程序 |
 | `/model` | 管理 Ollama 模型 |
 | `/cmd` | 执行本地终端命令 |

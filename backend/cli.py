@@ -344,31 +344,97 @@ class CLI:
                 self.console.print("\n[yellow]⚠ 环境检查失败[/yellow]")
                 self.console.print("\n[yellow]建议操作:[/yellow]")
 
+                # Load SSH host from config
+                ssh_host = "ollama-tunnel"
+                try:
+                    config_path = Path(__file__).parent.parent / "config" / "ollama.yaml"
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        import yaml
+                        config = yaml.safe_load(f)
+                        ssh_host = config.get('ssh', {}).get('host', 'ollama-tunnel')
+                except Exception:
+                    pass
                 for result in results:
                     if not result.success:
                         if "SSH Tunnel" in result.name:
-                            self.console.print("  • 启动 SSH 隧道: [cyan]ssh -fN ollama-tunnel[/cyan]")
+                            if "远程 Ollama 服务未运行" in result.message:
+                                self.console.print(f"  • 在远程服务器启动 Ollama: [cyan]ssh {ssh_host} 'ollama serve &'[/cyan]")
+                            else:
+                                self.console.print(f"  • 启动 SSH 隧道: [cyan]ssh -fN {ssh_host}[/cyan]")
                         elif "Ollama Connection" in result.name:
-                            self.console.print("  • 验证远程服务器上的 Ollama 服务是否运行")
+                            self.console.print(f"  • 在远程服务器启动 Ollama: [cyan]ssh {ssh_host} 'nohup ollama serve > /dev/null 2>&1 &'[/cyan]")
                         elif "Ollama Model" in result.name:
                             model = result.details.get('model', 'qwen3:latest')
                             self.console.print(f"  • 拉取模型: [cyan]ollama pull {model}[/cyan]")
 
                 self.console.print("\n[yellow]提示: 使用 --skip-precheck 参数跳过环境检查[/yellow]\n")
 
-                # Ask user if they want to continue, retry, or quit
+                # Ask user if they want to start SSH and retry, continue, or quit
                 try:
-                    response = input("选择操作 - [r]重试 / [y]继续 / [N]退出: ").strip().lower()
-                    if response == 'r':
-                        # Retry - continue the while loop
+                    response = input("选择操作 - [s]启动SSH并重试 / [R]重试 / [n]退出: ").strip().lower()
+                    if response == 's':
+                        # Start SSH tunnel and retry
+                        import subprocess
+                        # First kill any process using port 11434
+                        import platform
+                        try:
+                            if platform.system() == 'Windows':
+                                # Windows: use netstat and taskkill
+                                result = subprocess.run(
+                                    'netstat -ano | findstr :11434',
+                                    shell=True, capture_output=True, text=True
+                                )
+                                if result.returncode == 0 and result.stdout.strip():
+                                    pids = set()
+                                    for line in result.stdout.strip().split('\n'):
+                                        parts = line.split()
+                                        if parts:
+                                            pids.add(parts[-1])
+                                    for pid in pids:
+                                        if pid.strip() and pid != '0':
+                                            subprocess.run(f'taskkill /PID {pid} /F', shell=True, capture_output=True)
+                                    self.console.print(f"[dim]已终止占用端口 11434 的进程 (PID: {', '.join(pids)})[/dim]")
+                            else:
+                                # macOS/Linux: use lsof
+                                result = subprocess.run(
+                                    'lsof -i tcp:11434',
+                                    shell=True, capture_output=True, text=True
+                                )
+                                self.console.print(f"[dim]lsof 输出: {result.stdout.strip() or '(无)'}[/dim]")
+                                if result.stdout.strip():
+                                    # Get PIDs from lsof output (skip header line)
+                                    lines = result.stdout.strip().split('\n')[1:]  # skip header
+                                    pids = set()
+                                    for line in lines:
+                                        parts = line.split()
+                                        if len(parts) >= 2:
+                                            pids.add(parts[1])  # PID is second column
+                                    if pids:
+                                        for pid in pids:
+                                            kill_result = subprocess.run(['kill', '-9', pid], capture_output=True, text=True)
+                                            self.console.print(f"[dim]kill {pid}: {kill_result.returncode}[/dim]")
+                                        self.console.print(f"[dim]已终止占用端口 11434 的进程 (PID: {', '.join(pids)})[/dim]")
+                            import time
+                            time.sleep(1)  # Wait for port to be released
+                        except Exception as e:
+                            self.console.print(f"[dim]清理端口失败: {e}[/dim]")
+                        # Start new tunnel
+                        self.console.print(f"[cyan]启动 SSH 隧道: ssh -fN {ssh_host}[/cyan]")
+                        try:
+                            subprocess.run(['ssh', '-fN', ssh_host], check=True)
+                            self.console.print("[green]✓ SSH 隧道已启动[/green]")
+                        except subprocess.CalledProcessError as e:
+                            self.console.print(f"[red]✗ SSH 启动失败: {e}[/red]")
+                        except FileNotFoundError:
+                            self.console.print("[red]✗ 未找到 ssh 命令[/red]")
                         continue
-                    elif response in ['y', 'yes']:
-                        # Continue despite failures
-                        break
-                    else:
-                        # Quit (default)
+                    elif response == 'n':
+                        # Quit
                         self.console.print("[red]已取消启动[/red]")
                         sys.exit(1)
+                    else:
+                        # Retry (default, including empty input)
+                        continue
                 except (KeyboardInterrupt, EOFError):
                     self.console.print("\n[red]已取消启动[/red]")
                     sys.exit(1)
@@ -479,28 +545,41 @@ class CLI:
         stream_status = "✓ 启用" if self.client.stream_enabled else "✗ 禁用"
         stream_hint = "(实时输出)" if self.client.stream_enabled else "(等待完整响应)"
 
-        welcome = """
-# Claude-Qwen AI 编程助手
-**项目根目录**: {root} | **流式输出**: {stream_status} {stream_hint}
-**可用命令**:
-- `/help` - 显示帮助 | `/clear` - 清除对话历史 | `/usage` - Token 使用情况
-- `/compact [ratio]` - 智能压缩上下文 | `/reset-confirmations` - 重置工具确认
-- `/model` - 管理 Ollama 模型 | `/cmd <command>` - 执行本地终端命令
-- `/exit` - 退出 (或按 Ctrl+D)
-**快速开始**: 直接输入您的请求，例如：
-- "找到 network_handler.cpp 并添加超时重试机制"
-- "编译项目并修复错误"
-💡 按 **Tab** 自动补全 | **Ctrl+C** 中断执行 | **Ctrl+D** 退出程序
-"""
-        self.console.print(Panel(
-            Markdown(welcome.format(
-                root=self.project_root,
-                stream_status=stream_status,
-                stream_hint=stream_hint
-            )),
-            title="欢迎",
-            border_style="blue"
-        ))
+        welcome = Text()
+        welcome.append("Claude-Qwen AI 编程助手\n", style="bold cyan")
+        welcome.append("项目根目录", style="bold")
+        welcome.append(f": {self.project_root} | ")
+        welcome.append("流式输出", style="bold")
+        welcome.append(f": {stream_status} {stream_hint}\n")
+        welcome.append("可用命令", style="bold")
+        welcome.append(":\n")
+        welcome.append("  /help", style="green")
+        welcome.append(" - 显示帮助 | ")
+        welcome.append("/clear", style="green")
+        welcome.append(" - 清除对话历史 | ")
+        welcome.append("/compact [ratio]", style="green")
+        welcome.append(" - 智能压缩上下文\n")
+        welcome.append("  /model", style="green")
+        welcome.append(" - 管理 Ollama 模型 | ")
+        welcome.append("/cmd <command>", style="green")
+        welcome.append(" - 执行本地终端命令\n")
+        welcome.append("  /root [path]", style="green")
+        welcome.append(" - 切换项目根目录 | ")
+        welcome.append("/exit", style="green")
+        welcome.append(" - 退出 (或按 Ctrl+D)\n")
+        welcome.append("快速开始", style="bold")
+        welcome.append(": 直接输入您的请求，例如：\n")
+        welcome.append("  • \"找到 network_handler.cpp 并添加超时重试机制\"\n", style="dim")
+        welcome.append("  • \"编译项目并修复错误\"\n", style="dim")
+        welcome.append("💡 按 ")
+        welcome.append("Tab", style="bold")
+        welcome.append(" 自动补全 | ")
+        welcome.append("Ctrl+C", style="bold")
+        welcome.append(" 中断执行 | ")
+        welcome.append("Ctrl+D", style="bold")
+        welcome.append(" 退出程序")
+
+        self.console.print(Panel(welcome, title="欢迎", border_style="blue"))
     
     def _show_token_status(self):
         """Display current token usage before prompt"""
@@ -521,19 +600,20 @@ class CLI:
 
             usage_pct = (total_tokens / max_tokens * 100) if max_tokens > 0 else 0
 
-            # Display token info with request file link
+            # Display token info with file link
             token_info = f"[dim]Tokens: {total_str}/{max_str} ({usage_pct:.0f}%)"
 
-            # Add request file link if available
-            if hasattr(self.client, 'last_request_file') and self.client.last_request_file:
-                import os
-                # Get relative path or filename
-                request_path = self.client.last_request_file
-                if os.path.exists(request_path):
-                    filename = os.path.basename(request_path)
-                    # Use Rich markup for clickable link (file:// protocol)
-                    file_url = f"file://{os.path.abspath(request_path)}"
-                    token_info += f" | [link={file_url}]{filename}[/link]"
+            # Add conversation/request file link if available
+            file_path = None
+            if hasattr(self.client, 'last_conversation_file') and self.client.last_conversation_file:
+                file_path = self.client.last_conversation_file
+            elif hasattr(self.client, 'last_request_file') and self.client.last_request_file:
+                file_path = self.client.last_request_file
+
+            if file_path and os.path.exists(file_path):
+                filename = os.path.basename(file_path)
+                file_url = f"file://{os.path.abspath(file_path)}"
+                token_info += f" | [link={file_url}]{filename}[/link]"
 
             token_info += "[/dim]"
             self.console.print(token_info)
@@ -589,9 +669,6 @@ class CLI:
                         # Run with streaming enabled
                         response = self.agent.run(user_input, stream=True, on_chunk=on_chunk)
 
-                        # Print newline after streaming
-                        self.console.print("\n")
-
                         # If response is empty (fully streamed), use streamed content
                         if not response.strip() and streamed_content:
                             response = ''.join(streamed_content)
@@ -642,22 +719,10 @@ class CLI:
             self.agent.tool_calls.clear()
             self.console.print("[green]已清除对话历史[/green]")
 
-        elif cmd == '/session_init':
-            # Clear conversation history but keep tool confirmations
-            self.agent.conversation_history.clear()
-            self.agent.tool_calls.clear()
-            # Tool confirmations (allowed_tool_calls) are preserved
-            self.console.print("[green]✓ 已清空会话历史[/green]")
-            self.console.print("[dim]工具确认状态已保留[/dim]")
-
         elif cmd == '/compact':
             # Enhanced context compression with detailed feedback
             self.handle_compact_command(command)
         
-        elif cmd == '/usage':
-            report = self.agent.get_usage_report()
-            self.console.print(Panel(report, title="Token 使用情况"))
-
         elif cmd == '/cache':
             # Show file completion cache info
             cache_info = self.filename_completer.get_cache_info()
@@ -716,12 +781,6 @@ class CLI:
                     self.console.print(f"[red]目录不存在: {new_root}[/red]")
             else:
                 self.console.print(f"当前项目根目录: {self.project_root}")
-
-        elif cmd == '/reset-confirmations':
-            # Reset all saved confirmations
-            self.agent.confirmation.reset_confirmations()
-            self.console.print("[green]✓ 已重置所有工具执行确认[/green]")
-            self.console.print("[dim]下次执行工具时将重新询问确认[/dim]")
 
         elif cmd == '/model':
             # Handle model management commands
@@ -1204,14 +1263,11 @@ int main() {
 ### Agent 控制
 - `/help` - 显示此帮助信息
 - `/clear` - 清除对话历史（保留文件访问权限）
-- `/session_init` - 清空会话历史，但保留工具确认状态
 - `/compact [ratio|--info]` - 智能压缩上下文
   - `/compact` - 使用默认目标(60%)压缩
   - `/compact 0.5` - 压缩到 50% tokens
   - `/compact --info` - 查看压缩策略而不执行
-- `/usage` - 显示 Token 使用情况
 - `/root [path]` - 查看或设置项目根目录
-- `/reset-confirmations` - 重置所有工具执行确认
 - `/exit` 或 `/quit` - 退出程序
 
 ### VSCode 集成
@@ -1258,7 +1314,6 @@ int main() {
 
 **上下文管理**:
 ```
-/usage                    # 查看 Token 使用情况
 /compact --info           # 查看压缩策略
 /compact                  # 使用默认策略压缩
 /compact 0.5              # 压缩到 50%

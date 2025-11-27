@@ -167,23 +167,47 @@ class RemoteOllamaClient:
         Returns:
             Tuple of (success, output_message)
         """
-        # Write Modelfile to temp location
-        temp_modelfile = f"/tmp/Modelfile.{model_name.replace(':', '_')}"
+        import base64
+        import tempfile
+        import platform
 
-        # Create Modelfile on remote server
-        escaped_content = modelfile_content.replace('"', '\\"').replace('$', '\\$')
-        write_cmd = f'cat > {temp_modelfile} << \'EOF\'\n{modelfile_content}\nEOF'
+        if self.ssh_enabled:
+            # Remote: use base64 encoding to transfer file safely
+            temp_modelfile = f"/tmp/Modelfile.{model_name.replace(':', '_')}"
+            encoded_content = base64.b64encode(modelfile_content.encode('utf-8')).decode('ascii')
+            write_cmd = f'echo {encoded_content} | base64 -d > {temp_modelfile}'
 
-        success, stdout, stderr = self._ssh_command(write_cmd)
-        if not success:
-            return False, f"Failed to write Modelfile: {stderr}"
+            success, stdout, stderr = self._ssh_command(write_cmd)
+            if not success:
+                return False, f"Failed to write Modelfile: {stderr}"
 
-        # Create model
-        create_cmd = f"ollama create {model_name} -f {temp_modelfile}"
-        success, stdout, stderr = self._ssh_command(create_cmd, timeout=300)
+            # Create model
+            create_cmd = f"ollama create {model_name} -f {temp_modelfile}"
+            success, stdout, stderr = self._ssh_command(create_cmd, timeout=300)
 
-        # Cleanup temp file
-        self._ssh_command(f"rm -f {temp_modelfile}")
+            # Cleanup temp file
+            self._ssh_command(f"rm -f {temp_modelfile}")
+        else:
+            # Local: write file directly with Python
+            import os
+            temp_dir = tempfile.gettempdir()
+            temp_modelfile = os.path.join(temp_dir, f"Modelfile.{model_name.replace(':', '_')}")
+
+            try:
+                with open(temp_modelfile, 'w', encoding='utf-8') as f:
+                    f.write(modelfile_content)
+            except Exception as e:
+                return False, f"Failed to write Modelfile: {e}"
+
+            # Create model
+            create_cmd = f"ollama create {model_name} -f {temp_modelfile}"
+            success, stdout, stderr = self._local_command(create_cmd, timeout=300)
+
+            # Cleanup temp file
+            try:
+                os.remove(temp_modelfile)
+            except:
+                pass
 
         if not success:
             return False, f"Failed to create model: {stderr}"

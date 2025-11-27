@@ -11,13 +11,11 @@
 ```
 > /[Tab]
 
-显示所有 16 个可用命令：
+显示所有 14 个可用命令：
   /help                   - Display help message
   /clear                  - Clear conversation history
   /compact                - Manually trigger context compression
-  /usage                  - Show token usage
   /root                   - View or set project root directory
-  /reset-confirmations    - Reset all tool execution confirmations
   /exit                   - Exit the program
   /quit                   - Exit the program
   /model                  - Manage Ollama models
@@ -40,9 +38,6 @@
 
 > /com[Tab]
 > /compact                # 自动补全
-
-> /reset[Tab]
-> /reset-confirmations    # 自动补全
 ```
 
 ### 3. 子命令补全
@@ -229,10 +224,6 @@
 ### 3. 减少输入错误
 
 ```bash
-# 不确定命令拼写？使用补全
-> /rese[Tab]
-> /reset-confirmations    # 避免拼写错误
-
 # 不确定子命令名称？
 > /model cr[Tab]
 > /model create           # 避免错误输入

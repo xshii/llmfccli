@@ -7,6 +7,8 @@ import subprocess
 import socket
 import time
 from typing import Dict, Any, Optional, List
+from pathlib import Path
+import yaml
 
 
 class PreCheckResult:
@@ -46,38 +48,32 @@ class PreCheck:
             sock.close()
 
             if result == 0:
-                # Port is open, check if it's actually Ollama
+                # Port is open, check if it's actually Ollama using curl
                 try:
-                    import requests
-                    response = requests.get(f"http://{host}:{port}/api/tags", timeout=3)
-                    if response.status_code == 200:
+                    curl_result = subprocess.run(
+                        ['curl', '-s', '--connect-timeout', '3', f'http://{host}:{port}/api/tags'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if curl_result.returncode == 0 and curl_result.stdout.strip():
                         return PreCheckResult(
                             "SSH Tunnel",
                             True,
-                            f"Connected to {host}:{port} (Ollama service responding)",
+                            f"已连接到 {host}:{port} (Ollama 服务正常响应)",
                             {"host": host, "port": port, "service": "ollama"}
                         )
                     else:
                         return PreCheckResult(
                             "SSH Tunnel",
                             False,
-                            f"Port {port} open but Ollama not responding (status {response.status_code})",
+                            f"SSH 隧道已建立，但远程 Ollama 服务未运行或未响应",
                             {"host": host, "port": port}
                         )
-                except ImportError:
-                    # requests not available, just check port
-                    return PreCheckResult(
-                        "SSH Tunnel",
-                        True,
-                        f"Port {host}:{port} is open",
-                        {"host": host, "port": port}
-                    )
                 except Exception as e:
                     return PreCheckResult(
                         "SSH Tunnel",
                         False,
-                        f"Port open but service check failed: {e}",
-                        {"host": host, "port": port}
+                        f"SSH 隧道已建立，但远程 Ollama 服务未运行或未响应",
+                        {"host": host, "port": port, "error": str(e)}
                     )
             else:
                 return PreCheckResult(
@@ -139,7 +135,7 @@ class PreCheck:
                 return PreCheckResult(
                     "Ollama Connection",
                     False,
-                    f"Cannot connect to Ollama at {base_url}",
+                    f"无法连接 Ollama（远程服务可能未启动）",
                     {"url": base_url, "stderr": result.stderr}
                 )
         except subprocess.TimeoutExpired:
@@ -605,9 +601,18 @@ class PreCheck:
             failed = [r for r in results if not r.success]
             print(f"❌ {len(failed)} check(s) failed")
             print("\nRecommended actions:")
+            # Load SSH host from config
+            ssh_host = "ollama-tunnel"
+            try:
+                config_path = Path(__file__).parent.parent.parent / "config" / "ollama.yaml"
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                    ssh_host = config.get('ssh', {}).get('host', 'ollama-tunnel')
+            except Exception:
+                pass
             for result in failed:
                 if "SSH Tunnel" in result.name:
-                    print("  • Start SSH tunnel: ssh -fN ollama-tunnel")
+                    print(f"  • Start SSH tunnel: ssh -fN {ssh_host}")
                 elif "Ollama Connection" in result.name:
                     print("  • Verify Ollama service is running on remote server")
                 elif "Ollama Model" in result.name:

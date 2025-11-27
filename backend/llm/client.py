@@ -63,8 +63,9 @@ class OllamaClient:
         self.retry_config = self.config['retry']
         self.stream_enabled = self.config.get('stream', False)  # Default to False for backward compatibility
 
-        # Track last request file for debugging
+        # Track last request/conversation file for debugging
         self.last_request_file = None
+        self.last_conversation_file = None
 
         # Warm up model on initialization
         self._warmup()
@@ -250,6 +251,10 @@ class OllamaClient:
                                 f.write("STDERR\n")
                                 f.write("=" * 80 + "\n")
                                 f.write(stderr_output)
+
+                        # Update last conversation file
+                        self.last_conversation_file = str(combined_file)
+                        self.last_request_file = None
 
                         # Delete separate request file
                         try:
@@ -439,11 +444,11 @@ class OllamaClient:
     def _warmup(self):
         """Warm up model by sending a simple request"""
         try:
-            print(f"Warming up model {self.model}...")
+            print(f"正在预热模型 {self.model}...")
             self.chat([{'role': 'user', 'content': 'hi'}], temperature=0.1)
-            print(f"✓ Model {self.model} loaded and ready")
+            print(f"✓ 模型 {self.model} 预热就绪")
         except Exception as e:
-            print(f"Warning: Model warmup failed: {e}")
+            print(f"警告: 模型预热失败: {e}")
     
     def format_tool_result(self, tool_call_id: str, result: Any) -> Dict[str, str]:
         """

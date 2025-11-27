@@ -20,12 +20,9 @@ class ClaudeQwenCompleter(Completer):
         self.commands = {
             '/help': 'Display help message',
             '/clear': 'Clear conversation history',
-            '/session_init': 'Clear session history but keep tool confirmations',
             '/compact': 'Manually trigger context compression',
-            '/usage': 'Show token usage',
             '/cache': 'Show file completion cache info',
             '/root': 'View or set project root directory',
-            '/reset-confirmations': 'Reset all tool execution confirmations',
             '/exit': 'Exit the program',
             '/quit': 'Exit the program',
             '/model': 'Manage Ollama models',
