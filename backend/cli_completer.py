@@ -20,6 +20,7 @@ class ClaudeQwenCompleter(Completer):
         self.commands = {
             '/help': 'Display help message',
             '/clear': 'Clear conversation history',
+            '/session_init': 'Clear session history but keep tool confirmations',
             '/compact': 'Manually trigger context compression',
             '/usage': 'Show token usage',
             '/cache': 'Show file completion cache info',
