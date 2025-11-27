@@ -53,46 +53,31 @@ class ToolConfirmation:
 
     def _get_tool_signature(self, tool_name: str, arguments: Dict) -> str:
         """
-        Get unique signature for a tool call based on tool name and key arguments
+        Get unique signature for a tool call
+
+        For most tools (file operations, etc.), just use the tool name to allow
+        all calls of that type after one approval.
+
+        For bash_run and similar executor tools, use specific command for
+        fine-grained control.
 
         Args:
             tool_name: Tool name
             arguments: Tool arguments
 
         Returns:
-            Signature string like "edit_file:src/main.cpp" or "bash_run:ls"
+            Signature string like "edit_file" or "bash_run:ls"
         """
-        # Define key arguments for each tool type
-        key_arg_map = {
-            'view_file': 'file_path',
-            'edit_file': 'file_path',
-            'create_file': 'file_path',
-            'grep_search': 'pattern',  # Pattern + scope would be too strict
-            'list_dir': 'directory',
-            'bash_run': 'command',
-            'cmake_build': 'project_root',
-            'run_tests': 'test_target',
-        }
+        # Only bash_run and executor tools need fine-grained control
+        if tool_name == 'bash_run':
+            command = arguments.get('command', '')
+            # Extract just the base command
+            base_cmd = command.split()[0] if command else ''
+            return f"{tool_name}:{base_cmd}"
 
-        key_arg = key_arg_map.get(tool_name)
-        if not key_arg:
-            # Unknown tool, use just the tool name
-            return tool_name
-
-        # Get the key argument value
-        key_value = arguments.get(key_arg, '')
-
-        # For bash_run, extract just the base command
-        if tool_name == 'bash_run' and key_value:
-            key_value = key_value.split()[0] if key_value else ''
-
-        # For file paths, normalize to avoid path variations
-        if key_arg == 'file_path':
-            import os
-            # Normalize path separators
-            key_value = key_value.replace('\\', '/')
-
-        return f"{tool_name}:{key_value}"
+        # For all other tools (file operations, etc.), just use tool name
+        # This allows all calls to that tool type after one approval
+        return tool_name
 
     def get_tool_category(self, tool_name: str) -> str:
         """
