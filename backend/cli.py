@@ -23,7 +23,7 @@ from .llm.client import OllamaClient
 from .utils.precheck import PreCheck
 from .agent.tool_confirmation import ConfirmAction
 from .remotectl.commands import RemoteCommands
-from .cli_completer import ClaudeQwenCompleter, PathCompleter, CombinedCompleter
+from .cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
 
 
 class CLI:
@@ -65,7 +65,12 @@ class CLI:
         # Create completers
         command_completer = ClaudeQwenCompleter()
         path_completer = PathCompleter(self.project_root)
-        combined_completer = CombinedCompleter([command_completer, path_completer])
+        filename_completer = FileNameCompleter(self.project_root, cache_duration=60)
+        combined_completer = CombinedCompleter([
+            command_completer,
+            path_completer,
+            filename_completer
+        ])
 
         self.session = PromptSession(
             history=FileHistory(str(history_file)),

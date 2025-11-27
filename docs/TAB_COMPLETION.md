@@ -10,6 +10,7 @@ Claude-Qwen CLI 支持智能 tab 键补全，可以帮助您快速输入命令�
 - 提供命令说明提示
 - 补全常用 shell 命令
 - 补全文件路径（用于 `/root` 命令）
+- **补全项目中的文件名**（支持模糊搜索）
 
 ## 使用方法
 
@@ -95,6 +96,34 @@ less     - Shell command
 ~/projects/         - Directory
 ```
 
+### 6. 文件名补全（新功能）
+
+在自然语言输入中，可以自动补全项目中的文件名：
+
+```
+> 请修改 net[Tab]
+backend/remotectl/client.py           - File (.py)
+src/network_handler.cpp               - File (.cpp)
+src/network_handler.h                 - File (.h)
+tests/test_network.cpp                - File (.cpp)
+
+> 请修改 src/net[Tab]
+src/network_handler.cpp               - File (.cpp)
+src/network_handler.h                 - File (.h)
+
+> 查看 README[Tab]
+README.md                             - File (.md)
+docs/README.md                        - File (.md)
+```
+
+**特性**：
+- 智能模糊匹配（输入部分文件名即可）
+- 优先显示常用文件类型（.cpp, .h, .py, .md 等）
+- 按匹配度排序（路径匹配 > 文件名匹配 > 内容包含）
+- 自动缓存文件列表（60 秒），提高性能
+- 自动跳过无关目录（.git, node_modules, __pycache__ 等）
+- 最多显示 30 个结果
+
 ## 支持的命令
 
 ### 主命令补全
@@ -171,6 +200,16 @@ Tab 补全功能使用 `prompt_toolkit` 库实现：
 - 支持 `~` 扩展
 - 仅显示目录（用于 `/root`）
 - 最多显示 50 个结果
+
+### FileNameCompleter（新）
+- 项目文件名补全
+- 智能模糊匹配算法
+- 文件列表缓存（60 秒）
+- 按匹配度评分排序
+- 跳过 .git, node_modules 等目录
+- 限制扫描深度（最多 5 层）
+- 优先显示源代码文件
+- 最多显示 30 个结果
 
 ### CombinedCompleter
 - 组合多个补全器

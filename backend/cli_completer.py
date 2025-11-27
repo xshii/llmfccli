@@ -3,7 +3,10 @@
 Tab completion support for Claude-Qwen CLI
 """
 
-from typing import Iterable
+import os
+import time
+from pathlib import Path
+from typing import Iterable, List, Set
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
 
@@ -183,6 +186,210 @@ class PathCompleter(Completer):
             except (OSError, PermissionError):
                 # Ignore errors accessing directories
                 pass
+
+
+class FileNameCompleter(Completer):
+    """Completer for file names in project directory"""
+
+    def __init__(self, project_root: str = None, cache_duration: int = 60):
+        """
+        Initialize file name completer
+
+        Args:
+            project_root: Project root directory
+            cache_duration: Cache duration in seconds (default 60s)
+        """
+        self.project_root = project_root or os.getcwd()
+        self.cache_duration = cache_duration
+        self._file_cache: List[str] = []
+        self._cache_time: float = 0
+
+        # File extensions to prioritize
+        self.priority_extensions = {
+            '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.hxx',  # C/C++
+            '.py', '.pyx', '.pyi',  # Python
+            '.js', '.ts', '.jsx', '.tsx',  # JavaScript/TypeScript
+            '.java', '.kt',  # JVM languages
+            '.go', '.rs',  # Go, Rust
+            '.yaml', '.yml', '.json', '.toml', '.ini',  # Config
+            '.md', '.rst', '.txt',  # Documentation
+            '.sh', '.bash', '.zsh',  # Shell scripts
+        }
+
+        # Directories to skip
+        self.skip_dirs = {
+            '.git', '.svn', '.hg',  # VCS
+            '__pycache__', '.pytest_cache', '.mypy_cache',  # Python cache
+            'node_modules', '.venv', 'venv', 'env',  # Dependencies
+            'build', 'dist', '.eggs', '*.egg-info',  # Build artifacts
+            '.vscode', '.idea',  # IDE
+        }
+
+    def _should_skip_dir(self, dir_name: str) -> bool:
+        """Check if directory should be skipped"""
+        return dir_name in self.skip_dirs or dir_name.startswith('.')
+
+    def _scan_files(self) -> List[str]:
+        """
+        Scan project directory for files
+
+        Returns:
+            List of relative file paths
+        """
+        files = []
+        try:
+            root_path = Path(self.project_root)
+
+            # Walk directory tree
+            for root, dirs, filenames in os.walk(root_path):
+                # Filter out skip directories
+                dirs[:] = [d for d in dirs if not self._should_skip_dir(d)]
+
+                # Add files
+                for filename in filenames:
+                    # Skip hidden files
+                    if filename.startswith('.'):
+                        continue
+
+                    # Get relative path
+                    file_path = Path(root) / filename
+                    try:
+                        rel_path = file_path.relative_to(root_path)
+                        files.append(str(rel_path))
+                    except ValueError:
+                        continue
+
+                # Limit scanning depth to avoid very deep trees
+                current_depth = len(Path(root).relative_to(root_path).parts)
+                if current_depth >= 5:
+                    dirs.clear()
+
+        except (OSError, PermissionError):
+            pass
+
+        return files
+
+    def _get_files(self) -> List[str]:
+        """
+        Get file list (with caching)
+
+        Returns:
+            List of relative file paths
+        """
+        current_time = time.time()
+
+        # Check if cache is valid
+        if self._file_cache and (current_time - self._cache_time) < self.cache_duration:
+            return self._file_cache
+
+        # Rebuild cache
+        self._file_cache = self._scan_files()
+        self._cache_time = current_time
+
+        return self._file_cache
+
+    def _match_score(self, file_path: str, query: str) -> int:
+        """
+        Calculate match score for file path
+
+        Args:
+            file_path: File path to match
+            query: Query string
+
+        Returns:
+            Match score (higher is better, -1 for no match)
+        """
+        file_lower = file_path.lower()
+        query_lower = query.lower()
+
+        # Exact match (highest priority)
+        if file_lower == query_lower:
+            return 1000
+
+        # Starts with query
+        if file_lower.startswith(query_lower):
+            return 900
+
+        # Filename starts with query
+        filename = os.path.basename(file_path).lower()
+        if filename.startswith(query_lower):
+            return 800
+
+        # Contains query
+        if query_lower in file_lower:
+            score = 500
+
+            # Bonus for priority extensions
+            ext = os.path.splitext(file_path)[1]
+            if ext in self.priority_extensions:
+                score += 100
+
+            # Bonus for shorter paths
+            score += max(0, 50 - len(file_path))
+
+            return score
+
+        # No match
+        return -1
+
+    def get_completions(self, document: Document, complete_event) -> Iterable[Completion]:
+        """
+        Generate file name completions
+
+        Args:
+            document: Current document state
+            complete_event: Completion event
+
+        Yields:
+            Completion objects for file names
+        """
+        text = document.text_before_cursor
+
+        # Skip if starts with / (slash commands)
+        if text.startswith('/'):
+            return
+
+        # Get the last word (potential file path)
+        words = text.split()
+        if not words:
+            return
+
+        # Get query (last word or partial path)
+        query = words[-1]
+
+        # Skip very short queries to avoid too many results
+        if len(query) < 2:
+            return
+
+        # Get file list
+        files = self._get_files()
+
+        # Score and filter files
+        scored_files = []
+        for file_path in files:
+            score = self._match_score(file_path, query)
+            if score >= 0:
+                scored_files.append((score, file_path))
+
+        # Sort by score (descending) and take top 30
+        scored_files.sort(reverse=True, key=lambda x: x[0])
+        top_files = scored_files[:30]
+
+        # Generate completions
+        for score, file_path in top_files:
+            # Determine display metadata
+            ext = os.path.splitext(file_path)[1]
+            if ext in self.priority_extensions:
+                meta = f"File ({ext})"
+            else:
+                meta = "File"
+
+            yield Completion(
+                file_path,
+                start_position=-len(query),
+                display=file_path,
+                display_meta=meta
+            )
 
 
 class CombinedCompleter(Completer):
