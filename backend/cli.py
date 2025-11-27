@@ -520,15 +520,15 @@ class CLI:
 
         while True:
             try:
-                # Show token usage before prompt
-                self._show_token_status()
-
                 # Get user input
-                user_input = self.session.prompt('> ').strip()
-                
+                user_input = self.session.prompt('\n> ').strip()
+
                 if not user_input:
                     continue
-                
+
+                # Show token usage after user input
+                self._show_token_status()
+
                 # Handle commands
                 if user_input.startswith('/'):
                     if not self.handle_command(user_input):
@@ -541,8 +541,8 @@ class CLI:
                 self.command_start_time = time.time()
                 self.tool_outputs = []
 
-                # Execute task
-                self.console.print("\n[cyan]执行中...[/cyan]")
+                # Execute task (removed extra newline since token status already adds spacing)
+                self.console.print("[cyan]执行中...[/cyan]")
 
                 try:
                     # Check if streaming is enabled in config
