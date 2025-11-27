@@ -93,35 +93,60 @@ class CLI:
         self.tool_outputs = []  # [{'tool', 'output', 'args', 'collapsed', 'lines'}]
 
     def _compress_path(self, path: str, max_length: int = 50) -> str:
-        """Compress long paths by keeping first 2 levels and last 2 levels
+        """Intelligently compress paths based on project root
+
+        Strategy:
+        - Paths inside project: show relative path, compress if > 3 levels
+        - Paths outside project: show absolute path, compress if > 4 levels
 
         Examples:
-            /home/user/project/src/backend/agent/tools.py -> /home/user/.../agent/tools.py
-            /a/b/c/d/e/f.txt -> /a/b/.../e/f.txt
-            /a/b/c.txt -> /a/b/c.txt (no compression)
+            Inside project (/home/user/llmfccli):
+                /home/user/llmfccli/backend/agent/tools.py -> backend/.../tools.py
+                /home/user/llmfccli/tests/unit/test.py -> tests/unit/test.py (no compression)
+
+            Outside project:
+                /home/user/other/very/long/path/file.py -> /home/user/.../path/file.py
+                /usr/lib/python3/site-packages/module.py -> /usr/lib/.../site-packages/module.py
         """
+        import os
+
         # Detect path separator (/ or \)
         sep = '\\' if '\\' in path else '/'
 
-        # Split path into parts
-        parts = path.split(sep)
+        # Normalize paths for comparison
+        path_abs = os.path.abspath(path) if not os.path.isabs(path) else path
+        project_root_abs = os.path.abspath(self.project_root)
 
-        # Filter out empty parts (from leading /)
-        parts = [p for p in parts if p]
+        # Check if path is inside project
+        try:
+            # Try to get relative path from project root
+            if path_abs.startswith(project_root_abs + os.sep) or path_abs == project_root_abs:
+                # Path is inside project - use relative path
+                rel_path = os.path.relpath(path_abs, project_root_abs)
+                parts = rel_path.split(os.sep)
 
-        # Only compress if path is long AND has more than 4 parts
-        if len(path) <= max_length or len(parts) <= 4:
-            return path
+                # For project-relative paths, compress if > 3 levels
+                if len(parts) <= 3:
+                    return rel_path
 
-        # Keep first 2 and last 2 parts
-        first_two = parts[:2]
-        last_two = parts[-2:]
+                # Compress: keep first level + last 2 levels
+                # Example: backend/agent/tools/filesystem.py -> backend/.../filesystem.py
+                compressed = f"{parts[0]}{sep}...{sep}{sep.join(parts[-2:])}"
+                return compressed
+        except (ValueError, OSError):
+            pass
 
-        # Check if original path started with separator
-        prefix = sep if path.startswith(sep) else ""
+        # Path is outside project - use absolute path with compression
+        parts = path_abs.split(os.sep)
+        parts = [p for p in parts if p]  # Filter empty parts
 
-        # Build compressed path: /first/second/.../second_last/last
-        compressed = f"{prefix}{sep.join(first_two)}{sep}...{sep}{sep.join(last_two)}"
+        # For absolute paths, compress if > 4 levels
+        if len(parts) <= 4:
+            return path_abs
+
+        # Compress: keep first 2 + last 2 levels
+        prefix = os.sep if path_abs.startswith(os.sep) else ""
+        compressed = f"{prefix}{os.sep.join(parts[:2])}{sep}...{sep}{os.sep.join(parts[-2:])}"
 
         return compressed
 
