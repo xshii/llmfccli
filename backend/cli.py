@@ -482,12 +482,18 @@ class CLI:
                     self.console.print("[green]✓ 本次允许执行[/green]\n")
                     return ConfirmAction.ALLOW_ONCE
                 elif choice == '2':
+                    # Get tool signature for display
+                    signature = self.agent.confirmation._get_tool_signature(tool_name, arguments)
+
                     if tool_name == 'bash_run':
                         command = arguments.get('command', '')
                         base_cmd = command.split()[0] if command else ''
-                        self.console.print(f"[blue]✓ 始终允许命令: {base_cmd}[/blue]\n")
+                        self.console.print(f"[blue]✓ 始终允许命令: {base_cmd}[/blue]")
                     else:
-                        self.console.print(f"[blue]✓ 始终允许工具: {tool_name}[/blue]\n")
+                        self.console.print(f"[blue]✓ 始终允许工具: {tool_name}[/blue]")
+
+                    # Show the signature key that will be allowed
+                    self.console.print(f"[dim]  允许标识: {signature}[/dim]\n")
                     return ConfirmAction.ALLOW_ALWAYS
                 elif choice == '3':
                     self.console.print("[red]✗ 已拒绝，停止执行[/red]\n")
