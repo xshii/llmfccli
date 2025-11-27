@@ -7,11 +7,17 @@ Claude-Qwen 提供了命令透传功能，允许您直接从 CLI 执行本地或
 ### `/cmd` - 本地命令透传（持久化会话）
 在本地机器上执行终端命令，使用**持久化 shell 会话**，保留工作目录和环境变量状态。
 
+**跨平台支持**：
+- 🪟 **Windows**: 使用 `cmd.exe`
+- 🐧 **Linux**: 使用 `/bin/bash`
+- 🍎 **macOS**: 使用 `/bin/bash`
+
 **核心特性**：
 - ✅ **工作目录持久化**：`cd` 命令的效果会保留到下次 `/cmd` 调用
-- ✅ **环境变量持久化**：`export` 设置的变量会在会话中保留
+- ✅ **环境变量持久化**：`export`（Unix）或 `set`（Windows）设置的变量会在会话中保留
 - ✅ **Shell 状态保留**：别名、函数定义等都会保持
 - ✅ **实时输出**：命令输出立即显示
+- ✅ **自动平台检测**：根据操作系统自动选择合适的 shell
 
 ### `/cmdpwd` - 查看当前目录
 显示持久化 shell 的当前工作目录。
@@ -75,6 +81,7 @@ Claude-Qwen 提供了命令透传功能，允许您直接从 CLI 执行本地或
 
 #### 环境变量持久化
 
+**Unix (Linux/Mac)**:
 ```bash
 # 设置环境变量
 /cmd export MY_VAR="hello world"
@@ -86,6 +93,21 @@ Claude-Qwen 提供了命令透传功能，允许您直接从 CLI 执行本地或
 # 变量在整个会话中保持
 /cmd cd /tmp
 /cmd echo $MY_VAR
+# 仍然输出：hello world
+```
+
+**Windows**:
+```cmd
+# 设置环境变量
+/cmd set MY_VAR=hello world
+
+# 在后续命令中使用
+/cmd echo %MY_VAR%
+# 输出：hello world
+
+# 变量在整个会话中保持
+/cmd cd C:\Temp
+/cmd echo %MY_VAR%
 # 仍然输出：hello world
 ```
 
@@ -184,10 +206,12 @@ Host ollama-tunnel
 ```
 
 **技术实现**：
-- 启动一个持久化的 bash 进程
+- 启动一个持久化的 shell 进程（Windows: cmd.exe，Unix: bash）
 - 所有 `/cmd` 命令都发送到同一个进程
 - 进程在 CLI 整个生命周期中保持运行
 - 自动处理命令完成检测和输出收集
+- 平台自动检测（使用 `platform.system()`）
+- 命令语法自动适配（退出码、环境变量等）
 
 ### 2. 支持管道和重定向
 
@@ -334,6 +358,26 @@ Host ollama-tunnel
 
 # 查看依赖
 /cmd pip list | grep ollama
+```
+
+### 5. Windows 特定工作流
+
+```cmd
+# 切换磁盘和目录
+/cmd cd /d D:\Projects\MyProject
+
+# 设置编译环境
+/cmd set PATH=%PATH%;C:\Tools\MinGW\bin
+/cmd set INCLUDE=C:\Libraries\include
+
+# 编译项目（环境变量已设置）
+/cmd cd build
+/cmd cmake ..
+/cmd mingw32-make
+
+# 查看当前位置
+/cmdpwd
+# 输出：D:\Projects\MyProject\build
 ```
 
 ### 2. 系统监控
