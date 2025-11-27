@@ -299,56 +299,61 @@ def register_analyzer_tools(project_root: str):
 def register_agent_tools(agent):
     """Register agent control tools that require agent instance"""
 
-    def compress_context(target_ratio: float = None) -> Dict[str, Any]:
+    def compact_last(count: int, replacement: str) -> Dict[str, Any]:
         """
-        Compress conversation context to save tokens
+        Compact recent conversation messages by replacing them with a summary
 
         Args:
-            target_ratio: Target token usage ratio (0.0-1.0), defaults to 0.6 (60%)
+            count: Number of recent messages to replace (from end of history)
+            replacement: Summary text to replace the messages with
 
         Returns:
-            Dict with compression results
+            Dict with compaction results
         """
         try:
+            # Validate count
+            history_len = len(agent.conversation_history)
+            if count <= 0:
+                return {
+                    'success': False,
+                    'error': f'Invalid count: {count}. Must be positive.'
+                }
+
+            if count > history_len:
+                return {
+                    'success': False,
+                    'error': f'Count {count} exceeds history length {history_len}'
+                }
+
             # Get token counter
             token_counter = agent.token_counter
             max_tokens = token_counter.max_tokens
-            current_total = token_counter.usage.get('total', 0)
+            tokens_before = token_counter.usage.get('total', 0)
 
-            # Set default target ratio if not provided
-            if target_ratio is None:
-                target_ratio = token_counter.compression_config['target_after_compress']
+            # Store messages that will be removed
+            removed_messages = agent.conversation_history[-count:]
 
-            # Validate ratio
-            if not (0.0 < target_ratio < 1.0):
-                return {
-                    'success': False,
-                    'error': f'Invalid target_ratio: {target_ratio}. Must be between 0.0 and 1.0'
-                }
+            # Remove last 'count' messages
+            agent.conversation_history = agent.conversation_history[:-count]
 
-            target_tokens = int(max_tokens * target_ratio)
+            # Add replacement summary as assistant message
+            agent.conversation_history.append({
+                'role': 'assistant',
+                'content': replacement
+            })
 
-            # Store counts before compression
-            msg_count_before = len(agent.conversation_history)
-            tokens_before = current_total
-
-            # Perform compression
-            agent._compress_context()
-
-            # Get counts after compression
-            msg_count_after = len(agent.conversation_history)
+            # Recalculate tokens (trigger token counter update)
+            agent.token_counter.count_messages(agent.conversation_history)
             tokens_after = token_counter.usage.get('total', 0)
             tokens_saved = tokens_before - tokens_after
 
             return {
                 'success': True,
-                'messages_before': msg_count_before,
-                'messages_after': msg_count_after,
-                'messages_removed': msg_count_before - msg_count_after,
+                'messages_removed': count,
+                'messages_current': len(agent.conversation_history),
                 'tokens_before': tokens_before,
                 'tokens_after': tokens_after,
                 'tokens_saved': tokens_saved,
-                'target_ratio': target_ratio,
                 'current_usage_pct': (tokens_after / max_tokens * 100) if max_tokens > 0 else 0
             }
 
@@ -358,30 +363,36 @@ def register_agent_tools(agent):
                 'error': str(e)
             }
 
-    # Register compress_context tool
+    # Register compact_last tool
     registry.register(
-        name='compress_context',
+        name='compact_last',
         description=(
-            'Compress conversation history intelligently. Use when: '
-            '(1) Token usage is high (>70%), OR '
-            '(2) Completed a phase of work and formed a summary, OR '
-            '(3) The ratio of valuable summary to raw details is good for compression. '
-            'This tool helps maintain context efficiency by condensing completed work while preserving key insights. '
-            'You should proactively evaluate when compression would be beneficial, not just when tokens are full.'
+            'Compact recent conversation messages by replacing them with your summary. '
+            'Use this when you have completed a phase of work and can summarize it concisely. '
+            'This is more efficient than compress_context because YOU generate the summary in your output, '
+            'saving an extra LLM call. '
+            'Use when: '
+            '(1) Completed debugging/exploration and have a clear summary, OR '
+            '(2) Finished implementing a feature with detailed steps but simple outcome, OR '
+            '(3) Token usage is high and recent messages contain redundant details. '
+            'Example: After 10 messages of debugging, replace with "Fixed bug X by doing Y".'
         ),
         parameters={
             'type': 'object',
             'properties': {
-                'target_ratio': {
-                    'type': 'number',
-                    'description': 'Target token usage ratio after compression (0.0-1.0), defaults to 0.6',
-                    'minimum': 0.1,
-                    'maximum': 0.9
+                'count': {
+                    'type': 'integer',
+                    'description': 'Number of recent messages to replace (including tool calls and results)',
+                    'minimum': 1
+                },
+                'replacement': {
+                    'type': 'string',
+                    'description': 'Your concise summary to replace those messages with. Should capture key insights and decisions while removing verbose details.'
                 }
             },
-            'required': []
+            'required': ['count', 'replacement']
         },
-        implementation=compress_context
+        implementation=compact_last
     )
 
 
