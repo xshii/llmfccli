@@ -166,16 +166,16 @@ def register_filesystem_tools(project_root: str):
                 },
                 'scope': {
                     'type': 'string',
-                    'description': 'Search scope directory (default: ".")'
+                    'description': 'Search scope directory (e.g., ".", "src/", "backend/")'
                 },
                 'file_pattern': {
                     'type': 'string',
                     'description': 'Optional file pattern filter (e.g., "*.cpp")'
                 }
             },
-            'required': ['pattern']
+            'required': ['pattern', 'scope']
         },
-        implementation=lambda pattern, scope=".", file_pattern=None: grep_search(
+        implementation=lambda pattern, scope, file_pattern=None: grep_search(
             pattern, scope, project_root, file_pattern=file_pattern
         )
     )
