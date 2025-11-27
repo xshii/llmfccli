@@ -58,7 +58,7 @@ class ToolConfirmation:
         For most tools (file operations, etc.), just use the tool name to allow
         all calls of that type after one approval.
 
-        For bash_run and similar executor tools, use specific command for
+        For bash_run and git tools, use specific command/action for
         fine-grained control.
 
         Args:
@@ -66,14 +66,19 @@ class ToolConfirmation:
             arguments: Tool arguments
 
         Returns:
-            Signature string like "edit_file" or "bash_run:ls"
+            Signature string like "edit_file", "bash_run:ls", or "git:status"
         """
-        # Only bash_run and executor tools need fine-grained control
+        # bash_run: use base command for fine-grained control
         if tool_name == 'bash_run':
             command = arguments.get('command', '')
             # Extract just the base command
             base_cmd = command.split()[0] if command else ''
             return f"{tool_name}:{base_cmd}"
+
+        # git: use action for fine-grained control
+        elif tool_name == 'git':
+            action = arguments.get('action', '')
+            return f"{tool_name}:{action}"
 
         # For all other tools (file operations, etc.), just use tool name
         # This allows all calls to that tool type after one approval
@@ -93,7 +98,8 @@ class ToolConfirmation:
         categories = {
             'filesystem': ['view_file', 'edit_file', 'create_file', 'grep_search', 'list_dir'],
             'executor': ['bash_run', 'cmake_build', 'run_tests'],
-            'analyzer': ['parse_cpp', 'find_functions', 'get_dependencies']
+            'analyzer': ['parse_cpp', 'find_functions', 'get_dependencies'],
+            'git': ['git']
         }
 
         for category, tools in categories.items():
@@ -101,6 +107,35 @@ class ToolConfirmation:
                 return category
 
         return 'unknown'
+
+    def is_dangerous_git_operation(self, action: str, args: Dict) -> bool:
+        """
+        Check if git operation is dangerous
+
+        Dangerous operations require confirmation even if the action is whitelisted
+
+        Args:
+            action: Git action (e.g., 'push', 'reset')
+            args: Git operation arguments
+
+        Returns:
+            True if operation is dangerous
+        """
+        # Define dangerous operation checkers
+        dangerous_checkers = {
+            'reset': lambda a: a.get('mode') == 'hard',
+            'push': lambda a: a.get('force') == True,
+            'branch': lambda a: a.get('operation') == 'delete' and a.get('force'),
+            'rebase': lambda a: True,  # Always confirm rebase
+            'stash': lambda a: a.get('operation') in ['drop', 'clear'],
+            'cherry-pick': lambda a: True,  # Always confirm cherry-pick
+        }
+
+        checker = dangerous_checkers.get(action)
+        if checker:
+            return checker(args)
+
+        return False
 
     def needs_confirmation(self, tool_name: str, arguments: Dict) -> bool:
         """
@@ -133,6 +168,16 @@ class ToolConfirmation:
 
         # Check if this specific tool call is allowed
         if signature in self.allowed_tool_calls:
+            # For git operations, check if it's a dangerous operation
+            # even if the action is whitelisted
+            if tool_name == 'git':
+                action = arguments.get('action', '')
+                args = arguments.get('args', {})
+                if self.is_dangerous_git_operation(action, args):
+                    if debug:
+                        print(f"[DEBUG] Git operation {action} with dangerous parameters - needs confirmation")
+                    return True
+
             if debug:
                 print(f"[DEBUG] Tool call {signature} is ALLOWED (no confirmation needed)")
             return False

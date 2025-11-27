@@ -402,6 +402,38 @@ def register_agent_tools(agent):
     )
 
 
+def register_git_tools(project_root: str):
+    """Register git version control tools"""
+    from ..tools.git import git
+
+    registry.register(
+        name='git',
+        description='Execute git version control operations (status, add, commit, push, pull, etc.)',
+        parameters={
+            'type': 'object',
+            'properties': {
+                'action': {
+                    'type': 'string',
+                    'enum': [
+                        'status', 'add', 'commit', 'reset',
+                        'branch', 'checkout', 'push', 'pull', 'fetch',
+                        'rebase', 'stash', 'cherry-pick',
+                        'log', 'diff', 'show'
+                    ],
+                    'description': 'Git operation to perform'
+                },
+                'args': {
+                    'type': 'object',
+                    'description': 'Action-specific arguments',
+                    'additionalProperties': True
+                }
+            },
+            'required': ['action']
+        },
+        implementation=lambda action, args=None: git(action, args or {}, project_root)
+    )
+
+
 def get_tool_schemas() -> List[Dict[str, Any]]:
     """Get all registered tool schemas"""
     return registry.get_schemas()
@@ -416,4 +448,5 @@ def initialize_tools(project_root: str):
     """Initialize all available tools"""
     register_filesystem_tools(project_root)
     register_executor_tools(project_root)
+    register_git_tools(project_root)
     # register_analyzer_tools(project_root)
