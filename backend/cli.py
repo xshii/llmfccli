@@ -523,11 +523,12 @@ class CLI:
             try:
                 # Show token usage at the bottom before next prompt (except first time)
                 if not first_prompt:
+                    self.console.print()  # Add blank line before token status
                     self._show_token_status()
                 first_prompt = False
 
-                # Get user input
-                user_input = self.session.prompt('\n> ').strip()
+                # Get user input (no extra newline in prompt)
+                user_input = self.session.prompt('> ').strip()
 
                 if not user_input:
                     continue
