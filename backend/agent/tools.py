@@ -361,7 +361,14 @@ def register_agent_tools(agent):
     # Register compress_context tool
     registry.register(
         name='compress_context',
-        description='Compress conversation history to reduce token usage. Use when context is getting large (>70% tokens used).',
+        description=(
+            'Compress conversation history intelligently. Use when: '
+            '(1) Token usage is high (>70%), OR '
+            '(2) Completed a phase of work and formed a summary, OR '
+            '(3) The ratio of valuable summary to raw details is good for compression. '
+            'This tool helps maintain context efficiency by condensing completed work while preserving key insights. '
+            'You should proactively evaluate when compression would be beneficial, not just when tokens are full.'
+        ),
         parameters={
             'type': 'object',
             'properties': {
