@@ -383,7 +383,7 @@ class CLI:
 **可用命令**:
 - `/help` - 显示帮助
 - `/clear` - 清除对话历史（保留文件访问）
-- `/compact` - 手动压缩上下文
+- `/compact [ratio]` - 智能压缩上下文（可指定目标比例 0-1）
 - `/usage` - 显示 Token 使用情况
 - `/cache` - 查看文件补全缓存状态
 - `/reset-confirmations` - 重置工具执行确认
@@ -511,10 +511,8 @@ class CLI:
             self.console.print("[green]已清除对话历史[/green]")
         
         elif cmd == '/compact':
-            self.console.print("[cyan]压缩中...[/cyan]")
-            self.agent._compress_context()
-            self.console.print("[green]压缩完成[/green]")
-            self.console.print(self.agent.get_usage_report())
+            # Enhanced context compression with detailed feedback
+            self.handle_compact_command(command)
         
         elif cmd == '/usage':
             report = self.agent.get_usage_report()
@@ -870,6 +868,159 @@ int main() {
         except Exception as e:
             self.console.print(f"[red]错误: {e}[/red]")
 
+    def handle_compact_command(self, command: str):
+        """
+        Handle /compact command with detailed compression feedback
+
+        Supports:
+        - /compact         : Compress to default target (60%)
+        - /compact 0.5     : Compress to 50% of max tokens
+        - /compact --info  : Show compression info without compressing
+        """
+        from rich.table import Table
+
+        parts = command.split()
+        target_ratio = None
+        show_info_only = False
+
+        # Parse arguments
+        if len(parts) > 1:
+            arg = parts[1]
+            if arg == '--info' or arg == '-i':
+                show_info_only = True
+            else:
+                try:
+                    target_ratio = float(arg)
+                    if target_ratio <= 0 or target_ratio >= 1:
+                        self.console.print("[red]错误: 目标比例必须在 0 和 1 之间[/red]")
+                        return
+                except ValueError:
+                    self.console.print(f"[red]错误: 无效的比例值 '{arg}'[/red]")
+                    return
+
+        # Get current state
+        token_counter = self.agent.token_counter
+        current_total = token_counter.usage['total']
+        max_tokens = token_counter.max_tokens
+        current_pct = token_counter.get_usage_percentage()
+
+        # Get budgets
+        budgets = token_counter.budgets
+
+        # Build current usage table
+        usage_table = Table(title="当前 Token 使用情况")
+        usage_table.add_column("模块", style="cyan")
+        usage_table.add_column("当前使用", justify="right")
+        usage_table.add_column("预算", justify="right")
+        usage_table.add_column("占比", justify="right")
+        usage_table.add_column("状态")
+
+        for category, tokens in token_counter.usage.items():
+            if category == 'total':
+                continue
+
+            budget = token_counter.get_budget_for_category(category)
+            pct = (tokens / budget * 100) if budget > 0 else 0
+            status = "✓" if tokens <= budget else "⚠ 超预算"
+
+            usage_table.add_row(
+                category,
+                f"{tokens:,}",
+                f"{budget:,}",
+                f"{pct:.1f}%",
+                status
+            )
+
+        usage_table.add_row(
+            "总计",
+            f"{current_total:,}",
+            f"{max_tokens:,}",
+            f"{current_pct*100:.1f}%",
+            "⚠ 需压缩" if current_pct > 0.85 else "✓"
+        )
+
+        self.console.print(usage_table)
+
+        if show_info_only:
+            # Show compression strategy info
+            self.console.print("\n[cyan]压缩策略说明:[/cyan]")
+            self.console.print(f"- 触发阈值: {token_counter.compression_config['trigger_threshold']*100:.0f}%")
+            self.console.print(f"- 目标比例: {token_counter.compression_config['target_after_compress']*100:.0f}%")
+            self.console.print(f"- 最小间隔: {token_counter.compression_config['min_interval']}秒")
+
+            self.console.print("\n[cyan]各模块预算分配:[/cyan]")
+            for category, ratio in budgets.items():
+                budget_tokens = int(max_tokens * ratio)
+                self.console.print(f"  {category:20s}: {ratio*100:>5.1f}% ({budget_tokens:>8,} tokens)")
+            return
+
+        # Calculate compression target
+        if target_ratio is None:
+            target_ratio = token_counter.compression_config['target_after_compress']
+
+        target_tokens = int(max_tokens * target_ratio)
+
+        # Show compression plan
+        self.console.print(f"\n[cyan]压缩目标:[/cyan] {current_total:,} → {target_tokens:,} tokens ({target_ratio*100:.0f}%)")
+        self.console.print(f"[cyan]预计节省:[/cyan] {current_total - target_tokens:,} tokens")
+
+        # Perform compression
+        self.console.print("\n[yellow]正在压缩上下文...[/yellow]")
+
+        # Store original counts
+        msg_count_before = len(self.agent.conversation_history)
+
+        try:
+            # Compress
+            self.agent._compress_context()
+
+            # Get new counts
+            msg_count_after = len(self.agent.conversation_history)
+            new_total = token_counter.usage['total']
+            new_pct = token_counter.get_usage_percentage()
+
+            # Show results
+            self.console.print("\n[green]✓ 压缩完成[/green]\n")
+
+            result_table = Table(title="压缩结果")
+            result_table.add_column("项目", style="cyan")
+            result_table.add_column("压缩前", justify="right")
+            result_table.add_column("压缩后", justify="right")
+            result_table.add_column("变化", justify="right")
+
+            result_table.add_row(
+                "消息数量",
+                f"{msg_count_before}",
+                f"{msg_count_after}",
+                f"-{msg_count_before - msg_count_after}"
+            )
+
+            result_table.add_row(
+                "总 Token 数",
+                f"{current_total:,}",
+                f"{new_total:,}",
+                f"-{current_total - new_total:,} ({(1-new_total/current_total)*100:.1f}%)"
+            )
+
+            result_table.add_row(
+                "使用率",
+                f"{current_pct*100:.1f}%",
+                f"{new_pct*100:.1f}%",
+                f"-{(current_pct-new_pct)*100:.1f}%"
+            )
+
+            self.console.print(result_table)
+
+            # Show what was preserved
+            self.console.print("\n[cyan]保留信息:[/cyan]")
+            self.console.print(f"  - 活动文件: {len(self.agent.active_files)} 个")
+            self.console.print(f"  - 项目结构: {self.agent.project_root}")
+            self.console.print(f"  - 最近消息: {msg_count_after} 条")
+            self.console.print(f"  - 工具定义: 已重新注入")
+
+        except Exception as e:
+            self.console.print(f"\n[red]✗ 压缩失败: {e}[/red]")
+
     def handle_model_command(self, command: str):
         """Handle /model subcommands for Ollama model management
 
@@ -941,7 +1092,10 @@ int main() {
 ### Agent 控制
 - `/help` - 显示此帮助信息
 - `/clear` - 清除对话历史（保留文件访问权限）
-- `/compact` - 手动触发上下文压缩
+- `/compact [ratio|--info]` - 智能压缩上下文
+  - `/compact` - 使用默认目标(60%)压缩
+  - `/compact 0.5` - 压缩到 50% tokens
+  - `/compact --info` - 查看压缩策略而不执行
 - `/usage` - 显示 Token 使用情况
 - `/root [path]` - 查看或设置项目根目录
 - `/reset-confirmations` - 重置所有工具执行确认
@@ -992,6 +1146,14 @@ int main() {
 ```
 分析项目结构
 查找所有网络相关的函数
+```
+
+**上下文管理**:
+```
+/usage                    # 查看 Token 使用情况
+/compact --info           # 查看压缩策略
+/compact                  # 使用默认策略压缩
+/compact 0.5              # 压缩到 50%
 ```
 
 **命令透传（持久化会话）**:
