@@ -553,9 +553,8 @@ class CLI:
                             border_style="green"
                         ))
 
-                    # Display tool outputs summary if any
-                    if self.tool_outputs:
-                        self.display_tool_outputs_summary()
+                    # Tool outputs are already displayed inline during execution
+                    # No need for summary display
 
                 except Exception as e:
                     self.console.print(f"[red]错误: {e}[/red]")
