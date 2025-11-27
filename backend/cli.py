@@ -450,20 +450,14 @@ class CLI:
         if tool_name == 'bash_run':
             command = arguments.get('command', '')
             self.console.print(Panel(
-                f"[yellow]⚠ 工具执行确认[/yellow]\n"
-                f"[bold]工具:[/bold] {tool_name}\n"
-                f"[bold]类别:[/bold] {category}\n"
-                f"[bold]命令:[/bold] [cyan]{command}[/cyan]\n"
-                f"[dim]参数:[/dim]\n{args_text}",
+                f"[yellow]⚠ 工具执行确认[/yellow] - 工具: [bold]{tool_name}[/bold] | 类别: [dim]{category}[/dim]\n"
+                f"命令: [cyan]{command}[/cyan] | 参数:\n{args_text}",
                 title="需要确认",
                 border_style="yellow"
             ))
         else:
             self.console.print(Panel(
-                f"[yellow]⚠ 工具执行确认[/yellow]\n"
-                f"[bold]工具:[/bold] {tool_name}\n"
-                f"[bold]类别:[/bold] {category}\n"
-                f"[dim]参数:[/dim]\n{args_text}",
+                f"[yellow]⚠ 工具执行确认[/yellow] - 工具: [bold]{tool_name}[/bold] | 类别: [dim]{category}[/dim] | 参数:\n{args_text}",
                 title="需要确认",
                 border_style="yellow"
             ))
