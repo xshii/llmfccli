@@ -472,11 +472,10 @@ class CLI:
         self.console.print("[bold]选择操作:[/bold]")
         self.console.print("  [green]1[/green] - 本次允许 (ALLOW_ONCE)")
         self.console.print("  [blue]2[/blue] - 始终允许 (ALLOW_ALWAYS)")
-        self.console.print("  [red]3[/red] - 拒绝并停止 (DENY)", end='')
-
+        self.console.print("  [red]3[/red] - 拒绝并停止 (DENY)")
         while True:
             try:
-                choice = input(" > ").strip()
+                choice = input("> ").strip()
 
                 if choice == '1':
                     self.console.print("[green]✓ 本次允许执行[/green]")
