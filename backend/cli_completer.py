@@ -22,6 +22,7 @@ class ClaudeQwenCompleter(Completer):
             '/clear': 'Clear conversation history',
             '/compact': 'Manually trigger context compression',
             '/usage': 'Show token usage',
+            '/cache': 'Show file completion cache info',
             '/root': 'View or set project root directory',
             '/reset-confirmations': 'Reset all tool execution confirmations',
             '/exit': 'Exit the program',
@@ -191,18 +192,21 @@ class PathCompleter(Completer):
 class FileNameCompleter(Completer):
     """Completer for file names in project directory"""
 
-    def __init__(self, project_root: str = None, cache_duration: int = 60):
+    def __init__(self, project_root: str = None, cache_duration: int = None):
         """
         Initialize file name completer
 
         Args:
             project_root: Project root directory
-            cache_duration: Cache duration in seconds (default 60s)
+            cache_duration: Cache duration in seconds (None for adaptive)
         """
         self.project_root = project_root or os.getcwd()
-        self.cache_duration = cache_duration
+        self.base_cache_duration = cache_duration  # User-specified or None for adaptive
+        self.cache_duration = cache_duration or 60  # Initial default
         self._file_cache: List[str] = []
         self._cache_time: float = 0
+        self._last_scan_duration: float = 0  # Track scan performance
+        self._adaptive_cache = cache_duration is None  # Enable adaptive caching
 
         # File extensions to prioritize
         self.priority_extensions = {
@@ -228,6 +232,43 @@ class FileNameCompleter(Completer):
     def _should_skip_dir(self, dir_name: str) -> bool:
         """Check if directory should be skipped"""
         return dir_name in self.skip_dirs or dir_name.startswith('.')
+
+    def _calculate_adaptive_cache_duration(self, file_count: int, scan_duration: float) -> int:
+        """
+        Calculate adaptive cache duration based on project size and scan time
+
+        Args:
+            file_count: Number of files scanned
+            scan_duration: Time taken to scan (in seconds)
+
+        Returns:
+            Optimal cache duration in seconds
+        """
+        # Base duration by file count
+        if file_count < 100:
+            # Small project: 30 seconds
+            base_duration = 30
+        elif file_count < 1000:
+            # Medium project: 60 seconds
+            base_duration = 60
+        elif file_count < 5000:
+            # Large project: 120 seconds (2 minutes)
+            base_duration = 120
+        else:
+            # Very large project: 300 seconds (5 minutes)
+            base_duration = 300
+
+        # Adjust based on scan performance
+        # If scan takes longer, increase cache time
+        if scan_duration > 0.5:
+            # Very slow scan (>500ms): double the cache time
+            base_duration *= 2
+        elif scan_duration > 0.1:
+            # Slow scan (>100ms): increase by 50%
+            base_duration = int(base_duration * 1.5)
+
+        # Cap at reasonable limits
+        return min(max(base_duration, 30), 600)  # Between 30s and 10min
 
     def _scan_files(self) -> List[str]:
         """
@@ -282,11 +323,36 @@ class FileNameCompleter(Completer):
         if self._file_cache and (current_time - self._cache_time) < self.cache_duration:
             return self._file_cache
 
-        # Rebuild cache
+        # Rebuild cache and measure scan time
+        scan_start = time.time()
         self._file_cache = self._scan_files()
+        scan_duration = time.time() - scan_start
+        self._last_scan_duration = scan_duration
         self._cache_time = current_time
 
+        # Update cache duration if adaptive mode is enabled
+        if self._adaptive_cache:
+            file_count = len(self._file_cache)
+            self.cache_duration = self._calculate_adaptive_cache_duration(
+                file_count, scan_duration
+            )
+
         return self._file_cache
+
+    def get_cache_info(self) -> dict:
+        """
+        Get cache information for debugging/display
+
+        Returns:
+            Dictionary with cache stats
+        """
+        return {
+            'file_count': len(self._file_cache),
+            'cache_duration': self.cache_duration,
+            'last_scan_duration_ms': self._last_scan_duration * 1000,
+            'adaptive_mode': self._adaptive_cache,
+            'cache_age_seconds': time.time() - self._cache_time if self._cache_time > 0 else 0,
+        }
 
     def _match_score(self, file_path: str, query: str) -> int:
         """

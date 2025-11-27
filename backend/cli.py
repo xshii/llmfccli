@@ -65,11 +65,12 @@ class CLI:
         # Create completers
         command_completer = ClaudeQwenCompleter()
         path_completer = PathCompleter(self.project_root)
-        filename_completer = FileNameCompleter(self.project_root, cache_duration=60)
+        # Use adaptive caching (None = auto-adjust based on project size)
+        self.filename_completer = FileNameCompleter(self.project_root, cache_duration=None)
         combined_completer = CombinedCompleter([
             command_completer,
             path_completer,
-            filename_completer
+            self.filename_completer
         ])
 
         self.session = PromptSession(
@@ -380,6 +381,7 @@ class CLI:
 - `/clear` - 清除对话历史（保留文件访问）
 - `/compact` - 手动压缩上下文
 - `/usage` - 显示 Token 使用情况
+- `/cache` - 查看文件补全缓存状态
 - `/reset-confirmations` - 重置工具执行确认
 - `/model` - 管理 Ollama 模型（list/create/pull/health）
 - `/cmd <command>` - 执行本地终端命令
@@ -511,7 +513,53 @@ class CLI:
         elif cmd == '/usage':
             report = self.agent.get_usage_report()
             self.console.print(Panel(report, title="Token 使用情况"))
-        
+
+        elif cmd == '/cache':
+            # Show file completion cache info
+            cache_info = self.filename_completer.get_cache_info()
+
+            # Determine project size category
+            file_count = cache_info['file_count']
+            if file_count < 100:
+                size_category = "小型项目"
+            elif file_count < 1000:
+                size_category = "中型项目"
+            elif file_count < 5000:
+                size_category = "大型项目"
+            else:
+                size_category = "超大型项目"
+
+            # Format cache age
+            cache_age = cache_info['cache_age_seconds']
+            if cache_age < 60:
+                age_str = f"{cache_age:.1f} 秒前"
+            elif cache_age < 3600:
+                age_str = f"{cache_age/60:.1f} 分钟前"
+            else:
+                age_str = f"{cache_age/3600:.1f} 小时前"
+
+            # Format cache duration
+            duration = cache_info['cache_duration']
+            if duration < 60:
+                duration_str = f"{duration} 秒"
+            elif duration < 3600:
+                duration_str = f"{duration/60:.1f} 分钟"
+            else:
+                duration_str = f"{duration/3600:.1f} 小时"
+
+            cache_report = f"""
+**文件缓存信息**
+
+- **项目规模**: {size_category} ({file_count} 个文件)
+- **缓存时长**: {duration_str} {'(自适应)' if cache_info['adaptive_mode'] else '(固定)'}
+- **上次扫描**: {age_str}
+- **扫描耗时**: {cache_info['last_scan_duration_ms']:.1f} ms
+- **缓存状态**: {'✓ 有效' if cache_age < duration else '✗ 已过期（将在下次补全时刷新）'}
+
+💡 缓存时间根据项目大小和扫描性能自动调整
+"""
+            self.console.print(Panel(cache_report, title="文件补全缓存"))
+
         elif cmd == '/root':
             parts = command.split(maxsplit=1)
             if len(parts) > 1:
