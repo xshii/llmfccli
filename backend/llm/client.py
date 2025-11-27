@@ -63,6 +63,9 @@ class OllamaClient:
         self.retry_config = self.config['retry']
         self.stream_enabled = self.config.get('stream', False)  # Default to False for backward compatibility
 
+        # Track last request file for debugging
+        self.last_request_file = None
+
         # Warm up model on initialization
         self._warmup()
         
@@ -121,26 +124,29 @@ class OllamaClient:
                 
                 curl_cmd = ['curl', '-s', '-N', '--noproxy', 'localhost', f'{self.base_url}/api/chat', '-d', f'@{temp_file}']
 
-                # DEBUG: Save request to logs
+                # Save request to logs (always save for debugging, even without DEBUG_AGENT)
                 import os
                 from datetime import datetime
-                log_dir = None
-                request_file = None
+                import pathlib
+
+                # Create logs directory
+                project_root = pathlib.Path(__file__).parent.parent.parent
+                log_dir = project_root / 'logs'
+                log_dir.mkdir(exist_ok=True)
+
+                # Save request
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+                request_file = log_dir / f'request_{timestamp}.json'
+                with open(temp_file, 'r', encoding='utf-8') as f:
+                    request_data = json.load(f)
+                with open(request_file, 'w', encoding='utf-8') as f:
+                    json.dump(request_data, f, ensure_ascii=False, indent=2)
+
+                # Save path for display in UI
+                self.last_request_file = str(request_file)
+
+                # Show detailed log only in debug mode
                 if os.getenv('DEBUG_AGENT'):
-                    # Create logs directory
-                    import pathlib
-                    project_root = pathlib.Path(__file__).parent.parent.parent
-                    log_dir = project_root / 'logs'
-                    log_dir.mkdir(exist_ok=True)
-
-                    # Save request
-                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-                    request_file = log_dir / f'request_{timestamp}.json'
-                    with open(temp_file, 'r', encoding='utf-8') as f:
-                        request_data = json.load(f)
-                    with open(request_file, 'w', encoding='utf-8') as f:
-                        json.dump(request_data, f, ensure_ascii=False, indent=2)
-
                     print(f"\n=== CURL REQUEST ===")
                     print(f"Saved to: {request_file}")
                     print(f"=== END CURL REQUEST ===\n")

@@ -561,8 +561,22 @@ class CLI:
 
             usage_pct = (total_tokens / max_tokens * 100) if max_tokens > 0 else 0
 
-            # Display token info
-            self.console.print(f"[dim]Tokens: {total_str}/{max_str} ({usage_pct:.0f}%)[/dim]")
+            # Display token info with request file link
+            token_info = f"[dim]Tokens: {total_str}/{max_str} ({usage_pct:.0f}%)"
+
+            # Add request file link if available
+            if hasattr(self.client, 'last_request_file') and self.client.last_request_file:
+                import os
+                # Get relative path or filename
+                request_path = self.client.last_request_file
+                if os.path.exists(request_path):
+                    filename = os.path.basename(request_path)
+                    # Use Rich markup for clickable link (file:// protocol)
+                    file_url = f"file://{os.path.abspath(request_path)}"
+                    token_info += f" | [link={file_url}]{filename}[/link]"
+
+            token_info += "[/dim]"
+            self.console.print(token_info)
 
     def run(self):
         """Run interactive loop"""
