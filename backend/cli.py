@@ -420,13 +420,29 @@ class CLI:
         Returns:
             ConfirmAction: User's choice (ALLOW_ONCE, ALLOW_ALWAYS, DENY)
         """
-        # Format arguments for display
+        # Get tool schema to check parameter formats
+        from backend.agent.tools import registry
+        tool_schema = registry.tools.get(tool_name)
+        param_formats = {}
+
+        if tool_schema:
+            properties = tool_schema.get('function', {}).get('parameters', {}).get('properties', {})
+            for param_name, param_info in properties.items():
+                if param_info.get('format') == 'filepath':
+                    param_formats[param_name] = 'filepath'
+
+        # Format arguments for display with path compression
         args_display = []
         for key, value in arguments.items():
-            # Truncate long values
             value_str = str(value)
-            if len(value_str) > 60:
+
+            # Compress paths based on schema format
+            if param_formats.get(key) == 'filepath' and ('/' in value_str or '\\' in value_str):
+                value_str = self._compress_path(value_str, max_length=50)
+            # Truncate other long values
+            elif len(value_str) > 60:
                 value_str = value_str[:57] + "..."
+
             args_display.append(f"  • {key}: {value_str}")
         args_text = "\n".join(args_display) if args_display else "  (无参数)"
 
