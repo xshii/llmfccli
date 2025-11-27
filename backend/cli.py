@@ -93,37 +93,60 @@ class CLI:
         self.tool_outputs = []  # [{'tool', 'output', 'args', 'collapsed', 'lines'}]
 
     def _compress_path(self, path: str, max_length: int = 50) -> str:
-        """Compress long paths by keeping start and filename
+        """Intelligently compress paths based on project root
+
+        Strategy:
+        - Paths inside project: show relative path, compress if > 3 levels
+        - Paths outside project: show absolute path, compress if > 4 levels
 
         Examples:
-            /home/user/very/long/path/to/file.cpp -> /home/.../file.cpp
-            src/backend/agent/tool_confirmation.py -> src/.../tool_confirmation.py
+            Inside project (/home/user/llmfccli):
+                /home/user/llmfccli/backend/agent/tools.py -> backend/.../tools.py
+                /home/user/llmfccli/tests/unit/test.py -> tests/unit/test.py (no compression)
+
+            Outside project:
+                /home/user/other/very/long/path/file.py -> /home/user/.../path/file.py
+                /usr/lib/python3/site-packages/module.py -> /usr/lib/.../site-packages/module.py
         """
-        if len(path) <= max_length:
-            return path
+        import os
 
         # Detect path separator (/ or \)
         sep = '\\' if '\\' in path else '/'
 
-        # Split path into parts
-        parts = path.split(sep)
+        # Normalize paths for comparison
+        path_abs = os.path.abspath(path) if not os.path.isabs(path) else path
+        project_root_abs = os.path.abspath(self.project_root)
 
-        # Filter out empty parts (from leading /)
-        parts = [p for p in parts if p]
+        # Check if path is inside project
+        try:
+            # Try to get relative path from project root
+            if path_abs.startswith(project_root_abs + os.sep) or path_abs == project_root_abs:
+                # Path is inside project - use relative path
+                rel_path = os.path.relpath(path_abs, project_root_abs)
+                parts = rel_path.split(os.sep)
 
-        if len(parts) <= 2:
-            # Too short to compress
-            return path
+                # For project-relative paths, compress if > 3 levels
+                if len(parts) <= 3:
+                    return rel_path
 
-        # Keep first part and last part (filename)
-        filename = parts[-1]
-        first_part = parts[0]
+                # Compress: keep first level + last 2 levels
+                # Example: backend/agent/tools/filesystem.py -> backend/.../filesystem.py
+                compressed = f"{parts[0]}{sep}...{sep}{sep.join(parts[-2:])}"
+                return compressed
+        except (ValueError, OSError):
+            pass
 
-        # Check if original path started with separator
-        prefix = sep if path.startswith(sep) else ""
+        # Path is outside project - use absolute path with compression
+        parts = path_abs.split(os.sep)
+        parts = [p for p in parts if p]  # Filter empty parts
 
-        # Build compressed path
-        compressed = f"{prefix}{first_part}{sep}...{sep}{filename}"
+        # For absolute paths, compress if > 4 levels
+        if len(parts) <= 4:
+            return path_abs
+
+        # Compress: keep first 2 + last 2 levels
+        prefix = os.sep if path_abs.startswith(os.sep) else ""
+        compressed = f"{prefix}{os.sep.join(parts[:2])}{sep}...{sep}{os.sep.join(parts[-2:])}"
 
         return compressed
 
@@ -184,12 +207,23 @@ class CLI:
         parts = [f"[cyan bold]{tool_name}[/cyan bold]"]
 
         if args:
+            # Get tool schema to check parameter formats
+            from backend.agent.tools import registry
+            tool_schema = registry.tools.get(tool_name)
+            param_formats = {}
+
+            if tool_schema:
+                properties = tool_schema.get('function', {}).get('parameters', {}).get('properties', {})
+                for param_name, param_info in properties.items():
+                    if param_info.get('format') == 'filepath':
+                        param_formats[param_name] = 'filepath'
+
             args_parts = []
             for key, value in args.items():
                 value_str = str(value)
 
-                # Compress paths (check common path-like keys)
-                if key in ('file_path', 'path', 'directory', 'project_root', 'scope') and '/' in value_str:
+                # Compress paths based on schema format
+                if param_formats.get(key) == 'filepath' and ('/' in value_str or '\\' in value_str):
                     value_str = self._compress_path(value_str, max_length=40)
                 # Truncate other long values
                 elif len(value_str) > 50:
