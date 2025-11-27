@@ -296,6 +296,106 @@ def register_analyzer_tools(project_root: str):
     pass
 
 
+def register_agent_tools(agent):
+    """Register agent control tools that require agent instance"""
+
+    def compact_last(count: int, replacement: str) -> Dict[str, Any]:
+        """
+        Compact recent conversation messages by replacing them with a summary
+
+        Args:
+            count: Number of recent messages to replace (from end of history)
+            replacement: Summary text to replace the messages with
+
+        Returns:
+            Dict with compaction results
+        """
+        try:
+            # Validate count
+            history_len = len(agent.conversation_history)
+            if count <= 0:
+                return {
+                    'success': False,
+                    'error': f'Invalid count: {count}. Must be positive.'
+                }
+
+            if count > history_len:
+                return {
+                    'success': False,
+                    'error': f'Count {count} exceeds history length {history_len}'
+                }
+
+            # Get token counter
+            token_counter = agent.token_counter
+            max_tokens = token_counter.max_tokens
+            tokens_before = token_counter.usage.get('total', 0)
+
+            # Store messages that will be removed
+            removed_messages = agent.conversation_history[-count:]
+
+            # Remove last 'count' messages
+            agent.conversation_history = agent.conversation_history[:-count]
+
+            # Add replacement summary as assistant message
+            agent.conversation_history.append({
+                'role': 'assistant',
+                'content': replacement
+            })
+
+            # Recalculate tokens (trigger token counter update)
+            agent.token_counter.count_messages(agent.conversation_history)
+            tokens_after = token_counter.usage.get('total', 0)
+            tokens_saved = tokens_before - tokens_after
+
+            return {
+                'success': True,
+                'messages_removed': count,
+                'messages_current': len(agent.conversation_history),
+                'tokens_before': tokens_before,
+                'tokens_after': tokens_after,
+                'tokens_saved': tokens_saved,
+                'current_usage_pct': (tokens_after / max_tokens * 100) if max_tokens > 0 else 0
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    # Register compact_last tool
+    registry.register(
+        name='compact_last',
+        description=(
+            'Compact recent conversation messages by replacing them with your summary. '
+            'Use this when you have completed a phase of work and can summarize it concisely. '
+            'This is more efficient than compress_context because YOU generate the summary in your output, '
+            'saving an extra LLM call. '
+            'Use when: '
+            '(1) Completed debugging/exploration and have a clear summary, OR '
+            '(2) Finished implementing a feature with detailed steps but simple outcome, OR '
+            '(3) Token usage is high and recent messages contain redundant details. '
+            'Example: After 10 messages of debugging, replace with "Fixed bug X by doing Y".'
+        ),
+        parameters={
+            'type': 'object',
+            'properties': {
+                'count': {
+                    'type': 'integer',
+                    'description': 'Number of recent messages to replace (including tool calls and results)',
+                    'minimum': 1
+                },
+                'replacement': {
+                    'type': 'string',
+                    'description': 'Your concise summary to replace those messages with. Should capture key insights and decisions while removing verbose details.'
+                }
+            },
+            'required': ['count', 'replacement']
+        },
+        implementation=compact_last
+    )
+
+
 def get_tool_schemas() -> List[Dict[str, Any]]:
     """Get all registered tool schemas"""
     return registry.get_schemas()

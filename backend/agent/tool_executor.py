@@ -96,11 +96,12 @@ class RegistryToolExecutor(ToolExecutor):
         # Smart handling for edit_file
         if tool_name == 'edit_file' and self.confirmation:
             # Check if user has set "always allow" for edit_file
-            if tool_name in self.confirmation.allowed_tools:
+            # (tool signature is just the tool name for file operations)
+            if tool_name in self.confirmation.allowed_tool_calls:
                 # User trusts this tool, skip tool-level confirmation
                 arguments = dict(arguments)  # Copy to avoid mutation
                 arguments['confirm'] = False
-            # If not in allowed_tools, use default (confirm=True)
+            # If not in allowed_tool_calls, use default (confirm=True)
             # This shows diff preview for user review
 
         return self.registry.execute(tool_name, arguments)

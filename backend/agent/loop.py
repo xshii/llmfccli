@@ -49,6 +49,10 @@ class AgentLoop:
             confirmation_manager=self.confirmation
         )
 
+        # Register agent-specific tools (after tool_executor is initialized)
+        from .tools import register_agent_tools
+        register_agent_tools(self)
+
         # Tool output callback
         self.tool_output_callback = tool_output_callback
 

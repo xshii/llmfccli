@@ -462,6 +462,7 @@ class CLI:
 **可用命令**:
 - `/help` - 显示帮助
 - `/clear` - 清除对话历史（保留文件访问）
+- `/session_init` - 清空会话但保留工具确认
 - `/compact [ratio]` - 智能压缩上下文（可指定目标比例 0-1）
 - `/usage` - 显示 Token 使用情况
 - `/cache` - 查看文件补全缓存状态
@@ -523,11 +524,12 @@ class CLI:
             try:
                 # Show token usage at the bottom before next prompt (except first time)
                 if not first_prompt:
+                    self.console.print()  # Add blank line before token status
                     self._show_token_status()
                 first_prompt = False
 
-                # Get user input
-                user_input = self.session.prompt('\n> ').strip()
+                # Get user input (no extra newline in prompt)
+                user_input = self.session.prompt('> ').strip()
 
                 if not user_input:
                     continue
@@ -614,7 +616,15 @@ class CLI:
             self.agent.conversation_history.clear()
             self.agent.tool_calls.clear()
             self.console.print("[green]已清除对话历史[/green]")
-        
+
+        elif cmd == '/session_init':
+            # Clear conversation history but keep tool confirmations
+            self.agent.conversation_history.clear()
+            self.agent.tool_calls.clear()
+            # Tool confirmations (allowed_tool_calls) are preserved
+            self.console.print("[green]✓ 已清空会话历史[/green]")
+            self.console.print("[dim]工具确认状态已保留[/dim]")
+
         elif cmd == '/compact':
             # Enhanced context compression with detailed feedback
             self.handle_compact_command(command)
@@ -1192,6 +1202,7 @@ int main() {
 ### Agent 控制
 - `/help` - 显示此帮助信息
 - `/clear` - 清除对话历史（保留文件访问权限）
+- `/session_init` - 清空会话历史，但保留工具确认状态
 - `/compact [ratio|--info]` - 智能压缩上下文
   - `/compact` - 使用默认目标(60%)压缩
   - `/compact 0.5` - 压缩到 50% tokens
