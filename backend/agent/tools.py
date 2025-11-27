@@ -296,6 +296,88 @@ def register_analyzer_tools(project_root: str):
     pass
 
 
+def register_agent_tools(agent):
+    """Register agent control tools that require agent instance"""
+
+    def compress_context(target_ratio: float = None) -> Dict[str, Any]:
+        """
+        Compress conversation context to save tokens
+
+        Args:
+            target_ratio: Target token usage ratio (0.0-1.0), defaults to 0.6 (60%)
+
+        Returns:
+            Dict with compression results
+        """
+        try:
+            # Get token counter
+            token_counter = agent.token_counter
+            max_tokens = token_counter.max_tokens
+            current_total = token_counter.usage.get('total', 0)
+
+            # Set default target ratio if not provided
+            if target_ratio is None:
+                target_ratio = token_counter.compression_config['target_after_compress']
+
+            # Validate ratio
+            if not (0.0 < target_ratio < 1.0):
+                return {
+                    'success': False,
+                    'error': f'Invalid target_ratio: {target_ratio}. Must be between 0.0 and 1.0'
+                }
+
+            target_tokens = int(max_tokens * target_ratio)
+
+            # Store counts before compression
+            msg_count_before = len(agent.conversation_history)
+            tokens_before = current_total
+
+            # Perform compression
+            agent._compress_context()
+
+            # Get counts after compression
+            msg_count_after = len(agent.conversation_history)
+            tokens_after = token_counter.usage.get('total', 0)
+            tokens_saved = tokens_before - tokens_after
+
+            return {
+                'success': True,
+                'messages_before': msg_count_before,
+                'messages_after': msg_count_after,
+                'messages_removed': msg_count_before - msg_count_after,
+                'tokens_before': tokens_before,
+                'tokens_after': tokens_after,
+                'tokens_saved': tokens_saved,
+                'target_ratio': target_ratio,
+                'current_usage_pct': (tokens_after / max_tokens * 100) if max_tokens > 0 else 0
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    # Register compress_context tool
+    registry.register(
+        name='compress_context',
+        description='Compress conversation history to reduce token usage. Use when context is getting large (>70% tokens used).',
+        parameters={
+            'type': 'object',
+            'properties': {
+                'target_ratio': {
+                    'type': 'number',
+                    'description': 'Target token usage ratio after compression (0.0-1.0), defaults to 0.6',
+                    'minimum': 0.1,
+                    'maximum': 0.9
+                }
+            },
+            'required': []
+        },
+        implementation=compress_context
+    )
+
+
 def get_tool_schemas() -> List[Dict[str, Any]]:
     """Get all registered tool schemas"""
     return registry.get_schemas()
