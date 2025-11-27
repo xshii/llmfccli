@@ -152,6 +152,28 @@ def test_piped_commands():
         print("✓ Test piped commands passed")
 
 
+def test_nonexistent_initial_cwd():
+    """Test that session handles non-existent initial_cwd gracefully"""
+    # Use a path that definitely doesn't exist
+    nonexistent_dir = '/nonexistent_directory_xyz123'
+
+    # Should not crash, should fallback to current directory
+    session = PersistentShellSession(initial_cwd=nonexistent_dir)
+
+    try:
+        # Should be able to execute commands successfully
+        success, stdout, stderr = session.execute('echo "test"')
+        assert success, f"Command failed after fallback: {stderr}"
+
+        # Should be in current directory, not the nonexistent one
+        cwd = session.get_cwd()
+        assert nonexistent_dir not in cwd, f"Should have fallen back to current directory, but got: {cwd}"
+
+        print("✓ Test nonexistent initial_cwd fallback passed")
+    finally:
+        session.close()
+
+
 def main():
     """Run all tests"""
     print("\n=== Testing Persistent Shell Session ===")
@@ -166,6 +188,7 @@ def main():
         test_reset_session()
         test_multiline_output()
         test_piped_commands()
+        test_nonexistent_initial_cwd()
 
         print("\n✅ All tests passed!\n")
         return 0
