@@ -23,6 +23,7 @@ from .llm.client import OllamaClient
 from .utils.precheck import PreCheck
 from .agent.tool_confirmation import ConfirmAction
 from .remotectl.commands import RemoteCommands
+from .cli_completer import ClaudeQwenCompleter, PathCompleter, CombinedCompleter
 
 
 class CLI:
@@ -58,11 +59,19 @@ class CLI:
             tool_output_callback=self.add_tool_output
         )
 
-        # Setup prompt session
+        # Setup prompt session with tab completion
         history_file = Path.home() / '.claude_qwen_history'
+
+        # Create completers
+        command_completer = ClaudeQwenCompleter()
+        path_completer = PathCompleter(self.project_root)
+        combined_completer = CombinedCompleter([command_completer, path_completer])
+
         self.session = PromptSession(
             history=FileHistory(str(history_file)),
             auto_suggest=AutoSuggestFromHistory(),
+            completer=combined_completer,
+            complete_while_typing=False,  # Only complete on Tab
         )
 
         # Initialize remote commands (for /model commands)
@@ -378,6 +387,7 @@ class CLI:
 - "编译项目并修复错误"
 - "为当前文件生成单元测试"
 
+💡 按 **Tab** 键可自动补全命令和参数
 💡 修改 `config/ollama.yaml` 中的 `stream` 配置可切换输出模式
 💡 工具输出超过 20 行会自动折叠，使用 /expand 查看详情
 """
@@ -843,6 +853,8 @@ int main() {
         """Show help message"""
         help_text = """
 ## 可用命令
+
+💡 **提示**: 按 **Tab** 键可自动补全所有命令和参数
 
 ### Agent 控制
 - `/help` - 显示此帮助信息
