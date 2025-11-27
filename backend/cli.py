@@ -517,17 +517,20 @@ class CLI:
     def run(self):
         """Run interactive loop"""
         self.show_welcome()
+        first_prompt = True
 
         while True:
             try:
+                # Show token usage at the bottom before next prompt (except first time)
+                if not first_prompt:
+                    self._show_token_status()
+                first_prompt = False
+
                 # Get user input
                 user_input = self.session.prompt('\n> ').strip()
 
                 if not user_input:
                     continue
-
-                # Show token usage after user input
-                self._show_token_status()
 
                 # Handle commands
                 if user_input.startswith('/'):
@@ -541,8 +544,8 @@ class CLI:
                 self.command_start_time = time.time()
                 self.tool_outputs = []
 
-                # Execute task (removed extra newline since token status already adds spacing)
-                self.console.print("[cyan]执行中...[/cyan]")
+                # Execute task
+                self.console.print("\n[cyan]执行中...[/cyan]")
 
                 try:
                     # Check if streaming is enabled in config
