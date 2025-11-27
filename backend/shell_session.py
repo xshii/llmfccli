@@ -4,20 +4,25 @@ Persistent shell session manager for /cmd mode
 
 Maintains a persistent shell process that preserves:
 - Working directory (cd commands)
-- Environment variables (export commands)
+- Environment variables (export/set commands)
 - Shell state across multiple commands
+
+Supports:
+- Linux/Mac: bash
+- Windows: cmd.exe
 """
 
 import subprocess
 import threading
 import time
 import os
+import platform
 from typing import Optional, Tuple
 from queue import Queue, Empty
 
 
 class PersistentShellSession:
-    """Manages a persistent interactive shell session"""
+    """Manages a persistent interactive shell session (cross-platform)"""
 
     def __init__(self, initial_cwd: Optional[str] = None):
         """
@@ -31,7 +36,20 @@ class PersistentShellSession:
         self.stdout_queue: Queue = Queue()
         self.stderr_queue: Queue = Queue()
         self.lock = threading.Lock()
+
+        # Detect platform
+        self.is_windows = platform.system() == 'Windows'
+
         self._start_shell()
+
+    def _get_shell_command(self):
+        """Get the appropriate shell command for this platform"""
+        if self.is_windows:
+            # Use cmd.exe on Windows
+            return ['cmd.exe', '/Q']  # /Q disables echo
+        else:
+            # Use bash on Linux/Mac
+            return ['/bin/bash', '--norc', '--noprofile']
 
     def _start_shell(self):
         """Start the persistent shell process"""
@@ -39,9 +57,11 @@ class PersistentShellSession:
             if self.process is not None:
                 self._cleanup_process()
 
-            # Start bash in interactive mode
+            # Start platform-appropriate shell
+            shell_cmd = self._get_shell_command()
+
             self.process = subprocess.Popen(
-                ['/bin/bash', '--norc', '--noprofile'],
+                shell_cmd,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -66,8 +86,13 @@ class PersistentShellSession:
             self.stdout_thread.start()
             self.stderr_thread.start()
 
-            # Set initial directory
-            self._send_raw_command(f'cd "{self.initial_cwd}"')
+            # Set initial directory (platform-specific)
+            if self.is_windows:
+                # Windows: use /d to change drives if needed
+                self._send_raw_command(f'cd /d "{self.initial_cwd}"')
+            else:
+                # Unix: standard cd
+                self._send_raw_command(f'cd "{self.initial_cwd}"')
             self._drain_output(timeout=0.5)
 
     def _read_stream(self, stream, queue):
@@ -130,13 +155,20 @@ class PersistentShellSession:
             marker = f"__CMD_DONE_{int(time.time() * 1000000)}__"
             exit_code_var = f"__EXIT_CODE_{int(time.time() * 1000000)}__"
 
-            # Send command sequence:
+            # Send command sequence (platform-specific):
             # 1. Execute the user command
             # 2. Capture exit code
-            # 3. Print unique marker
-            self._send_raw_command(f'{command}')
-            self._send_raw_command(f'{exit_code_var}=$?')
-            self._send_raw_command(f'echo "{marker}:${exit_code_var}"')
+            # 3. Print unique marker with exit code
+            self._send_raw_command(command)
+
+            if self.is_windows:
+                # Windows cmd.exe syntax
+                self._send_raw_command(f'set {exit_code_var}=%ERRORLEVEL%')
+                self._send_raw_command(f'echo {marker}:%{exit_code_var}%')
+            else:
+                # Unix bash syntax
+                self._send_raw_command(f'{exit_code_var}=$?')
+                self._send_raw_command(f'echo "{marker}:${exit_code_var}"')
 
             # Collect output until we see the marker
             stdout_lines = []
@@ -188,7 +220,14 @@ class PersistentShellSession:
 
     def get_cwd(self) -> str:
         """Get current working directory of the shell"""
-        success, stdout, _ = self.execute('pwd')
+        if self.is_windows:
+            # Windows: 'cd' without arguments shows current directory
+            # Or use 'echo %CD%'
+            success, stdout, _ = self.execute('cd')
+        else:
+            # Unix: use pwd
+            success, stdout, _ = self.execute('pwd')
+
         if success and stdout:
             return stdout.strip()
         return self.initial_cwd

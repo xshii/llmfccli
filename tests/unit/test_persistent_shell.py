@@ -2,17 +2,27 @@
 # -*- coding: utf-8 -*-
 """
 Unit tests for persistent shell session
+
+Tests the cross-platform persistent shell functionality:
+- Linux/Mac: Uses /bin/bash
+- Windows: Uses cmd.exe
+
+Note: These tests run on the current platform.
+Windows-specific behavior is tested when running on Windows.
 """
 
 import os
 import sys
 import tempfile
+import platform
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from backend.shell_session import PersistentShellSession
+
+IS_WINDOWS = platform.system() == 'Windows'
 
 
 def test_basic_command():
@@ -51,12 +61,22 @@ def test_persistent_directory():
 def test_persistent_environment():
     """Test that environment variables persist across commands"""
     with PersistentShellSession() as session:
-        # Set environment variable
-        success, stdout, stderr = session.execute('export TEST_VAR="test_value"')
-        assert success, f"export failed: {stderr}"
+        # Set environment variable (platform-specific syntax)
+        if IS_WINDOWS:
+            # Windows: set VAR=value
+            success, stdout, stderr = session.execute('set TEST_VAR=test_value')
+            assert success, f"set failed: {stderr}"
 
-        # Verify variable persists
-        success, stdout, stderr = session.execute('echo $TEST_VAR')
+            # Verify variable persists (Windows: %VAR%)
+            success, stdout, stderr = session.execute('echo %TEST_VAR%')
+        else:
+            # Unix: export VAR=value
+            success, stdout, stderr = session.execute('export TEST_VAR="test_value"')
+            assert success, f"export failed: {stderr}"
+
+            # Verify variable persists (Unix: $VAR)
+            success, stdout, stderr = session.execute('echo $TEST_VAR')
+
         assert success, f"echo failed: {stderr}"
         assert 'test_value' in stdout, f"Environment variable didn't persist: {stdout}"
 
@@ -102,7 +122,12 @@ def test_reset_session():
 def test_multiline_output():
     """Test commands with multi-line output"""
     with PersistentShellSession() as session:
-        success, stdout, stderr = session.execute('echo -e "line1\\nline2\\nline3"')
+        if IS_WINDOWS:
+            # Windows: use multiple echo commands
+            success, stdout, stderr = session.execute('echo line1 && echo line2 && echo line3')
+        else:
+            # Unix: use echo -e with \n
+            success, stdout, stderr = session.execute('echo -e "line1\\nline2\\nline3"')
 
         assert success, f"Command failed: {stderr}"
         lines = stdout.strip().split('\n')
@@ -114,7 +139,12 @@ def test_multiline_output():
 def test_piped_commands():
     """Test commands with pipes"""
     with PersistentShellSession() as session:
-        success, stdout, stderr = session.execute('echo "hello world" | grep hello')
+        if IS_WINDOWS:
+            # Windows: use findstr instead of grep
+            success, stdout, stderr = session.execute('echo hello world | findstr hello')
+        else:
+            # Unix: use grep
+            success, stdout, stderr = session.execute('echo "hello world" | grep hello')
 
         assert success, f"Piped command failed: {stderr}"
         assert 'hello' in stdout, f"Pipe didn't work: {stdout}"
@@ -124,7 +154,9 @@ def test_piped_commands():
 
 def main():
     """Run all tests"""
-    print("\n=== Testing Persistent Shell Session ===\n")
+    print("\n=== Testing Persistent Shell Session ===")
+    print(f"Platform: {platform.system()}")
+    print(f"Shell: {'cmd.exe' if IS_WINDOWS else '/bin/bash'}\n")
 
     try:
         test_basic_command()
