@@ -476,7 +476,7 @@ class CLI:
 
         while True:
             try:
-                choice = input("\n请输入选择 (1/2/3): ").strip()
+                choice = input("请输入选择 (1/2/3): ").strip()
 
                 if choice == '1':
                     self.console.print("[green]✓ 本次允许执行[/green]")
@@ -632,12 +632,14 @@ class CLI:
                         # Non-streaming mode: wait for complete response
                         response = self.agent.run(user_input, stream=False)
 
-                        # Display response in panel
-                        self.console.print(Panel(
-                            Markdown(response),
-                            title="响应",
-                            border_style="green"
-                        ))
+                        # Don't show panel if user denied tool execution
+                        if response and response != "Tool execution stopped by user.":
+                            # Display response in panel
+                            self.console.print(Panel(
+                                Markdown(response),
+                                title="响应",
+                                border_style="green"
+                            ))
 
                     # Tool outputs are already displayed inline during execution
                     # No need for summary display
