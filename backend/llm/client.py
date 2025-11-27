@@ -145,7 +145,10 @@ class OllamaClient:
                     print(f"Saved to: {request_file}")
                     print(f"=== END CURL REQUEST ===\n")
 
-                print(f"\033[90mExecuting: curl -s -N \"{self.base_url}/api/chat\" -d @{temp_file}\033[0m")
+                # Only show curl execution in debug mode
+                import os as os_env
+                if os_env.getenv('DEBUG_AGENT') or os_env.getenv('DEBUG_LLM'):
+                    print(f"\033[90mExecuting: curl -s -N \"{self.base_url}/api/chat\" -d @{temp_file}\033[0m")
                 
                 # Stream response
                 process = subprocess.Popen(
