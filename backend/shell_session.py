@@ -133,13 +133,13 @@ class PersistentShellSession:
         while time.time() - start_time < timeout:
             try:
                 line = self.stdout_queue.get_nowait()
-                stdout_lines.append(line.rstrip('\n'))
+                stdout_lines.append(line.rstrip('\r\n'))  # Strip both Windows (\r\n) and Unix (\n) line endings
             except Empty:
                 pass
 
             try:
                 line = self.stderr_queue.get_nowait()
-                stderr_lines.append(line.rstrip('\n'))
+                stderr_lines.append(line.rstrip('\r\n'))  # Strip both Windows (\r\n) and Unix (\n) line endings
             except Empty:
                 pass
 
@@ -195,7 +195,7 @@ class PersistentShellSession:
             while time.time() - start_time < timeout:
                 try:
                     line = self.stdout_queue.get(timeout=0.1)
-                    line = line.rstrip('\n')
+                    line = line.rstrip('\r\n')  # Strip both Windows (\r\n) and Unix (\n) line endings
 
                     # Check for completion marker
                     if line.startswith(marker):
@@ -214,7 +214,7 @@ class PersistentShellSession:
 
                 try:
                     line = self.stderr_queue.get_nowait()
-                    stderr_lines.append(line.rstrip('\n'))
+                    stderr_lines.append(line.rstrip('\r\n'))  # Strip both Windows (\r\n) and Unix (\n) line endings
                 except Empty:
                     pass
 
