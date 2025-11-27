@@ -81,6 +81,7 @@ def register_filesystem_tools(project_root: str):
             'properties': {
                 'path': {
                     'type': 'string',
+                    'format': 'filepath',
                     'description': 'File path relative to project root or absolute'
                 },
                 'line_range': {
@@ -107,6 +108,7 @@ def register_filesystem_tools(project_root: str):
             'properties': {
                 'path': {
                     'type': 'string',
+                    'format': 'filepath',
                     'description': 'File path'
                 },
                 'old_str': {
@@ -139,6 +141,7 @@ def register_filesystem_tools(project_root: str):
             'properties': {
                 'path': {
                     'type': 'string',
+                    'format': 'filepath',
                     'description': 'File path'
                 },
                 'content': {
@@ -166,6 +169,7 @@ def register_filesystem_tools(project_root: str):
                 },
                 'scope': {
                     'type': 'string',
+                    'format': 'filepath',
                     'description': 'Search scope directory (e.g., ".", "src/", "backend/")'
                 },
                 'file_pattern': {
@@ -189,6 +193,7 @@ def register_filesystem_tools(project_root: str):
             'properties': {
                 'path': {
                     'type': 'string',
+                    'format': 'filepath',
                     'description': 'Directory path (default: ".")'
                 },
                 'max_depth': {
@@ -240,6 +245,7 @@ def register_executor_tools(project_root: str):
             'properties': {
                 'build_dir': {
                     'type': 'string',
+                    'format': 'filepath',
                     'description': 'Build directory name (default: "build")'
                 },
                 'config': {

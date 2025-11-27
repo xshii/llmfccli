@@ -93,15 +93,13 @@ class CLI:
         self.tool_outputs = []  # [{'tool', 'output', 'args', 'collapsed', 'lines'}]
 
     def _compress_path(self, path: str, max_length: int = 50) -> str:
-        """Compress long paths by keeping start and filename
+        """Compress long paths by keeping first 2 levels and last 2 levels
 
         Examples:
-            /home/user/very/long/path/to/file.cpp -> /home/.../file.cpp
-            src/backend/agent/tool_confirmation.py -> src/.../tool_confirmation.py
+            /home/user/project/src/backend/agent/tools.py -> /home/user/.../agent/tools.py
+            /a/b/c/d/e/f.txt -> /a/b/.../e/f.txt
+            /a/b/c.txt -> /a/b/c.txt (no compression)
         """
-        if len(path) <= max_length:
-            return path
-
         # Detect path separator (/ or \)
         sep = '\\' if '\\' in path else '/'
 
@@ -111,19 +109,19 @@ class CLI:
         # Filter out empty parts (from leading /)
         parts = [p for p in parts if p]
 
-        if len(parts) <= 2:
-            # Too short to compress
+        # Only compress if path is long AND has more than 4 parts
+        if len(path) <= max_length or len(parts) <= 4:
             return path
 
-        # Keep first part and last part (filename)
-        filename = parts[-1]
-        first_part = parts[0]
+        # Keep first 2 and last 2 parts
+        first_two = parts[:2]
+        last_two = parts[-2:]
 
         # Check if original path started with separator
         prefix = sep if path.startswith(sep) else ""
 
-        # Build compressed path
-        compressed = f"{prefix}{first_part}{sep}...{sep}{filename}"
+        # Build compressed path: /first/second/.../second_last/last
+        compressed = f"{prefix}{sep.join(first_two)}{sep}...{sep}{sep.join(last_two)}"
 
         return compressed
 
@@ -184,12 +182,23 @@ class CLI:
         parts = [f"[cyan bold]{tool_name}[/cyan bold]"]
 
         if args:
+            # Get tool schema to check parameter formats
+            from backend.agent.tools import registry
+            tool_schema = registry.tools.get(tool_name)
+            param_formats = {}
+
+            if tool_schema:
+                properties = tool_schema.get('function', {}).get('parameters', {}).get('properties', {})
+                for param_name, param_info in properties.items():
+                    if param_info.get('format') == 'filepath':
+                        param_formats[param_name] = 'filepath'
+
             args_parts = []
             for key, value in args.items():
                 value_str = str(value)
 
-                # Compress paths (check common path-like keys)
-                if key in ('file_path', 'path', 'directory', 'project_root', 'scope') and '/' in value_str:
+                # Compress paths based on schema format
+                if param_formats.get(key) == 'filepath' and ('/' in value_str or '\\' in value_str):
                     value_str = self._compress_path(value_str, max_length=40)
                 # Truncate other long values
                 elif len(value_str) > 50:
