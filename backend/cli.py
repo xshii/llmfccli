@@ -389,7 +389,6 @@ class CLI:
 - `/reset-confirmations` - 重置工具执行确认
 - `/model` - 管理 Ollama 模型（list/create/pull/health）
 - `/cmd <command>` - 执行本地终端命令（持久化会话）
-- `/cmdpwd` - 查看 shell 当前目录
 - `/cmdclear` - 重置 shell 会话
 - `/cmdremote <command>` - 执行远程终端命令（SSH）
 - `/expand` / `/collapse` / `/toggle` - 展开/折叠工具输出
@@ -618,11 +617,6 @@ class CLI:
             else:
                 self.console.print("[yellow]用法: /cmdremote <command>[/yellow]")
                 self.console.print("示例: /cmdremote ps aux | grep ollama")
-
-        elif cmd == '/cmdpwd':
-            # Show current working directory of persistent shell
-            cwd = self.shell_session.get_cwd()
-            self.console.print(f"[cyan]当前工作目录:[/cyan] {cwd}")
 
         elif cmd == '/cmdclear':
             # Reset persistent shell session
