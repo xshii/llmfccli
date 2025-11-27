@@ -449,6 +449,16 @@ class CLI:
                         command = arguments.get('command', '')
                         base_cmd = command.split()[0] if command else ''
                         self.console.print(f"[blue]✓ 始终允许命令: {base_cmd}[/blue]")
+                    elif tool_name == 'git':
+                        action = arguments.get('action', '')
+                        self.console.print(f"[blue]✓ 始终允许 Git 操作: {action}[/blue]")
+
+                        # Check if dangerous parameters still need confirmation
+                        args = arguments.get('args', {})
+                        if self.agent.confirmation.is_dangerous_git_operation(action, args):
+                            self.console.print(
+                                f"[yellow]  ⚠️  注意：危险参数仍需确认 (如 --force, --hard)[/yellow]"
+                            )
                     else:
                         self.console.print(f"[blue]✓ 始终允许工具: {tool_name}[/blue]")
 
