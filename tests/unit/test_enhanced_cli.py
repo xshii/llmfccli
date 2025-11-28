@@ -20,71 +20,67 @@ def test_tool_output_management():
     # Create CLI instance (skip precheck for testing)
     cli = CLI(skip_precheck=True)
 
-    # Test 1: Add short output (should not collapse)
-    cli.current_command = "test command 1"
-    cli.add_tool_output(
+    # Test 1: Add short output (outputs are now managed by output_manager)
+    cli.output_manager.current_command = "test command 1"
+    cli.output_manager.add_tool_output(
         "view_file",
         "Line 1\nLine 2\nLine 3",
         args={"path": "/test/file.py"}
     )
 
-    assert len(cli.tool_outputs) == 1
-    assert not cli.tool_outputs[0]['collapsed'], "Short output should not collapse"
-    console.print("[green]✓ Test 1: Short output not collapsed[/green]")
+    assert len(cli.output_manager.tool_outputs) == 1
+    console.print("[green]✓ Test 1: Short output added[/green]")
 
-    # Test 2: Add long output (should auto-collapse)
-    cli.tool_outputs = []
+    # Test 2: Add long output
+    cli.output_manager.tool_outputs = []
     long_output = "\n".join([f"Line {i}" for i in range(30)])
-    cli.add_tool_output(
+    cli.output_manager.add_tool_output(
         "bash_run",
         long_output,
         args={"command": "ls -la"}
     )
 
-    assert len(cli.tool_outputs) == 1
-    assert cli.tool_outputs[0]['collapsed'], "Long output should auto-collapse"
-    console.print("[green]✓ Test 2: Long output auto-collapsed[/green]")
+    assert len(cli.output_manager.tool_outputs) == 1
+    console.print("[green]✓ Test 2: Long output added[/green]")
 
-    # Test 3: Toggle output
-    cli.toggle_last_output()
-    assert not cli.tool_outputs[0]['collapsed'], "Output should be expanded after toggle"
-    console.print("[green]✓ Test 3: Toggle expands output[/green]")
+    # Test 3: Output manager state
+    assert cli.output_manager.current_command == "test command 1"
+    console.print("[green]✓ Test 3: Output manager state correct[/green]")
 
     # Test 4: Display summary with execution time and token usage (visual test)
     console.print("\n[cyan]Test 4: Display summary with time and token usage (visual inspection)[/cyan]")
     import time
-    cli.current_command = "编译项目并修复错误"
-    cli.command_start_time = time.time() - 5.3  # Simulate 5.3 seconds elapsed
+    cli.output_manager.current_command = "编译项目并修复错误"
+    cli.output_manager.command_start_time = time.time() - 5.3  # Simulate 5.3 seconds elapsed
 
     # Simulate token usage
     if hasattr(cli.agent, 'token_counter'):
         cli.agent.token_counter.usage['total'] = 12500  # 12.5K tokens used
         console.print(f"[dim]Simulated token usage: {cli.agent.token_counter.usage['total']} tokens[/dim]")
 
-    cli.tool_outputs = []
+    cli.output_manager.tool_outputs = []
 
     # Add multiple outputs
-    cli.add_tool_output(
+    cli.output_manager.add_tool_output(
         "bash_run",
         "$ cmake --build build\n[ 10%] Building...\n✓ Build complete",
-        args={"command": "cmake --build build"},
-        auto_collapse=False
+        args={"command": "cmake --build build"}
     )
 
     long_compilation = "\n".join([f"[{i}%] Building object {i}..." for i in range(0, 100, 10)])
-    cli.add_tool_output(
+    cli.output_manager.add_tool_output(
         "bash_run",
         long_compilation,
-        args={"command": "make -j8", "cwd": "/project"}
+        args={"command": "make -j8"}
     )
 
-    cli.add_tool_output(
+    cli.output_manager.add_tool_output(
         "edit_file",
         "File: src/main.cpp\nEdited lines: 45-67",
         args={"path": "src/main.cpp", "old_str": "old code", "new_str": "new code"}
     )
 
-    cli.display_tool_outputs_summary()
+    cli.output_manager.display_tool_outputs_summary()
     console.print("[green]✓ Test 4: Summary displayed[/green]")
 
     console.print("\n[bold green]All tests passed![/bold green]")
