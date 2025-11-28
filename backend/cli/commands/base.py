@@ -51,8 +51,21 @@ class Command(ABC):
         """命令描述"""
         return ""
 
+    @property
+    def usage(self) -> str:
+        """命令用法示例（用于帮助文档生成）"""
+        return f"/{self.name}"
+
+    @property
+    def category(self) -> str:
+        """命令类别（用于帮助文档分组）
+
+        可选值: 'agent', 'vscode', 'model', 'shell', 'other'
+        """
+        return "other"
+
     def show_help(self):
         """显示命令帮助"""
-        self.console.print(f"[yellow]用法: /{self.name}[/yellow]")
+        self.console.print(f"[yellow]用法: {self.usage}[/yellow]")
         if self.description:
             self.console.print(self.description)
