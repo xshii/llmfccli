@@ -5,6 +5,7 @@
 管理工具调用的输出显示和格式化
 """
 
+import os
 import time
 from typing import Dict, Any, List, Optional
 from rich.console import Console
@@ -82,24 +83,29 @@ class ToolOutputManager:
         parts = [f"[cyan bold]{tool_name}[/cyan bold]"]
 
         if args:
-            # 获取工具 schema 以检查参数格式
-            from backend.agent.tools import registry
-            tool_schema = registry.tools.get(tool_name)
-            param_formats = {}
-
-            if tool_schema:
-                properties = tool_schema.get('function', {}).get('parameters', {}).get('properties', {})
-                for param_name, param_info in properties.items():
-                    if param_info.get('format') == 'filepath':
-                        param_formats[param_name] = 'filepath'
+            # 已知的文件路径参数名
+            PATH_PARAM_NAMES = {'path', 'file', 'file_path', 'filepath', 'source', 'target', 'destination', 'src', 'dst'}
 
             args_parts = []
             for key, value in args.items():
                 value_str = str(value)
 
-                # 根据 schema 格式压缩路径
-                if param_formats.get(key) == 'filepath' and ('/' in value_str or '\\' in value_str):
-                    value_str = self.path_utils.compress_path(value_str, max_length=40)
+                # 启发式判断：参数名包含路径关键词 且 值包含路径分隔符
+                is_path_param = (
+                    key.lower() in PATH_PARAM_NAMES and
+                    ('/' in value_str or '\\' in value_str)
+                )
+
+                # 如果是路径参数，压缩并添加超链接
+                if is_path_param:
+                    # 获取绝对路径用于超链接
+                    abs_path = os.path.abspath(value_str) if not os.path.isabs(value_str) else value_str
+
+                    # 压缩路径用于显示
+                    compressed = self.path_utils.compress_path(value_str, max_length=40)
+
+                    # 创建可点击的超链接（file:// protocol）
+                    value_str = f"[link=file://{abs_path}]{compressed}[/link]"
                 # 截断其他长值
                 elif len(value_str) > 50:
                     value_str = value_str[:47] + "..."
