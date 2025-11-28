@@ -94,12 +94,13 @@ class BashRunTool(BaseTool):
     @property
     def description(self) -> str:
         whitelist = get_whitelist()
-        # 显示前 15 个命令作为示例
-        sample = ', '.join(whitelist[:15])
+        sample = ', '.join(whitelist[:12])
         return (
-            f"Execute shell command. Allowed commands: {sample}, ... "
-            f"Supports pipes (|) and redirects (>, >>). "
-            f"Example: grep 'error' src/*.cpp | head -20"
+            f"Execute shell command. Allowed: {sample}, ... "
+            f"Supports pipes (| on Unix/Windows/PowerShell) and redirects. "
+            f"IMPORTANT: Prefer specialized tools (grep_search, view_file, edit_file, "
+            f"list_dir, git, etc.) when available. Use bash_run ONLY for pipes or "
+            f"when no equivalent tool exists."
         )
 
     @property

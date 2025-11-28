@@ -33,7 +33,11 @@ class GrepSearchTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Search for pattern in files (regex supported)"
+        return (
+            "Search for pattern in files using ripgrep. Returns structured JSON results "
+            "(file path, line number, matched content). Preferred over bash_run for code search. "
+            "Use bash_run instead ONLY when you need pipes (grep | head | wc) or complex shell combinations."
+        )
 
     @property
     def category(self) -> str:
