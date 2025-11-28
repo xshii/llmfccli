@@ -37,7 +37,7 @@ dev = [
 ]
 
 [project.scripts]
-claude-qwen = "backend.cli:main"
+claude-qwen = "backend.cli.main:main"
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
