@@ -26,12 +26,7 @@ from ..shell_session import PersistentShellSession
 
 from .path_utils import PathUtils
 from .output_manager import ToolOutputManager
-from .commands import (
-    HelpCommand,
-    CompactCommand,
-    ModelCommand,
-    VSCodeCommand,
-)
+from .command_registry import CommandRegistry
 
 
 class CLI:
@@ -117,14 +112,12 @@ class CLI:
             self.console.print(f"[yellow]⚠ RPC 客户端启动失败: {e}[/yellow]")
 
     def _init_commands(self):
-        """初始化命令处理器"""
-        self.commands: Dict[str, any] = {
-            'help': HelpCommand(self.console),
-            'compact': CompactCommand(self.console, self.agent),
-            'model': ModelCommand(self.console, self.remote_commands),
-            'vscode': VSCodeCommand(self.console),
-            'testvs': VSCodeCommand(self.console),  # 别名
-        }
+        """初始化命令注册器（自动发现所有命令）"""
+        self.command_registry = CommandRegistry(
+            self.console,
+            agent=self.agent,
+            remote_commands=self.remote_commands,
+        )
 
     def _run_precheck(self):
         """运行环境预检查"""
@@ -524,8 +517,13 @@ class CLI:
             self.agent.tool_calls.clear()
             self.console.print("[green]已清除对话历史[/green]")
 
-        elif cmd in self.commands:
-            return self.commands[cmd].execute(args)
+        elif self.command_registry.has(cmd):
+            command = self.command_registry.get(cmd)
+            if command:
+                return command.execute(args)
+            else:
+                self.console.print(f"[red]错误: 无法加载命令 {cmd}[/red]")
+                return True
 
         elif cmd == 'cache':
             # 显示文件补全缓存信息

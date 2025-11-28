@@ -31,6 +31,14 @@ class ModelCommand(Command):
     def description(self) -> str:
         return "管理 Ollama 模型"
 
+    @property
+    def category(self) -> str:
+        return "model"
+
+    @property
+    def usage(self) -> str:
+        return "/model <list|create|show|delete|pull|health>"
+
     def execute(self, args: List[str]) -> bool:
         """
         处理 /model 子命令

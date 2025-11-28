@@ -37,6 +37,14 @@ class VSCodeCommand(Command):
     def description(self) -> str:
         return "VSCode 集成功能"
 
+    @property
+    def category(self) -> str:
+        return "vscode"
+
+    @property
+    def usage(self) -> str:
+        return "/vscode [test]"
+
     def execute(self, args: List[str]) -> bool:
         """执行 VSCode 相关命令"""
         # 如果是通过 testvs 别名调用

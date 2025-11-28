@@ -33,6 +33,14 @@ class CompactCommand(Command):
     def description(self) -> str:
         return "智能压缩上下文"
 
+    @property
+    def category(self) -> str:
+        return "agent"
+
+    @property
+    def usage(self) -> str:
+        return "/compact [ratio|--info]"
+
     def execute(self, args: List[str]) -> bool:
         """
         处理 /compact 命令
