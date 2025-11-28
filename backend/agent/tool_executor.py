@@ -64,26 +64,26 @@ class ToolExecutor(ABC):
 class RegistryToolExecutor(ToolExecutor):
     """Tool executor backed by ToolRegistry"""
 
-    def __init__(self, project_root: str, confirmation_manager: Optional[Any] = None):
+    def __init__(self, project_root: str, confirmation_manager: Optional[Any] = None, agent: Optional[Any] = None):
         """
         Initialize tool executor with project root
 
         Args:
             project_root: Project root directory path
             confirmation_manager: ToolConfirmation instance (optional)
+            agent: Agent instance (for agent-specific tools)
         """
-        from .tools import initialize_tools, registry
+        from .tool_registry import ToolRegistry
 
         self.project_root = project_root
-        self.registry = registry
         self.confirmation = confirmation_manager
 
-        # Initialize tools
-        initialize_tools(project_root)
+        # Initialize new ToolRegistry with auto-discovery
+        self.registry = ToolRegistry(project_root=project_root, agent=agent)
 
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
         """Get all registered tool schemas"""
-        return self.registry.get_schemas()
+        return self.registry.get_openai_schemas()
 
     def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """
@@ -108,7 +108,7 @@ class RegistryToolExecutor(ToolExecutor):
 
     def get_tool_names(self) -> List[str]:
         """Get all registered tool names"""
-        return list(self.registry.implementations.keys())
+        return self.registry.list_tools()
 
     def reinitialize(self, project_root: str):
         """
@@ -117,10 +117,12 @@ class RegistryToolExecutor(ToolExecutor):
         Args:
             project_root: New project root directory
         """
-        from .tools import initialize_tools
+        from .tool_registry import ToolRegistry
 
         self.project_root = project_root
-        initialize_tools(project_root)
+        # Recreate registry with new project root
+        agent = self.registry.dependencies.get('agent')
+        self.registry = ToolRegistry(project_root=project_root, agent=agent)
 
 
 class MockToolExecutor(ToolExecutor):
