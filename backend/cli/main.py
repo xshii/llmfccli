@@ -172,7 +172,33 @@ class CLI:
 
                 # 询问用户是否要启动 SSH 并重试、重试或退出
                 try:
-                    response = input("选择操作 - [s]启动SSH并重试 / [R]重试 / [n]退出: ").strip().lower()
+                    self.console.print("选择操作 - \\[s]启动SSH并重试 / \\[R]手动重试 / \\[n]退出: ", end='')
+
+                    # 单键读取（不需要按回车）
+                    import platform
+                    response = ''
+                    if not sys.stdin.isatty():
+                        # 非交互模式，使用普通输入
+                        response = input().strip().lower() or 'r'
+                    elif platform.system() == 'Windows':
+                        import msvcrt
+                        response = msvcrt.getch().decode('utf-8', errors='ignore').lower()
+                        self.console.print(response)  # 回显用户输入
+                    else:
+                        try:
+                            import termios
+                            import tty
+                            fd = sys.stdin.fileno()
+                            old_settings = termios.tcgetattr(fd)
+                            try:
+                                tty.setraw(fd)
+                                response = sys.stdin.read(1).lower()
+                            finally:
+                                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                            self.console.print(response)  # 回显用户输入
+                        except (termios.error, OSError):
+                            # 终端不支持 termios，使用普通输入
+                            response = input().strip().lower() or 'r'
                     if response == 's':
                         # 启动 SSH 隧道并重试
                         import subprocess
@@ -461,9 +487,11 @@ class CLI:
 
                         def on_chunk(chunk: str):
                             """流式chunk 回调"""
-                            streamed_content.append(chunk)
+                            # 清理 \r 避免 macOS/Linux 显示 ^M
+                            clean_chunk = chunk.replace('\r', '')
+                            streamed_content.append(clean_chunk)
                             # 实时打印 chunk
-                            self.console.print(chunk, end='', style="white")
+                            self.console.print(clean_chunk, end='', style="white")
 
                         # 运行并启用流式输出
                         response = self.agent.run(user_input, stream=True, on_chunk=on_chunk)

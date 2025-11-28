@@ -193,7 +193,8 @@ class OllamaClient:
 
                                 # Call streaming callback if provided
                                 if on_chunk and content:
-                                    on_chunk(content)
+                                    # Remove \r to avoid ^M display on macOS/Linux
+                                    on_chunk(content.replace('\r', ''))
 
                                 # Check for stop tokens
                                 should_stop = False
@@ -274,10 +275,10 @@ class OllamaClient:
                 except:
                     pass
 
-                # Return in expected format
+                # Return in expected format (clean \r to avoid ^M on macOS/Linux)
                 result = {
                     'message': {
-                        'content': full_response.strip()
+                        'content': full_response.replace('\r', '').strip()
                     }
                 }
 
