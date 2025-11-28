@@ -47,9 +47,11 @@ class ToolRegistry:
         self._discover_tools()
 
     def _discover_tools(self):
-        """扫描 tools/ 目录，自动发现所有工具类"""
-        # 获取 tools 目录路径
-        tools_dir = Path(__file__).parent.parent / 'tools'
+        """扫描 backend/tools/ 目录，自动发现所有工具类"""
+        # 获取 backend/tools 目录路径
+        # 当前文件: backend/agent/tools/registry.py
+        # 目标目录: backend/tools/
+        tools_dir = Path(__file__).parent.parent.parent / 'tools'
 
         if not tools_dir.exists():
             print(f"警告: 工具目录不存在: {tools_dir}")
@@ -114,6 +116,10 @@ class ToolRegistry:
             if param_name == 'self':
                 continue
 
+            # 跳过 *args 和 **kwargs 类型参数
+            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                continue
+
             # 提供基本参数
             if param_name == 'project_root':
                 kwargs['project_root'] = None  # 元数据读取时不需要
@@ -135,6 +141,10 @@ class ToolRegistry:
         kwargs = {}
         for param_name, param in sig.parameters.items():
             if param_name == 'self':
+                continue
+
+            # 跳过 *args 和 **kwargs 类型参数
+            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
                 continue
 
             # 尝试从依赖中匹配参数

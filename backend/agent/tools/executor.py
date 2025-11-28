@@ -73,7 +73,7 @@ class RegistryToolExecutor(ToolExecutor):
             confirmation_manager: ToolConfirmation instance (optional)
             agent: Agent instance (for agent-specific tools)
         """
-        from .tool_registry import ToolRegistry
+        from .registry import ToolRegistry
 
         self.project_root = project_root
         self.confirmation = confirmation_manager
@@ -164,7 +164,7 @@ class RegistryToolExecutor(ToolExecutor):
         Args:
             project_root: New project root directory
         """
-        from .tool_registry import ToolRegistry
+        from .registry import ToolRegistry
 
         self.project_root = project_root
         # Recreate registry with new project root
