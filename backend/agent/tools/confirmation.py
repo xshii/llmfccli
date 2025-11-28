@@ -1,12 +1,18 @@
 # -*- coding: utf-8 -*-
 """
 Tool confirmation manager for user approval before executing tools
+
+Supports dynamic tool discovery - uses BaseTool methods for:
+- get_confirmation_signature(): Fine-grained confirmation grouping
+- is_dangerous_operation(): Check if operation needs extra confirmation
+- category property: Tool categorization
 """
 
-import json
-from pathlib import Path
-from typing import Dict, Set, Optional, Callable
+from typing import Dict, Set, Optional, Callable, TYPE_CHECKING
 from enum import Enum
+
+if TYPE_CHECKING:
+    from .registry import ToolRegistry
 
 
 class ConfirmAction(Enum):
@@ -19,20 +25,19 @@ class ConfirmAction(Enum):
 class ToolConfirmation:
     """Manages tool execution confirmations"""
 
-    def __init__(self, confirmation_file: Optional[str] = None):
+    def __init__(self, tool_registry: Optional['ToolRegistry'] = None):
         """
         Initialize tool confirmation manager
 
         Args:
-            confirmation_file: Path to confirmation config file (kept for compatibility, but not used for session-level confirmations)
+            tool_registry: Optional ToolRegistry for dynamic tool lookup
         """
-        # Note: Confirmations are now session-level only (not persisted to disk)
-        # The confirmation_file parameter is kept for backward compatibility but not used
-
         # In-memory confirmation state (session-level)
-        # Store tool call signatures (tool_name + key arguments) instead of just tool names
-        self.allowed_tool_calls: Set[str] = set()  # Stores "tool_name:key_arg_value"
+        self.allowed_tool_calls: Set[str] = set()
         self.denied_tools: Set[str] = set()
+
+        # Tool registry for dynamic lookup
+        self._tool_registry = tool_registry
 
         # Callback for user confirmation (set by CLI)
         self.confirm_callback: Optional[Callable[[str, str, Dict], ConfirmAction]] = None
@@ -47,19 +52,26 @@ class ToolConfirmation:
         # Session-level only: do not save to file
         pass
 
+    def set_tool_registry(self, registry: 'ToolRegistry'):
+        """Set the tool registry for dynamic lookup"""
+        self._tool_registry = registry
+
     def set_confirmation_callback(self, callback: Callable[[str, str, Dict], ConfirmAction]):
         """Set the confirmation callback function"""
         self.confirm_callback = callback
+
+    def _get_tool_instance(self, tool_name: str):
+        """Get tool instance from registry"""
+        if self._tool_registry:
+            return self._tool_registry.get(tool_name)
+        return None
 
     def _get_tool_signature(self, tool_name: str, arguments: Dict) -> str:
         """
         Get unique signature for a tool call
 
-        For most tools (file operations, etc.), just use the tool name to allow
-        all calls of that type after one approval.
-
-        For bash_run and git tools, use specific command/action for
-        fine-grained control.
+        Uses the tool's get_confirmation_signature() method if available,
+        otherwise falls back to just the tool name.
 
         Args:
             tool_name: Tool name
@@ -68,25 +80,18 @@ class ToolConfirmation:
         Returns:
             Signature string like "edit_file", "bash_run:ls", or "git:status"
         """
-        # bash_run: use base command for fine-grained control
-        if tool_name == 'bash_run':
-            command = arguments.get('command', '')
-            # Extract just the base command
-            base_cmd = command.split()[0] if command else ''
-            return f"{tool_name}:{base_cmd}"
+        tool = self._get_tool_instance(tool_name)
+        if tool and hasattr(tool, 'get_confirmation_signature'):
+            return tool.get_confirmation_signature(arguments)
 
-        # git: use action for fine-grained control
-        elif tool_name == 'git':
-            action = arguments.get('action', '')
-            return f"{tool_name}:{action}"
-
-        # For all other tools (file operations, etc.), just use tool name
-        # This allows all calls to that tool type after one approval
+        # Fallback: just tool name
         return tool_name
 
     def get_tool_category(self, tool_name: str) -> str:
         """
         Get tool category for grouping
+
+        Uses the tool's category property if available.
 
         Args:
             tool_name: Tool name
@@ -94,48 +99,37 @@ class ToolConfirmation:
         Returns:
             Category name
         """
-        # Define tool categories
-        categories = {
-            'filesystem': ['view_file', 'edit_file', 'create_file', 'grep_search', 'list_dir'],
-            'executor': ['bash_run', 'cmake_build', 'run_tests'],
-            'analyzer': ['parse_cpp', 'find_functions', 'get_dependencies'],
-            'git': ['git']
-        }
+        tool = self._get_tool_instance(tool_name)
+        if tool and hasattr(tool, 'category'):
+            return tool.category
 
-        for category, tools in categories.items():
-            if tool_name in tools:
-                return category
-
+        # Fallback
         return 'unknown'
 
-    def is_dangerous_git_operation(self, action: str, args: Dict) -> bool:
+    def is_dangerous_operation(self, tool_name: str, arguments: Dict) -> bool:
         """
-        Check if git operation is dangerous
+        Check if operation is dangerous
 
-        Dangerous operations require confirmation even if the action is whitelisted
+        Uses the tool's is_dangerous_operation() method if available.
+        Dangerous operations require confirmation even if the tool is whitelisted.
 
         Args:
-            action: Git action (e.g., 'push', 'reset')
-            args: Git operation arguments
+            tool_name: Tool name
+            arguments: Tool arguments
 
         Returns:
             True if operation is dangerous
         """
-        # Define dangerous operation checkers
-        dangerous_checkers = {
-            'reset': lambda a: a.get('mode') == 'hard',
-            'push': lambda a: a.get('force') == True,
-            'branch': lambda a: a.get('operation') == 'delete' and a.get('force'),
-            'rebase': lambda a: True,  # Always confirm rebase
-            'stash': lambda a: a.get('operation') in ['drop', 'clear'],
-            'cherry-pick': lambda a: True,  # Always confirm cherry-pick
-        }
-
-        checker = dangerous_checkers.get(action)
-        if checker:
-            return checker(args)
+        tool = self._get_tool_instance(tool_name)
+        if tool and hasattr(tool, 'is_dangerous_operation'):
+            return tool.is_dangerous_operation(arguments)
 
         return False
+
+    # Backward compatibility alias
+    def is_dangerous_git_operation(self, action: str, args: Dict) -> bool:
+        """Deprecated: Use is_dangerous_operation() instead"""
+        return self.is_dangerous_operation('git', {'action': action, 'args': args})
 
     def needs_confirmation(self, tool_name: str, arguments: Dict) -> bool:
         """
@@ -168,15 +162,12 @@ class ToolConfirmation:
 
         # Check if this specific tool call is allowed
         if signature in self.allowed_tool_calls:
-            # For git operations, check if it's a dangerous operation
-            # even if the action is whitelisted
-            if tool_name == 'git':
-                action = arguments.get('action', '')
-                args = arguments.get('args', {})
-                if self.is_dangerous_git_operation(action, args):
-                    if debug:
-                        print(f"[DEBUG] Git operation {action} with dangerous parameters - needs confirmation")
-                    return True
+            # Check if it's a dangerous operation even if the tool is whitelisted
+            # Uses dynamic lookup via tool's is_dangerous_operation() method
+            if self.is_dangerous_operation(tool_name, arguments):
+                if debug:
+                    print(f"[DEBUG] Tool {tool_name} with dangerous parameters - needs confirmation")
+                return True
 
             if debug:
                 print(f"[DEBUG] Tool call {signature} is ALLOWED (no confirmation needed)")

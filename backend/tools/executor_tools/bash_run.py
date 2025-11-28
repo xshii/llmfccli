@@ -77,3 +77,33 @@ class BashRunTool(BaseTool):
                 'success': False,
                 'error': str(e),
             }
+
+    def get_confirmation_signature(self, arguments: Dict[str, Any]) -> str:
+        """按基础命令分组确认，例如 bash_run:ls, bash_run:git"""
+        command = arguments.get('command', '')
+        # 提取基础命令（第一个词）
+        base_cmd = command.split()[0] if command else ''
+        return f"{self.name}:{base_cmd}"
+
+    def is_dangerous_operation(self, arguments: Dict[str, Any]) -> bool:
+        """检查命令是否危险"""
+        command = arguments.get('command', '')
+
+        # 危险命令模式
+        dangerous_patterns = [
+            'rm -rf',
+            'rm -r /',
+            'chmod -R 777',
+            'chown -R',
+            '> /dev/',
+            'mkfs',
+            'dd if=',
+            ':(){:|:&};:',  # fork bomb
+        ]
+
+        command_lower = command.lower()
+        for pattern in dangerous_patterns:
+            if pattern in command_lower:
+                return True
+
+        return False

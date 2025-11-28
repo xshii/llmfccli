@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
 from backend.agent.tool_executor import RegistryToolExecutor
-from backend.agent.tool_confirmation import ToolConfirmation, ConfirmAction
+from backend.agent.tools.confirmation import ToolConfirmation, ConfirmAction
 
 
 def test_generic_confirmation():

@@ -153,7 +153,7 @@ def example_4_dangerous_operations():
     print("示例 4: 危险操作检测")
     print("="*60)
 
-    from backend.agent.tool_confirmation import ToolConfirmation
+    from backend.agent.tools.confirmation import ToolConfirmation
 
     confirmation = ToolConfirmation()
 
@@ -194,7 +194,7 @@ def example_5_confirmation_signatures():
     print("示例 5: 确认签名 (细粒度控制)")
     print("="*60)
 
-    from backend.agent.tool_confirmation import ToolConfirmation
+    from backend.agent.tools.confirmation import ToolConfirmation
 
     confirmation = ToolConfirmation()
 

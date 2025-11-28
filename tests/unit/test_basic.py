@@ -10,8 +10,8 @@ import os
 # Add backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
-from backend.tools.filesystem import view_file, grep_search, edit_file
-from backend.agent.tools import ToolRegistry, register_filesystem_tools
+from backend.tools.filesystem_tools.filesystem import view_file, grep_search, edit_file
+from backend.agent.tools.registry import ToolRegistry
 
 def test_filesystem_tools():
     """Test filesystem tools"""
@@ -36,9 +36,8 @@ def test_filesystem_tools():
     
     # Test tool registry
     print("\n3. Testing tool registry...")
-    registry = ToolRegistry()
-    register_filesystem_tools(project_root)
-    schemas = registry.get_schemas()
+    registry = ToolRegistry(project_root=project_root)
+    schemas = registry.get_openai_schemas()
     print(f"   Registered {len(schemas)} tools")
     
     print("\n✓ All basic tests passed!")

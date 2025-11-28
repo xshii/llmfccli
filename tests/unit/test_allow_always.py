@@ -27,7 +27,7 @@ if True:  # Hack to avoid import order issues
         DENY = "deny"
 
     # Import the actual class
-    from backend.agent.tool_confirmation import ToolConfirmation
+    from backend.agent.tools.confirmation import ToolConfirmation
 
 
 def test_allow_always_persistence():

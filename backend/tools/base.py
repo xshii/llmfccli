@@ -127,3 +127,38 @@ class BaseTool(ABC):
                 'tool': self.name,
                 'arguments': arguments
             }
+
+    def get_confirmation_signature(self, _arguments: Dict[str, Any]) -> str:
+        """
+        获取用于确认分组的签名
+
+        默认返回工具名称，允许同一工具的所有调用共享确认状态。
+        子类可以重写此方法实现细粒度控制，例如：
+        - bash_run 可以返回 "bash_run:ls" 按基础命令分组
+        - git 可以返回 "git:push" 按操作类型分组
+
+        Args:
+            arguments: 工具参数
+
+        Returns:
+            签名字符串
+        """
+        return self.name
+
+    def is_dangerous_operation(self, _arguments: Dict[str, Any]) -> bool:
+        """
+        检查操作是否危险，需要额外确认
+
+        危险操作即使在已允许的工具列表中也需要确认。
+        子类可以重写此方法定义危险条件，例如：
+        - git reset --hard
+        - git push --force
+        - rm -rf
+
+        Args:
+            arguments: 工具参数
+
+        Returns:
+            True 如果操作危险需要确认
+        """
+        return False

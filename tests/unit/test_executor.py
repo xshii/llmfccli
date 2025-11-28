@@ -11,7 +11,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
-from backend.tools.executor import bash_run, cmake_build, parse_compile_errors, ExecutorError
+from backend.tools.executor_tools.executor import bash_run, cmake_build, parse_compile_errors, ExecutorError
 
 
 def test_bash_run_basic():

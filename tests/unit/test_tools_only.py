@@ -6,7 +6,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
-from backend.tools.filesystem import view_file, grep_search, edit_file, FileSystemError
+from backend.tools.filesystem_tools.filesystem import view_file, grep_search, edit_file, FileSystemError
 
 def test_tools():
     project_root = os.path.join(os.path.dirname(__file__), '../fixtures/sample-cpp')
