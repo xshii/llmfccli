@@ -197,6 +197,48 @@ class ToolRegistry:
         """获取所有工具的元数据"""
         return self._tool_metadata.copy()
 
+    def get_tool_metadata(self, tool_name: str) -> Optional[Dict[str, Any]]:
+        """
+        获取工具的完整元数据（包括 schema）
+
+        使用临时实例读取 schema（无需完整依赖）
+
+        Args:
+            tool_name: 工具名称
+
+        Returns:
+            包含 name, description, category, schema 的字典
+            如果工具不存在返回 None
+        """
+        if tool_name not in self._tool_metadata:
+            return None
+
+        metadata = self._tool_metadata[tool_name]
+
+        try:
+            # 导入模块
+            module = importlib.import_module(metadata.module_path)
+            tool_class = getattr(module, metadata.class_name)
+
+            # 创建临时实例用于读取 schema（使用 mock 依赖）
+            temp_instance = self._create_temp_instance_for_metadata(tool_class)
+
+            # 获取 OpenAI schema
+            schema = temp_instance.get_openai_schema()
+
+            # 清理临时实例
+            del temp_instance
+
+            return {
+                'name': metadata.name,
+                'description': metadata.description,
+                'category': metadata.category,
+                'schema': schema
+            }
+        except Exception as e:
+            # 静默失败，返回 None
+            return None
+
     def get_tools_by_category(self) -> Dict[str, List[ToolMetadata]]:
         """按类别分组获取工具元数据"""
         categories: Dict[str, List[ToolMetadata]] = {}
