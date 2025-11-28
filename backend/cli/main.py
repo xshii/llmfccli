@@ -19,7 +19,7 @@ from rich.text import Text
 from ..agent.loop import AgentLoop
 from ..llm.client import OllamaClient
 from ..utils.precheck import PreCheck
-from ..agent.tool_confirmation import ConfirmAction
+from ..agent.tools import ConfirmAction
 from ..remotectl.commands import RemoteCommands
 from ..cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
 from ..shell_session import PersistentShellSession

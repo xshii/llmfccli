@@ -9,8 +9,7 @@ from pathlib import Path
 
 from ..llm.client import OllamaClient
 from .token_counter import TokenCounter
-from .tool_executor import ToolExecutor, RegistryToolExecutor
-from .tool_confirmation import ToolConfirmation, ConfirmAction
+from .tools import ToolExecutor, RegistryToolExecutor, ToolConfirmation, ConfirmAction
 
 
 class AgentLoop:
