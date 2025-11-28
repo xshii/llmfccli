@@ -17,6 +17,9 @@ def __getattr__(name):
     elif name == 'ToolOutputManager':
         from .output_manager import ToolOutputManager
         return ToolOutputManager
+    elif name == 'main':
+        from .main import main
+        return main
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -24,4 +27,5 @@ __all__ = [
     'CLI',
     'PathUtils',
     'ToolOutputManager',
+    'main',
 ]
