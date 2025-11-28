@@ -70,7 +70,7 @@ registry = ToolRegistry()
 
 def register_filesystem_tools(project_root: str):
     """Register filesystem tools"""
-    from ..tools.filesystem import view_file, edit_file, create_file, grep_search, list_dir
+    from ..tools.filesystem_tools import view_file, edit_file, create_file, grep_search, list_dir
     
     # view_file
     registry.register(
@@ -211,7 +211,7 @@ def register_filesystem_tools(project_root: str):
 
 def register_executor_tools(project_root: str):
     """Register executor tools (bash, cmake, etc.)"""
-    from ..tools.executor import bash_run, cmake_build, run_tests
+    from ..tools.executor_tools import bash_run, cmake_build, run_tests
 
     # bash_run
     registry.register(
@@ -404,7 +404,7 @@ def register_agent_tools(agent):
 
 def register_git_tools(project_root: str):
     """Register git version control tools"""
-    from ..tools.git import git
+    from ..tools.git_tools import git
 
     registry.register(
         name='git',
