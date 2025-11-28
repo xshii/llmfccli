@@ -44,14 +44,12 @@ class AgentLoop:
             self.confirmation.set_confirmation_callback(confirmation_callback)
 
         # Initialize tool executor (with confirmation manager for smart handling)
+        # Pass self (agent) for agent-specific tools like compact_last
         self.tool_executor = tool_executor or RegistryToolExecutor(
             self.project_root,
-            confirmation_manager=self.confirmation
+            confirmation_manager=self.confirmation,
+            agent=self
         )
-
-        # Register agent-specific tools (after tool_executor is initialized)
-        from .tools import register_agent_tools
-        register_agent_tools(self)
 
         # Tool output callback
         self.tool_output_callback = tool_output_callback
