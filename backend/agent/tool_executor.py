@@ -85,24 +85,71 @@ class RegistryToolExecutor(ToolExecutor):
         """Get all registered tool schemas"""
         return self.registry.get_openai_schemas()
 
+    def _tool_supports_confirmation(self, tool_name: str) -> bool:
+        """
+        检查工具是否支持 confirm 参数（通用方法，无硬编码）
+
+        通过检查工具的 Pydantic model 来判断是否支持 confirm 参数
+
+        Args:
+            tool_name: 工具名称
+
+        Returns:
+            True if tool accepts 'confirm' parameter
+        """
+        try:
+            # 直接从工具类读取 Pydantic model（无需完整实例化）
+            if tool_name not in self.registry._tool_metadata:
+                return False
+
+            metadata = self.registry._tool_metadata[tool_name]
+
+            # 导入工具类
+            import importlib
+            module = importlib.import_module(metadata.module_path)
+            tool_class = getattr(module, metadata.class_name)
+
+            # 通过临时实例获取 parameters_model
+            temp_instance = self.registry._create_temp_instance_for_metadata(tool_class)
+            params_model = temp_instance.parameters_model
+
+            # 检查 Pydantic model 的字段
+            if hasattr(params_model, 'model_fields'):
+                # Pydantic v2
+                has_confirm = 'confirm' in params_model.model_fields
+            elif hasattr(params_model, '__fields__'):
+                # Pydantic v1
+                has_confirm = 'confirm' in params_model.__fields__
+            else:
+                has_confirm = False
+
+            # 清理临时实例
+            del temp_instance
+
+            return has_confirm
+        except Exception as e:
+            # 静默失败
+            return False
+
     def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """
         Execute a tool via registry with smart confirmation handling
 
-        For edit_file:
-        - If user set "always allow" → confirm=False (skip tool-level confirmation)
-        - Otherwise → confirm=True (show diff preview)
+        通用逻辑（无硬编码工具名）：
+        1. 检查工具是否支持 confirm 参数（通过 schema）
+        2. 检查用户是否设置了 "always allow"
+        3. 如果两者都满足 → 注入 confirm=False
         """
-        # Smart handling for edit_file
-        if tool_name == 'edit_file' and self.confirmation:
-            # Check if user has set "always allow" for edit_file
-            # (tool signature is just the tool name for file operations)
-            if tool_name in self.confirmation.allowed_tool_calls:
-                # User trusts this tool, skip tool-level confirmation
-                arguments = dict(arguments)  # Copy to avoid mutation
-                arguments['confirm'] = False
-            # If not in allowed_tool_calls, use default (confirm=True)
-            # This shows diff preview for user review
+        # 通用确认处理（适用于所有支持 confirm 的工具）
+        if self.confirmation:
+            # 检查工具是否支持 confirm 参数（通过 schema，不硬编码）
+            if self._tool_supports_confirmation(tool_name):
+                # 检查用户是否设置了 "always allow"
+                if tool_name in self.confirmation.allowed_tool_calls:
+                    # 用户信任这个工具，跳过工具级别的确认
+                    arguments = dict(arguments)  # Copy to avoid mutation
+                    arguments['confirm'] = False
+                # 否则使用工具的默认值（通常是 confirm=True）
 
         return self.registry.execute(tool_name, arguments)
 
