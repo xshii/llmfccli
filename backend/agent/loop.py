@@ -115,6 +115,24 @@ class AgentLoop:
             # Get tool schemas from executor
             tools = self.tool_executor.get_tool_schemas()
 
+            # Check if context would exceed token limit
+            current_tokens = self.token_counter.count_messages(messages)
+            max_tokens = self.token_counter.max_tokens
+
+            if current_tokens > max_tokens * 0.95:  # 超过 95%
+                # 不调用 LLM，而是给出建议
+                suggestion_msg = self._create_token_limit_suggestion(current_tokens, max_tokens)
+                self.conversation_history.append({
+                    'role': 'system',
+                    'content': suggestion_msg
+                })
+
+                # 更新 messages 以包含建议
+                messages = list(self.conversation_history)
+
+                # 继续循环，让 LLM 看到建议并重新规划
+                continue
+
             # DEBUG: Log request
             import os
             if os.getenv('DEBUG_AGENT'):
@@ -276,17 +294,45 @@ class AgentLoop:
         })
         return final_msg
     
+    def _create_token_limit_suggestion(self, current_tokens: int, max_tokens: int) -> str:
+        """创建 token 超限建议消息"""
+        usage_pct = (current_tokens / max_tokens) * 100
+
+        suggestion = f"""⚠️ Context Token Limit Alert
+
+Current context size: {current_tokens:,} tokens ({usage_pct:.1f}% of {max_tokens:,} limit)
+
+Your last request would exceed the token limit. Please use more targeted tools:
+
+**Recommended Actions:**
+
+1. **For file reading**: Use `line_range` parameter
+   - Instead of: view_file(path="large_file.cpp")
+   - Use: view_file(path="large_file.cpp", line_range=[1, 100])
+
+2. **For code search**: Use `grep_search` instead of reading entire files
+   - grep_search(pattern="function_name", path="directory")
+
+3. **For directory listing**: Limit depth
+   - list_dir(path=".", max_depth=2)
+
+4. **Break down the task**: Work on smaller sections incrementally
+
+Please reformulate your request with more specific, targeted tool calls.
+"""
+        return suggestion
+
     def _format_tool_result(self, result: Any) -> str:
         """Format tool result for LLM"""
         import json
-        
+
         if isinstance(result, dict):
             # Truncate large content
             if 'content' in result:
                 content = result['content']
                 result = result.copy()
                 result['content'] = self.token_counter.truncate_tool_result(content)
-            
+
             return json.dumps(result, ensure_ascii=False, indent=2)
         else:
             return str(result)
