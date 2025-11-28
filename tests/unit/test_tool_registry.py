@@ -27,7 +27,7 @@ def test_tool_discovery():
     print(f"\n发现的工具 ({len(tools)}): {', '.join(sorted(tools))}")
 
     # 应该至少包含这些核心工具
-    expected_tools = {'view_file', 'edit_file', 'create_file', 'grep_search', 'list_dir', 'bash_run', 'compact_last'}
+    expected_tools = {'view_file', 'edit_file', 'create_file', 'grep_search', 'list_dir', 'bash_run', 'instant_compact'}
     found_tools = set(tools)
 
     missing = expected_tools - found_tools
