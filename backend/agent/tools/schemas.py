@@ -124,29 +124,3 @@ def initialize_tools(project_root: str, agent=None):
         dependencies['agent'] = agent
 
     registry.initialize(project_root, **dependencies)
-
-
-# Backward compatibility aliases (deprecated, use initialize_tools instead)
-def register_filesystem_tools(project_root: str):
-    """Deprecated: Tools are now auto-discovered. Use initialize_tools()."""
-    pass
-
-
-def register_executor_tools(project_root: str):
-    """Deprecated: Tools are now auto-discovered. Use initialize_tools()."""
-    pass
-
-
-def register_git_tools(project_root: str):
-    """Deprecated: Tools are now auto-discovered. Use initialize_tools()."""
-    pass
-
-
-def register_analyzer_tools(project_root: str):
-    """Deprecated: Tools are now auto-discovered. Use initialize_tools()."""
-    pass
-
-
-def register_agent_tools(agent):
-    """Deprecated: Pass agent to initialize_tools() instead."""
-    pass
