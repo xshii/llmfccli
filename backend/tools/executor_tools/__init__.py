@@ -3,30 +3,42 @@
 Executor tools for running commands and building projects
 """
 
-from .executor import (
+# Exceptions
+from .exceptions import ExecutorError
+
+# Session management
+from .bash_session import (
     BashSession,
-    ExecutorError,
-    bash_run,
-    cmake_build,
-    run_tests,
-    parse_compile_errors,
+    get_session,
+    close_session,
     close_all_sessions
 )
-from .bash_run import BashRunTool
-from .cmake_build_tool import CmakeBuildTool
-from .run_tests_tool import RunTestsTool
+
+# Compiler utilities
+from .compiler_parser import parse_compile_errors, format_error_summary
+
+# Tool classes
+from .bash_run import BashRunTool, bash_run
+from .cmake_build_tool import CmakeBuildTool, cmake_build
+from .run_tests_tool import RunTestsTool, run_tests
 
 __all__ = [
-    # Functions
-    'BashSession',
+    # Exceptions
     'ExecutorError',
-    'bash_run',
-    'cmake_build',
-    'run_tests',
-    'parse_compile_errors',
+    # Session management
+    'BashSession',
+    'get_session',
+    'close_session',
     'close_all_sessions',
+    # Compiler utilities
+    'parse_compile_errors',
+    'format_error_summary',
     # Tool classes
     'BashRunTool',
     'CmakeBuildTool',
     'RunTestsTool',
+    # Backward compatible function APIs
+    'bash_run',
+    'cmake_build',
+    'run_tests',
 ]
