@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-BashRun Tool - 执行 bash 命令
+BashRun Tool - 执行 bash/shell 命令
 """
 
+import platform
 import shlex
 from typing import Dict, Any, Optional, List
 from pathlib import Path
@@ -13,14 +14,78 @@ from .bash_session import BashSession
 from .exceptions import ExecutorError
 
 
+# 跨平台命令白名单
+WHITELIST_COMMON = [
+    # 构建工具
+    'cmake', 'make', 'ninja',
+    # C/C++ 编译器
+    'g++', 'gcc', 'clang++', 'clang', 'cl',
+    # 测试
+    'ctest', 'gtest',
+    # 版本控制
+    'git',
+    # Python
+    'python', 'python3', 'pip', 'pip3',
+    # Node.js
+    'node', 'npm', 'npx',
+]
+
+WHITELIST_UNIX = [
+    # 文件操作
+    'ls', 'cat', 'head', 'tail', 'less', 'more',
+    'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'touch',
+    'chmod', 'chown',
+    # 搜索
+    'find', 'grep', 'rg', 'ag', 'awk', 'sed',
+    # 系统信息
+    'pwd', 'cd', 'echo', 'which', 'whereis', 'env',
+    'ps', 'top', 'df', 'du', 'free',
+    # 网络
+    'ping',
+    # 压缩
+    'tar', 'zip', 'unzip', 'gzip', 'gunzip',
+    # Shell
+    'bash', 'sh', 'zsh',
+    # 其他
+    'xargs', 'sort', 'uniq', 'wc', 'diff', 'patch',
+]
+
+WHITELIST_WINDOWS = [
+    # 文件操作
+    'dir', 'type', 'copy', 'xcopy', 'move', 'del', 'rd', 'md', 'ren',
+    'attrib',
+    # 搜索
+    'findstr', 'where',
+    # 系统信息
+    'cd', 'echo', 'set', 'path',
+    'tasklist', 'systeminfo',
+    # 网络
+    'ping', 'ipconfig', 'netstat',
+    # 压缩
+    'tar', 'expand',
+    # Shell
+    'cmd', 'powershell', 'pwsh',
+]
+
+
+def get_whitelist() -> List[str]:
+    """获取当前平台的命令白名单"""
+    whitelist = WHITELIST_COMMON.copy()
+    if platform.system() == 'Windows':
+        whitelist.extend(WHITELIST_WINDOWS)
+    else:
+        whitelist.extend(WHITELIST_UNIX)
+    return whitelist
+
+
 class BashRunParams(BaseModel):
     """BashRun 工具参数"""
-    command: str = Field(description="要执行的 bash 命令")
+    command: str = Field(description="要执行的 shell 命令")
     timeout: int = Field(60, description="超时时间（秒，默认 60）")
 
 
 class BashRunTool(BaseTool):
-    """执行 bash 命令工具"""
+    """执行 shell 命令工具（跨平台）"""
 
     @property
     def name(self) -> str:
@@ -28,7 +93,14 @@ class BashRunTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Execute bash command with security checks and timeout"
+        whitelist = get_whitelist()
+        # 显示前 15 个命令作为示例
+        sample = ', '.join(whitelist[:15])
+        return (
+            f"Execute shell command. Allowed commands: {sample}, ... "
+            f"Supports pipes (|) and redirects (>, >>). "
+            f"Example: grep 'error' src/*.cpp | head -20"
+        )
 
     @property
     def category(self) -> str:
@@ -85,27 +157,22 @@ def bash_run(command: str,
              _session_id: Optional[str] = None,
              verbose: bool = True) -> Dict[str, Any]:
     """
-    Execute bash command with security checks (backward compatible function API)
+    Execute shell command with security checks (backward compatible function API)
 
     Args:
         command: Command to execute
         project_root: Project root directory
         timeout: Timeout in seconds
-        whitelist: Allowed command prefixes (security)
+        whitelist: Allowed command prefixes (security), auto-detected by platform if None
         session_id: Optional session ID (ignored, kept for compatibility)
         verbose: Print execution status
 
     Returns:
         Dict with stdout, stderr, return_code, duration
     """
-    # Default whitelist from config
+    # 使用平台相关的白名单
     if whitelist is None:
-        whitelist = [
-            'cmake', 'make', 'g++', 'clang++', 'gcc', 'clang',
-            'ctest', 'git', 'mkdir', 'cd', 'ls', 'cat',
-            'echo', 'pwd', 'which', 'find', 'grep',
-            'python', 'python3', 'pip', 'pip3', 'rm'
-        ]
+        whitelist = get_whitelist()
 
     # Security check: validate command against whitelist
     command_parts = shlex.split(command)

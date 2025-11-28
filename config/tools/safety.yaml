@@ -1,5 +1,0 @@
-# Safety configuration for all tools
-safety:
-  max_file_deletions: 10
-  confirm_destructive: true
-  backup_before_edit: false
