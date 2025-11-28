@@ -1,0 +1,50 @@
+# Git version control tools configuration
+tools:
+  - name: status
+    description: "Get current repository status"
+
+  - name: add
+    description: "Stage files for commit"
+
+  - name: commit
+    description: "Create a commit with message"
+
+  - name: reset
+    description: "Reset staging or HEAD"
+    confirm_hard: true
+
+  - name: branch
+    description: "List, create, delete, or rename branches"
+
+  - name: checkout
+    description: "Switch branches or restore files"
+
+  - name: push
+    description: "Push commits to remote"
+    confirm_force: true
+
+  - name: pull
+    description: "Pull changes from remote"
+
+  - name: fetch
+    description: "Fetch updates from remote"
+
+  - name: rebase
+    description: "Rebase current branch"
+    confirm: true
+
+  - name: stash
+    description: "Stash or restore changes"
+
+  - name: cherry-pick
+    description: "Apply specific commits"
+
+  - name: log
+    description: "Show commit history"
+    default_count: 10
+
+  - name: diff
+    description: "Show file changes"
+
+  - name: show
+    description: "Show commit details"

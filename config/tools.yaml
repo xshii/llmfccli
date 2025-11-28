@@ -1,125 +1,14 @@
-tools:
-  filesystem:
-    - name: view_file
-      description: "Read file contents with optional line range"
-      max_size: 10000
-      
-    - name: edit_file
-      description: "Edit file using str_replace pattern"
-      preserve_formatting: true
-      
-    - name: create_file
-      description: "Create new file with content"
-      auto_mkdir: true
-      
-    - name: grep_search
-      description: "Search for patterns in files"
-      max_results: 50
-      
-    - name: list_dir
-      description: "List directory contents"
-      max_depth: 3
-  
-  executor:
-    - name: bash_run
-      description: "Execute bash commands"
-      whitelist:
-        - cmake
-        - make
-        - g++
-        - clang++
-        - ctest
-        - git
-        - mkdir
-        - cd
-        - ls
-      timeout: 60
-      
-    - name: cmake_build
-      description: "Build project with CMake"
-      default_config: "Release"
-      
-    - name: run_tests
-      description: "Run unit tests with ctest"
-      timeout: 120
-  
-  analyzer:
-    - name: parse_cpp
-      description: "Parse C/C++ code structure with tree-sitter"
-      extract:
-        - functions
-        - classes
-        - includes
-        
-    - name: find_functions
-      description: "Extract function signatures"
-      include_private: false
-      
-    - name: get_dependencies
-      description: "Analyze module dependencies"
-      depth: 2
-  
-  git:
-    - name: status
-      description: "Get current repository status"
+# Tools configuration index
+# Individual tool configs are in config/tools/ directory:
+#   - filesystem.yaml  - File operations (view, edit, create, grep, list)
+#   - executor.yaml    - Command execution (bash, cmake, ctest)
+#   - analyzer.yaml    - Code analysis (parse_cpp, find_functions, dependencies)
+#   - git.yaml         - Git version control operations
+#   - vscode.yaml      - VSCode integration
+#   - safety.yaml      - Safety limits and confirmations
 
-    - name: add
-      description: "Stage files for commit"
-
-    - name: commit
-      description: "Create a commit with message"
-
-    - name: reset
-      description: "Reset staging or HEAD"
-      confirm_hard: true
-
-    - name: branch
-      description: "List, create, delete, or rename branches"
-
-    - name: checkout
-      description: "Switch branches or restore files"
-
-    - name: push
-      description: "Push commits to remote"
-      confirm_force: true
-
-    - name: pull
-      description: "Pull changes from remote"
-
-    - name: fetch
-      description: "Fetch updates from remote"
-
-    - name: rebase
-      description: "Rebase current branch"
-      confirm: true
-
-    - name: stash
-      description: "Stash or restore changes"
-
-    - name: cherry-pick
-      description: "Apply specific commits"
-
-    - name: log
-      description: "Show commit history"
-      default_count: 10
-
-    - name: diff
-      description: "Show file changes"
-
-    - name: show
-      description: "Show commit details"
-
-  vscode:
-    - name: get_active_file
-      description: "Get currently active file in VSCode"
-
-    - name: show_diff
-      description: "Show diff in VSCode"
-
-    - name: apply_changes
-      description: "Apply changes to file"
-
-  safety:
-    max_file_deletions: 10
-    confirm_destructive: true
-    backup_before_edit: false
+# This file can be used for global tool settings
+global:
+  enabled: true
+  log_calls: false
+  timeout_default: 60
