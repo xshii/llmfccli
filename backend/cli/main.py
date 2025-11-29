@@ -53,6 +53,10 @@ class CLI:
         if not skip_precheck:
             self._run_precheck()
 
+        # 初始化全局工具注册器（供工具确认等功能使用）
+        from backend.agent.tools import initialize_tools
+        initialize_tools(self.project_root)
+
         # 初始化 agent
         self.client = OllamaClient()
         self.agent = AgentLoop(
