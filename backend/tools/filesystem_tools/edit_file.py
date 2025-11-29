@@ -18,12 +18,19 @@ class FileSystemError(Exception):
 class EditFileParams(BaseModel):
     """EditFile 工具参数"""
     path: str = Field(
-        description="文件路径",
+        description="File path",
         json_schema_extra={"format": "filepath"}
     )
-    old_str: str = Field(description="要替换的字符串（必须唯一出现）")
-    new_str: str = Field(description="替换后的字符串")
-    confirm: bool = Field(True, description="是否需要用户确认（默认 true）")
+    old_str: str = Field(
+        description="String to replace (must appear exactly once)"
+    )
+    new_str: str = Field(
+        description="Replacement string"
+    )
+    confirm: bool = Field(
+        True,
+        description="Whether to confirm before editing (default true)"
+    )
 
 
 class EditFileTool(BaseTool):
@@ -34,9 +41,32 @@ class EditFileTool(BaseTool):
         return "edit_file"
 
     @property
-    def description(self) -> str:
-        return "Edit file using str_replace (old_str must be unique)"
+    def description_i18n(self) -> Dict[str, str]:
+        return {
+            'en': 'Edit file using str_replace (old_str must be unique)',
+            'zh': '使用字符串替换编辑文件（old_str 必须唯一）'
+        }
 
+
+    def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
+        return {
+            'path': {
+                'en': 'File path',
+                'zh': '文件路径',
+            },
+            'old_str': {
+                'en': 'String to replace (must appear exactly once)',
+                'zh': '要替换的字符串（必须唯一出现）',
+            },
+            'new_str': {
+                'en': 'Replacement string',
+                'zh': '替换后的字符串',
+            },
+            'confirm': {
+                'en': 'Whether to confirm before editing (default true)',
+                'zh': '是否需要用户确认（默认 true）',
+            },
+        }
     @property
     def category(self) -> str:
         return "filesystem"

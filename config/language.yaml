@@ -1,0 +1,15 @@
+# Language configuration for Claude-Qwen CLI
+#
+# Supported languages:
+# - en: English
+# - zh: Chinese (Simplified)
+
+# Default language for tool descriptions and parameters
+# Can be overridden by environment variable CLAUDE_QWEN_LANG
+default: zh
+
+# Language detection strategy
+# - config: Always use the default language specified above
+# - env: Use CLAUDE_QWEN_LANG environment variable, fallback to default
+# - auto: Auto-detect from system locale, fallback to default
+detection: env

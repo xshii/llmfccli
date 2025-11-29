@@ -18,12 +18,12 @@ class FileSystemError(Exception):
 class ViewFileParams(BaseModel):
     """ViewFile 工具参数"""
     path: str = Field(
-        description="文件路径（相对于项目根目录或绝对路径）",
+        description="File path (relative to project root or absolute path)",
         json_schema_extra={"format": "filepath"}
     )
     line_range: Optional[Tuple[int, int]] = Field(
         None,
-        description="可选的行范围 [start_line, end_line]（1-indexed，使用 -1 表示文件末尾）"
+        description="Optional line range [start_line, end_line] (1-indexed, use -1 for end of file)"
     )
 
 
@@ -35,9 +35,24 @@ class ViewFileTool(BaseTool):
         return "view_file"
 
     @property
-    def description(self) -> str:
-        return "Read file contents with optional line range"
+    def description_i18n(self) -> Dict[str, str]:
+        return {
+            'en': 'Read file contents with optional line range',
+            'zh': '读取文件内容（可指定行范围）'
+        }
 
+
+    def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
+        return {
+            'path': {
+                'en': 'File path (relative to project root or absolute path)',
+                'zh': '文件路径（相对于项目根目录或绝对路径）',
+            },
+            'line_range': {
+                'en': 'Optional line range [start_line, end_line] (1-indexed, use -1 for end of file)',
+                'zh': '可选的行范围 [start_line, end_line]（1-indexed，使用 -1 表示文件末尾）',
+            },
+        }
     @property
     def category(self) -> str:
         return "filesystem"

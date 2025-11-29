@@ -23,6 +23,7 @@ from ..agent.tools import ConfirmAction
 from ..remotectl.commands import RemoteCommands
 from ..cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
 from ..shell_session import PersistentShellSession
+from ..i18n import I18n
 
 from .path_utils import PathUtils
 from .output_manager import ToolOutputManager
@@ -39,6 +40,9 @@ class CLI:
             project_root: 项目根目录
             skip_precheck: 跳过环境预检查（用于测试）
         """
+        # 初始化语言设置（必须在所有工具加载之前）
+        I18n.initialize()
+
         self.console = Console()
         self.project_root = project_root or str(Path.cwd())
 
