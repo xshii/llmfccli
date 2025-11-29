@@ -90,8 +90,8 @@ class ToolOutputManager:
         # 获取绝对路径
         abs_path = os.path.abspath(path) if not os.path.isabs(path) else path
 
-        # 压缩路径用于显示
-        compressed = self.path_utils.compress_path(path, max_length=40)
+        # 压缩路径用于显示（使用 50 字符限制，与确认对话框保持一致）
+        compressed = self.path_utils.compress_path(path, max_length=50)
 
         # 构建超链接 URI
         if self.use_vscode_protocol:
