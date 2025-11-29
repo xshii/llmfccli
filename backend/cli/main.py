@@ -295,10 +295,10 @@ class CLI:
                 if param_info.get('format') == 'filepath':
                     param_formats[param_name] = 'filepath'
 
-        # 格式化参数显示，带路径压缩和超链接
+        # 格式化参数显示，带路径压缩
         args_display = []
 
-        # 提取行号信息（用于超链接）
+        # 提取行号信息（用于显示）
         line_number = None
         if 'line_range' in arguments and arguments['line_range']:
             # line_range 格式: (start, end) 或 [start, end]
