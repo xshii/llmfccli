@@ -54,8 +54,12 @@ class PathUtils:
         # 检测路径分隔符 (/ 或 \)
         sep = '\\' if '\\' in path else '/'
 
-        # 规范化路径用于比较
-        path_abs = os.path.abspath(path) if not os.path.isabs(path) else path
+        # 规范化路径用于比较（相对路径基于项目根目录解析）
+        if not os.path.isabs(path):
+            path_abs = os.path.join(self.project_root, path)
+        else:
+            path_abs = path
+
         project_root_abs = os.path.abspath(self.project_root)
 
         # 确定显示路径（项目内用相对路径，项目外用绝对路径）
