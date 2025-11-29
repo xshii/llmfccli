@@ -19,9 +19,16 @@ class FileSystemError(Exception):
 
 class GrepSearchParams(BaseModel):
     """GrepSearch 工具参数"""
-    pattern: str = Field(description="搜索模式（regex）")
-    scope: str = Field(description="搜索范围目录（如 '.', 'src/', 'backend/'）")
-    file_pattern: Optional[str] = Field(None, description="可选的文件模式过滤（如 '*.cpp'）")
+    pattern: str = Field(
+        description="Search pattern (regex)"
+    )
+    scope: str = Field(
+        description="Search scope directory (e.g., '.', 'src/', 'backend/')"
+    )
+    file_pattern: Optional[str] = Field(
+        None,
+        description="Optional file pattern filter (e.g., '*.cpp')"
+    )
 
 
 class GrepSearchTool(BaseTool):
@@ -32,13 +39,35 @@ class GrepSearchTool(BaseTool):
         return "grep_search"
 
     @property
-    def description(self) -> str:
-        return (
-            "Search for pattern in files using ripgrep. Returns structured JSON results "
-            "(file path, line number, matched content). Preferred over bash_run for code search. "
-            "Use bash_run instead ONLY when you need pipes (grep | head | wc) or complex shell combinations."
-        )
+    def description_i18n(self) -> Dict[str, str]:
+        return {
+            'en': (
+                "Search for pattern in files using ripgrep. Returns structured JSON results "
+                "(file path, line number, matched content). Preferred over bash_run for code search. "
+                "Use bash_run instead ONLY when you need pipes (grep | head | wc) or complex shell combinations."
+            ),
+            'zh': (
+                "使用 ripgrep 搜索文件内容。返回结构化 JSON 结果（文件路径、行号、匹配内容）。"
+                "优先使用此工具进行代码搜索。仅当需要管道（grep | head | wc）或复杂 shell 组合时才使用 bash_run。"
+            )
+        }
 
+
+    def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
+        return {
+            'pattern': {
+                'en': 'Search pattern (regex)',
+                'zh': '搜索模式（regex）',
+            },
+            'scope': {
+                'en': 'Search scope directory (e.g., \'.\', \'src/\', \'backend/\')',
+                'zh': '搜索范围目录（如 \'.\', \'src/\', \'backend/\'）',
+            },
+            'file_pattern': {
+                'en': 'Optional file pattern filter (e.g., \'*.cpp\')',
+                'zh': '可选的文件模式过滤（如 \'*.cpp\'）',
+            },
+        }
     @property
     def category(self) -> str:
         return "filesystem"

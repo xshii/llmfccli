@@ -19,10 +19,13 @@ class ListDirParams(BaseModel):
     """ListDir 工具参数"""
     path: str = Field(
         ".",
-        description="目录路径（默认 '.'）",
+        description="Directory path (default '.')",
         json_schema_extra={"format": "filepath"}
     )
-    max_depth: int = Field(3, description="最大遍历深度（默认 3）")
+    max_depth: int = Field(
+        3,
+        description="Maximum traversal depth (default 3)"
+    )
 
 
 class ListDirTool(BaseTool):
@@ -33,9 +36,24 @@ class ListDirTool(BaseTool):
         return "list_dir"
 
     @property
-    def description(self) -> str:
-        return "List directory contents recursively"
+    def description_i18n(self) -> Dict[str, str]:
+        return {
+            'en': 'List directory contents recursively',
+            'zh': '递归列出目录内容'
+        }
 
+
+    def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
+        return {
+            'path': {
+                'en': 'Directory path (default \'.\')',
+                'zh': '目录路径（默认 \'.\'）',
+            },
+            'max_depth': {
+                'en': 'Maximum traversal depth (default 3)',
+                'zh': '最大遍历深度（默认 3）',
+            },
+        }
     @property
     def category(self) -> str:
         return "filesystem"

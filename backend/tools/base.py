@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Type
 from pydantic import BaseModel
 
+from backend.i18n import t
+
 
 class BaseTool(ABC):
     """工具基类 - 声明式定义工具"""
@@ -29,10 +31,46 @@ class BaseTool(ABC):
         pass
 
     @property
-    @abstractmethod
     def description(self) -> str:
-        """工具描述（用于 LLM 理解工具用途）"""
-        pass
+        """
+        工具描述（用于 LLM 理解工具用途）
+
+        默认使用 description_i18n 进行翻译。
+        子类应该重写 description_i18n 属性提供多语言支持。
+        """
+        desc_dict = self.description_i18n
+        if isinstance(desc_dict, dict):
+            return t(desc_dict)
+        # 向后兼容：如果子类直接重写了 description 返回字符串
+        return desc_dict or ''
+
+    @property
+    def description_i18n(self) -> Dict[str, str]:
+        """
+        多语言工具描述
+
+        子类应该重写此方法返回多语言描述字典，例如：
+        {
+            'en': 'Read file contents',
+            'zh': '读取文件内容'
+        }
+        """
+        return {}
+
+    def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
+        """
+        获取参数的多语言描述
+
+        子类可以重写此方法返回参数的多语言描述，例如：
+        {
+            'path': {'en': 'File path', 'zh': '文件路径'},
+            'old_str': {'en': 'String to replace', 'zh': '要替换的字符串'}
+        }
+
+        Returns:
+            Dict[参数名, Dict[语言, 描述]]
+        """
+        return {}
 
     @property
     def category(self) -> str:
@@ -96,6 +134,16 @@ class BaseTool(ABC):
             # 移除 Pydantic 特有的字段（如 $defs）
             if 'title' in parameters_schema:
                 del parameters_schema['title']
+
+            # 应用多语言参数描述
+            params_i18n = self.get_parameters_i18n()
+            if params_i18n:
+                for param_name, translations in params_i18n.items():
+                    if param_name in parameters_schema['properties']:
+                        # 使用当前语言的描述替换
+                        localized_desc = t(translations)
+                        if localized_desc:
+                            parameters_schema['properties'][param_name]['description'] = localized_desc
 
         return {
             'type': 'function',

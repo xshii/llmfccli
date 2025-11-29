@@ -17,8 +17,12 @@ class FileSystemError(Exception):
 
 class CreateFileParams(BaseModel):
     """CreateFile 工具参数"""
-    path: str = Field(description="文件路径")
-    content: str = Field(description="文件内容")
+    path: str = Field(
+        description="File path"
+    )
+    content: str = Field(
+        description="File content"
+    )
 
 
 class CreateFileTool(BaseTool):
@@ -29,9 +33,24 @@ class CreateFileTool(BaseTool):
         return "create_file"
 
     @property
-    def description(self) -> str:
-        return "Create new file with content"
+    def description_i18n(self) -> Dict[str, str]:
+        return {
+            'en': 'Create new file with content',
+            'zh': '创建新文件并写入内容'
+        }
 
+
+    def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
+        return {
+            'path': {
+                'en': 'File path',
+                'zh': '文件路径',
+            },
+            'content': {
+                'en': 'File content',
+                'zh': '文件内容',
+            },
+        }
     @property
     def category(self) -> str:
         return "filesystem"

@@ -23,6 +23,7 @@ from ..agent.tools import ConfirmAction
 from ..remotectl.commands import RemoteCommands
 from ..cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
 from ..shell_session import PersistentShellSession
+from ..i18n import I18n
 
 from .path_utils import PathUtils
 from .output_manager import ToolOutputManager
@@ -39,6 +40,9 @@ class CLI:
             project_root: 项目根目录
             skip_precheck: 跳过环境预检查（用于测试）
         """
+        # 初始化语言设置（必须在所有工具加载之前）
+        I18n.initialize()
+
         self.console = Console()
         self.project_root = project_root or str(Path.cwd())
 
@@ -295,10 +299,10 @@ class CLI:
                 if param_info.get('format') == 'filepath':
                     param_formats[param_name] = 'filepath'
 
-        # 格式化参数显示，带路径压缩和超链接
+        # 格式化参数显示，带路径压缩
         args_display = []
 
-        # 提取行号信息（用于超链接）
+        # 提取行号信息（用于显示）
         line_number = None
         if 'line_range' in arguments and arguments['line_range']:
             # line_range 格式: (start, end) 或 [start, end]
@@ -315,8 +319,28 @@ class CLI:
 
             # 根据 schema 格式处理路径参数
             if param_formats.get(key) == 'filepath':
-                # 使用超链接格式化路径（自动压缩 + VSCode 超链接 + 行号跳转）
-                value_str = self.output_manager._create_file_hyperlink(value_str, line=line_number)
+                # 获取绝对路径（相对路径基于项目根目录）
+                import os
+                if not os.path.isabs(value_str):
+                    abs_path = os.path.join(self.project_root, value_str)
+                else:
+                    abs_path = value_str
+
+                # 压缩路径用于显示
+                compressed = self.path_utils.compress_path(value_str, max_length=50)
+
+                # 构建 file:// 超链接
+                file_uri = f"file://{abs_path}"
+                if line_number:
+                    # 有些编辑器支持 file://path#line 格式
+                    file_uri += f"#{line_number}"
+
+                # 使用 Rich markup 格式的超链接
+                value_str = f"[link={file_uri}]{compressed}[/link]"
+
+                # 如果有行号信息，附加显示
+                if line_number:
+                    value_str += f" [dim]:{line_number}[/dim]"
             # 截断其他长值
             elif len(value_str) > 60:
                 value_str = value_str[:57] + "..."
