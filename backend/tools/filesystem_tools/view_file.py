@@ -17,7 +17,10 @@ class FileSystemError(Exception):
 
 class ViewFileParams(BaseModel):
     """ViewFile 工具参数"""
-    path: str = Field(description="文件路径（相对于项目根目录或绝对路径）")
+    path: str = Field(
+        description="文件路径（相对于项目根目录或绝对路径）",
+        json_schema_extra={"format": "filepath"}
+    )
     line_range: Optional[Tuple[int, int]] = Field(
         None,
         description="可选的行范围 [start_line, end_line]（1-indexed，使用 -1 表示文件末尾）"

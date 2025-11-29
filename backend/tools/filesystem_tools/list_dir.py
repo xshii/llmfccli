@@ -17,7 +17,11 @@ class FileSystemError(Exception):
 
 class ListDirParams(BaseModel):
     """ListDir 工具参数"""
-    path: str = Field(".", description="目录路径（默认 '.'）")
+    path: str = Field(
+        ".",
+        description="目录路径（默认 '.'）",
+        json_schema_extra={"format": "filepath"}
+    )
     max_depth: int = Field(3, description="最大遍历深度（默认 3）")
 
 

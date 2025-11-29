@@ -291,14 +291,28 @@ class CLI:
                 if param_info.get('format') == 'filepath':
                     param_formats[param_name] = 'filepath'
 
-        # 格式化参数显示，带路径压缩
+        # 格式化参数显示，带路径压缩和超链接
         args_display = []
+
+        # 提取行号信息（用于超链接）
+        line_number = None
+        if 'line_range' in arguments and arguments['line_range']:
+            # line_range 格式: (start, end) 或 [start, end]
+            line_range = arguments['line_range']
+            if isinstance(line_range, (tuple, list)) and len(line_range) >= 1:
+                line_number = line_range[0]
+        elif 'line' in arguments:
+            line_number = arguments.get('line')
+        elif 'start_line' in arguments:
+            line_number = arguments.get('start_line')
+
         for key, value in arguments.items():
             value_str = str(value)
 
-            # 根据 schema 格式压缩路径
+            # 根据 schema 格式处理路径参数
             if param_formats.get(key) == 'filepath' and ('/' in value_str or '\\' in value_str):
-                value_str = self.path_utils.compress_path(value_str, max_length=50)
+                # 使用超链接格式化路径（自动压缩 + VSCode 超链接 + 行号跳转）
+                value_str = self.output_manager._create_file_hyperlink(value_str, line=line_number)
             # 截断其他长值
             elif len(value_str) > 60:
                 value_str = value_str[:57] + "..."
