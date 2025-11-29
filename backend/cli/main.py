@@ -310,7 +310,7 @@ class CLI:
             value_str = str(value)
 
             # 根据 schema 格式处理路径参数
-            if param_formats.get(key) == 'filepath' and ('/' in value_str or '\\' in value_str):
+            if param_formats.get(key) == 'filepath':
                 # 使用超链接格式化路径（自动压缩 + VSCode 超链接 + 行号跳转）
                 value_str = self.output_manager._create_file_hyperlink(value_str, line=line_number)
             # 截断其他长值

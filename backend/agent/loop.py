@@ -92,10 +92,13 @@ class AgentLoop:
         Returns:
             Agent's final response
         """
+        # Store stream mode for later use
+        self._stream_mode = stream
+
         # Add user message
         user_message = {'role': 'user', 'content': user_input}
         self.conversation_history.append(user_message)
-        
+
         # Update token count
         self.token_counter.update_usage(
             'recent_messages',
@@ -189,7 +192,8 @@ class AgentLoop:
             })
 
             # Display assistant's thinking before executing tools
-            if self.tool_output_callback:
+            # 在流式模式下，内容已经被实时打印了，不需要再次显示
+            if self.tool_output_callback and not self._stream_mode:
                 try:
                     # Show assistant's content or a witty message
                     if content and content.strip():
