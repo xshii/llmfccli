@@ -315,8 +315,11 @@ class CLI:
 
             # 根据 schema 格式处理路径参数
             if param_formats.get(key) == 'filepath':
-                # 使用超链接格式化路径（自动压缩 + VSCode 超链接 + 行号跳转）
-                value_str = self.output_manager._create_file_hyperlink(value_str, line=line_number)
+                # 使用路径压缩（不使用超链接）
+                value_str = self.path_utils.compress_path(value_str, max_length=50)
+                # 如果有行号信息，附加显示
+                if line_number:
+                    value_str = f"{value_str} [dim]:{line_number}[/dim]"
             # 截断其他长值
             elif len(value_str) > 60:
                 value_str = value_str[:57] + "..."
