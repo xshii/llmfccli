@@ -96,6 +96,22 @@ class ToolRegistry:
             return self._dynamic_registry.list_tools()
         return []
 
+    def get_tool_metadata(self, tool_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Get complete metadata for a tool including its schema.
+
+        Args:
+            tool_name: Name of the tool
+
+        Returns:
+            Dict containing name, description, category, and schema,
+            or None if tool doesn't exist
+        """
+        self._ensure_initialized()
+        if self._dynamic_registry:
+            return self._dynamic_registry.get_tool_metadata(tool_name)
+        return None
+
 
 # Global registry instance (lazy initialization)
 registry = ToolRegistry()
