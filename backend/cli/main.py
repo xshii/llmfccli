@@ -315,9 +315,12 @@ class CLI:
 
             # 根据 schema 格式处理路径参数
             if param_formats.get(key) == 'filepath':
-                # 获取绝对路径
+                # 获取绝对路径（相对路径基于项目根目录）
                 import os
-                abs_path = os.path.abspath(value_str) if not os.path.isabs(value_str) else value_str
+                if not os.path.isabs(value_str):
+                    abs_path = os.path.join(self.project_root, value_str)
+                else:
+                    abs_path = value_str
 
                 # 压缩路径用于显示
                 compressed = self.path_utils.compress_path(value_str, max_length=50)
