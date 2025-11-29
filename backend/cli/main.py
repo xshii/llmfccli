@@ -282,11 +282,11 @@ class CLI:
         """
         # 获取工具 schema 以检查参数格式
         from backend.agent.tools import registry
-        tool_schema = registry.tools.get(tool_name)
+        tool_metadata = registry.get_tool_metadata(tool_name)
         param_formats = {}
 
-        if tool_schema:
-            properties = tool_schema.get('function', {}).get('parameters', {}).get('properties', {})
+        if tool_metadata:
+            properties = tool_metadata.get('schema', {}).get('function', {}).get('parameters', {}).get('properties', {})
             for param_name, param_info in properties.items():
                 if param_info.get('format') == 'filepath':
                     param_formats[param_name] = 'filepath'
