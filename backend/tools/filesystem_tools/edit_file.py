@@ -17,7 +17,10 @@ class FileSystemError(Exception):
 
 class EditFileParams(BaseModel):
     """EditFile 工具参数"""
-    path: str = Field(description="文件路径")
+    path: str = Field(
+        description="文件路径",
+        json_schema_extra={"format": "filepath"}
+    )
     old_str: str = Field(description="要替换的字符串（必须唯一出现）")
     new_str: str = Field(description="替换后的字符串")
     confirm: bool = Field(True, description="是否需要用户确认（默认 true）")
