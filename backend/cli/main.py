@@ -315,11 +315,25 @@ class CLI:
 
             # 根据 schema 格式处理路径参数
             if param_formats.get(key) == 'filepath':
-                # 使用路径压缩（不使用超链接）
-                value_str = self.path_utils.compress_path(value_str, max_length=50)
+                # 获取绝对路径
+                import os
+                abs_path = os.path.abspath(value_str) if not os.path.isabs(value_str) else value_str
+
+                # 压缩路径用于显示
+                compressed = self.path_utils.compress_path(value_str, max_length=50)
+
+                # 构建 file:// 超链接
+                file_uri = f"file://{abs_path}"
+                if line_number:
+                    # 有些编辑器支持 file://path#line 格式
+                    file_uri += f"#{line_number}"
+
+                # 使用 Rich markup 格式的超链接
+                value_str = f"[link={file_uri}]{compressed}[/link]"
+
                 # 如果有行号信息，附加显示
                 if line_number:
-                    value_str = f"{value_str} [dim]:{line_number}[/dim]"
+                    value_str += f" [dim]:{line_number}[/dim]"
             # 截断其他长值
             elif len(value_str) > 60:
                 value_str = value_str[:57] + "..."
