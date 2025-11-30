@@ -11,10 +11,8 @@ from backend.tools.base import BaseTool
 
 class ProposeOptionsParams(BaseModel):
     """ProposeOptions 工具参数"""
-    question: str = Field(description="向用户提出的问题，如'发现多种实现方案，请选择'")
-    options: List[str] = Field(
-        description="选项列表，格式为 ['A: 标题 - 描述', 'B: 标题 - 描述']，2-5个选项"
-    )
+    question: str = Field(description="Question to ask the user")
+    options: List[str] = Field(description="List of options, 2-5 items")
 
 
 class ProposeOptionsTool(BaseTool):
@@ -41,12 +39,27 @@ class ProposeOptionsTool(BaseTool):
         return "propose_options"
 
     @property
-    def description(self) -> str:
-        return (
-            "Present options to user for decision making. Use when multiple valid "
-            "approaches exist and user input is needed. Always includes 'Other' option "
-            "for custom user input. Returns the selected option ID or custom text."
-        )
+    def description_i18n(self) -> Dict[str, str]:
+        return {
+            'en': (
+                "Present options to user for decision making. "
+                "MUST USE THIS TOOL when: "
+                "(1) User intent is unclear and you need to ask what they want to do; "
+                "(2) Multiple valid approaches exist and user input is needed; "
+                "(3) Context file is provided but no specific task is requested. "
+                "DO NOT ask questions in plain text - always use this tool for user choices. "
+                "Always includes 'Other' option for custom input. Returns selected option ID."
+            ),
+            'zh': (
+                "向用户提出选项以获取决策。"
+                "必须使用此工具的场景: "
+                "(1) 用户意图不明确，需要询问用户想做什么; "
+                "(2) 存在多种可行方案，需要用户输入; "
+                "(3) 提供了上下文文件但未指定具体任务。"
+                "不要用纯文本提问 - 始终使用此工具让用户选择。"
+                "自动包含'其他'选项供自定义输入。返回所选选项 ID。"
+            )
+        }
 
     @property
     def category(self) -> str:
@@ -55,6 +68,31 @@ class ProposeOptionsTool(BaseTool):
     @property
     def parameters_model(self):
         return ProposeOptionsParams
+
+    def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
+        return {
+            'question': {
+                'en': "Question to ask the user, e.g. 'What would you like me to do with this file?'",
+                'zh': "向用户提出的问题，如'您希望我对这个文件做什么？'"
+            },
+            'options': {
+                'en': (
+                    "List of options in format ['A: Title - Description', 'B: Title - Description']. "
+                    "2-5 options. Example: "
+                    "['A: View - Read and explain the file', "
+                    "'B: Edit - Modify specific parts', "
+                    "'C: Fix - Find and fix bugs', "
+                    "'D: Explain - Explain how it works']"
+                ),
+                'zh': (
+                    "选项列表，格式 ['A: 标题 - 描述', 'B: 标题 - 描述']，2-5个选项。"
+                    "示例: ['A: 查看 - 阅读并解释文件内容', "
+                    "'B: 编辑 - 修改特定部分', "
+                    "'C: 修复 - 查找并修复bug', "
+                    "'D: 解释 - 解释其工作原理']"
+                )
+            }
+        }
 
     def execute(self, question: str, options: List[str]) -> Dict[str, Any]:
         """执行方案选择"""

@@ -21,12 +21,20 @@ export class JsonRpcServer {
      * Register all JSON-RPC method handlers
      */
     private registerHandlers(): void {
+        this.protocol.registerMethod('ping', this.handlePing.bind(this));
         this.protocol.registerMethod('getActiveFile', this.handleGetActiveFile.bind(this));
         this.protocol.registerMethod('getSelection', this.handleGetSelection.bind(this));
         this.protocol.registerMethod('showDiff', this.handleShowDiff.bind(this));
         this.protocol.registerMethod('applyChanges', this.handleApplyChanges.bind(this));
         this.protocol.registerMethod('openFile', this.handleOpenFile.bind(this));
         this.protocol.registerMethod('getWorkspaceFolder', this.handleGetWorkspaceFolder.bind(this));
+    }
+
+    /**
+     * Handle ping request (heartbeat)
+     */
+    private async handlePing(params: any): Promise<{ pong: boolean }> {
+        return { pong: true };
     }
 
     /**
@@ -72,6 +80,7 @@ export class JsonRpcServer {
 
     /**
      * Handle getSelection request
+     * 返回选中区域或光标位置
      */
     private async handleGetSelection(params: any): Promise<{ success: boolean; selection?: Selection; error?: string }> {
         const editor = vscode.window.activeTextEditor;
@@ -80,12 +89,10 @@ export class JsonRpcServer {
         }
 
         const selection = editor.selection;
-        if (selection.isEmpty) {
-            return { success: false, error: 'No text selected' };
-        }
 
+        // 即使没有选中文本，也返回光标位置
         const selectionData: Selection = {
-            text: editor.document.getText(selection),
+            text: selection.isEmpty ? '' : editor.document.getText(selection),
             start: {
                 line: selection.start.line,
                 character: selection.start.character

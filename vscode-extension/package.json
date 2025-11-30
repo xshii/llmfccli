@@ -27,11 +27,7 @@
     "refactoring"
   ],
   "activationEvents": [
-    "onLanguage:cpp",
-    "onLanguage:c",
-    "onCommand:claude-qwen.start",
-    "onCommand:claude-qwen.stop",
-    "onCommand:claude-qwen.testIntegration"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {

@@ -24,10 +24,12 @@ from ..remotectl.commands import RemoteCommands
 from ..cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
 from ..shell_session import PersistentShellSession
 from ..i18n import I18n
+from ..feature import is_feature_enabled
 
 from .path_utils import PathUtils
 from .output_manager import ToolOutputManager
 from .command_registry import CommandRegistry
+from .status_line import StatusLine
 
 
 class CLI:
@@ -46,12 +48,9 @@ class CLI:
         self.console = Console()
         self.project_root = project_root or str(Path.cwd())
 
-        # 检查是否在 VSCode 集成模式
-        self.vscode_mode = os.getenv('VSCODE_INTEGRATION', '').lower() == 'true'
-
-        # 初始化 RPC 客户端（如果在 VSCode 模式）
-        if self.vscode_mode:
-            self._init_rpc_client()
+        # 启动 RPC 客户端（后台心跳检测 VSCode extension）
+        from backend.rpc.client import get_client
+        get_client()  # 启动心跳线程
 
         # 运行预检查（除非明确跳过）
         if not skip_precheck:
@@ -75,6 +74,9 @@ class CLI:
 
         # 初始化输出管理器
         self.output_manager = ToolOutputManager(self.console, self.path_utils, self.agent)
+
+        # 初始化状态行
+        self.status_line = StatusLine(self.console, self.agent, self.client)
 
         # 设置 agent 的工具输出回调
         self.agent.tool_output_callback = self.output_manager.add_tool_output
@@ -108,16 +110,6 @@ class CLI:
 
         # 初始化命令处理器
         self._init_commands()
-
-    def _init_rpc_client(self):
-        """初始化 JSON-RPC 客户端用于 VSCode 通信"""
-        from backend.rpc.client import get_client
-
-        try:
-            rpc_client = get_client()
-            self.console.print("[dim]✓ RPC 客户端已启动（VSCode 集成模式）[/dim]")
-        except Exception as e:
-            self.console.print(f"[yellow]⚠ RPC 客户端启动失败: {e}[/yellow]")
 
     def _init_commands(self):
         """初始化命令注册器（自动发现所有命令）"""
@@ -451,42 +443,37 @@ class CLI:
 
         self.console.print(Panel(welcome, title="欢迎", border_style="blue"))
 
-    def _show_token_status(self):
-        """在提示符前显示当前 token 使用情况"""
-        if hasattr(self.agent, 'token_counter'):
-            total_tokens = self.agent.token_counter.usage.get('total', 0)
-            max_tokens = self.agent.token_counter.max_tokens
+    def _get_ide_context(self) -> str:
+        """获取 IDE 上下文（当前打开的文件信息）
 
-            # 格式化 tokens 为 K（千）
-            if total_tokens >= 1000:
-                total_str = f"{total_tokens/1000:.1f}K"
-            else:
-                total_str = str(total_tokens)
+        Returns:
+            str: 包含 <system-reminder> 标签的上下文字符串，如果不可用则返回空字符串
+        """
+        # 检查功能开关
+        if not is_feature_enabled("ide_integration.inject_active_file_context"):
+            return ""
 
-            if max_tokens >= 1000:
-                max_str = f"{max_tokens/1000:.0f}K"
-            else:
-                max_str = str(max_tokens)
+        # 检查是否连接到 VSCode extension（动态检测）
+        from backend.rpc.client import is_vscode_mode
+        if not is_vscode_mode():
+            return ""
 
-            usage_pct = (total_tokens / max_tokens * 100) if max_tokens > 0 else 0
+        try:
+            from backend.tools import vscode
+            from backend.i18n import t
 
-            # 显示 token 信息和文件链接
-            token_info = f"[dim]Tokens: {total_str}/{max_str} ({usage_pct:.0f}%)"
+            file_info = vscode.get_active_file()
+            file_path = file_info['path']
 
-            # 添加对话/请求文件链接（如果可用）
-            file_path = None
-            if hasattr(self.client, 'last_conversation_file') and self.client.last_conversation_file:
-                file_path = self.client.last_conversation_file
-            elif hasattr(self.client, 'last_request_file') and self.client.last_request_file:
-                file_path = self.client.last_request_file
+            context_msg = t({
+                'en': f'The user\'s IDE has file "{file_path}" open (for context only). '
+                      f'This is NOT a request to process this file. Only act on the file if the user explicitly asks.',
+                'zh': f'当前文件: {file_path}（仅作上下文，非处理请求）'
+            })
 
-            if file_path and os.path.exists(file_path):
-                filename = os.path.basename(file_path)
-                file_url = f"file://{os.path.abspath(file_path)}"
-                token_info += f" | [link={file_url}]{filename}[/link]"
-
-            token_info += "[/dim]"
-            self.console.print(token_info)
+            return f"<system-reminder>\n{context_msg}\n</system-reminder>"
+        except Exception:
+            return ""
 
     def run(self):
         """运行交互循环"""
@@ -495,10 +482,10 @@ class CLI:
 
         while True:
             try:
-                # 在下一个提示前显示 token 使用情况（首次除外）
+                # 显示状态行
                 if not first_prompt:
-                    self.console.print()  # 在 token 状态前添加空行
-                    self._show_token_status()
+                    self.console.print()  # 非首次时添加空行
+                self.status_line.show()
                 first_prompt = False
 
                 # 获取用户输入（提示符中无额外换行）
@@ -515,6 +502,13 @@ class CLI:
 
                 # 清除工具输出并设置当前命令
                 self.output_manager.set_current_command(user_input)
+
+                # 注入 IDE 上下文（当前打开的文件）
+                ide_context = self._get_ide_context()
+                if ide_context:
+                    user_input_with_context = f"{ide_context}\n{user_input}"
+                else:
+                    user_input_with_context = user_input
 
                 # 执行任务
                 self.console.print("[cyan]执行中...[/cyan]")
@@ -536,14 +530,14 @@ class CLI:
                             self.console.print(clean_chunk, end='', style="white")
 
                         # 运行并启用流式输出
-                        response = self.agent.run(user_input, stream=True, on_chunk=on_chunk)
+                        response = self.agent.run(user_input_with_context, stream=True, on_chunk=on_chunk)
 
                         # 如果响应为空（完全流式输出），使用流式内容
                         if not response.strip() and streamed_content:
                             response = ''.join(streamed_content)
                     else:
                         # 非流式模式：等待完整响应
-                        response = self.agent.run(user_input, stream=False)
+                        response = self.agent.run(user_input_with_context, stream=False)
 
                         # 如果用户拒绝工具执行，不显示面板
                         if response and response != "Tool execution stopped by user.":

@@ -3,6 +3,7 @@
 Agent main loop for executing tasks with LLM and tools
 """
 
+import re
 import time
 from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
@@ -79,7 +80,37 @@ class AgentLoop:
     def set_max_retries(self, max_retries: int):
         """Set maximum retry count"""
         self.max_retries = max_retries
-    
+
+    def _clean_system_reminders(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """
+        清理历史消息中的 <system-reminder> 标签，只保留最后一条用户消息中的。
+
+        这样可以避免多轮对话中旧的 IDE 文件信息误导模型。
+        """
+        if not messages:
+            return messages
+
+        pattern = re.compile(r'<system-reminder>.*?</system-reminder>\s*', re.DOTALL)
+        cleaned = []
+
+        for i, msg in enumerate(messages):
+            is_last_user_msg = (
+                msg.get('role') == 'user' and
+                i == len(messages) - 1
+            )
+
+            if is_last_user_msg:
+                # 保留最后一条用户消息的 system-reminder
+                cleaned.append(msg)
+            elif msg.get('role') == 'user' and pattern.search(msg.get('content', '')):
+                # 清理历史用户消息中的 system-reminder
+                new_content = pattern.sub('', msg.get('content', '')).strip()
+                cleaned.append({**msg, 'content': new_content})
+            else:
+                cleaned.append(msg)
+
+        return cleaned
+
     def run(self, user_input: str, stream: bool = False, on_chunk=None) -> str:
         """
         Execute agent loop for user input
@@ -107,7 +138,8 @@ class AgentLoop:
 
         # System prompt is now in Modelfile (claude-qwen:latest)
         # No need to pass it dynamically
-        messages = list(self.conversation_history)
+        # 清理历史消息中的 system-reminder，只保留最新的
+        messages = self._clean_system_reminders(list(self.conversation_history))
 
         iteration = 0
         
@@ -130,7 +162,7 @@ class AgentLoop:
                 })
 
                 # 更新 messages 以包含建议
-                messages = list(self.conversation_history)
+                messages = self._clean_system_reminders(list(self.conversation_history))
 
                 # 继续循环，让 LLM 看到建议并重新规划
                 continue
@@ -283,7 +315,7 @@ class AgentLoop:
 
             # Update messages for next iteration
             # System prompt is in Modelfile, no need to pass it
-            messages = list(self.conversation_history)
+            messages = self._clean_system_reminders(list(self.conversation_history))
 
             # Check if should compress
             if self.token_counter.should_compress(time.time()):

@@ -1,0 +1,13 @@
+# Feature Flags Configuration
+# 功能开关配置
+#
+# 所有非 bug 修复的新特性都通过此文件控制是否启用
+# enabled: true  - 启用功能
+# enabled: false - 禁用功能
+
+# IDE 集成功能
+ide_integration:
+  # 将当前 IDE 打开的文件信息注入到用户消息中
+  inject_active_file_context:
+    enabled: true
+    description: "注入当前 IDE 打开的文件到上下文"

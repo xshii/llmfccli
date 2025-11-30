@@ -5,9 +5,11 @@
 
 import * as vscode from 'vscode';
 import { CliManager } from './cliManager';
+import { SocketServer } from './socketServer';
 import { ExtensionConfig } from './types';
 
 let cliManager: CliManager | null = null;
+let socketServer: SocketServer | null = null;
 let outputChannel: vscode.OutputChannel;
 
 /**
@@ -16,6 +18,10 @@ let outputChannel: vscode.OutputChannel;
 export function activate(context: vscode.ExtensionContext) {
     outputChannel = vscode.window.createOutputChannel('Claude-Qwen');
     outputChannel.appendLine('Claude-Qwen extension activated');
+
+    // 启动 Socket 服务器（允许 CLI 随时连接）
+    const config = getConfig();
+    startSocketServer(config.socketPath);
 
     // Register commands
     context.subscriptions.push(
@@ -60,8 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // Auto-start if configured
-    const config = getConfig();
+    // Auto-start CLI if configured
     if (config.autoStart && vscode.workspace.workspaceFolders) {
         startCli();
     }
@@ -76,7 +81,28 @@ export function deactivate() {
     if (cliManager) {
         cliManager.stop();
     }
+    if (socketServer) {
+        socketServer.stop();
+    }
     outputChannel.appendLine('Claude-Qwen extension deactivated');
+}
+
+/**
+ * Start socket server for CLI communication
+ */
+async function startSocketServer(socketPath: string): Promise<void> {
+    if (socketServer?.isRunning()) {
+        return;
+    }
+
+    socketServer = new SocketServer(outputChannel, socketPath);
+    const started = await socketServer.start();
+
+    if (started) {
+        outputChannel.appendLine('Socket server ready for CLI connections');
+    } else {
+        outputChannel.appendLine('Failed to start socket server');
+    }
 }
 
 /**
@@ -124,6 +150,10 @@ async function stopCli(): Promise<void> {
  * Test VSCode integration
  */
 async function testIntegration(): Promise<void> {
+    // 显示 socket 服务器状态
+    const socketStatus = socketServer?.isRunning() ? 'Running' : 'Stopped';
+    outputChannel.appendLine(`Socket server status: ${socketStatus}`);
+
     if (!cliManager?.isRunning()) {
         const start = await vscode.window.showInformationMessage(
             'CLI is not running. Start it now?',
@@ -187,7 +217,7 @@ function getConfig(): ExtensionConfig {
     return {
         cliPath: config.get('cliPath', 'claude-qwen'),
         pythonPath: config.get('pythonPath', 'python3'),
-        communicationMode: config.get('communicationMode', 'ipc'),
+        communicationMode: config.get('communicationMode', 'socket'),
         socketPath: config.get('socketPath', '/tmp/claude-qwen.sock'),
         autoStart: config.get('autoStart', false),
         logLevel: config.get('logLevel', 'info')
