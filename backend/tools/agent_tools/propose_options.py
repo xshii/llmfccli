@@ -43,20 +43,24 @@ class ProposeOptionsTool(BaseTool):
         return {
             'en': (
                 "Present options to user for decision making. "
-                "MUST USE THIS TOOL when: "
-                "(1) User intent is unclear and you need to ask what they want to do; "
-                "(2) Multiple valid approaches exist and user input is needed; "
-                "(3) Context file is provided but no specific task is requested. "
-                "DO NOT ask questions in plain text - always use this tool for user choices. "
+                "ONLY USE when user intent is GENUINELY UNCLEAR. "
+                "Use cases: "
+                "(1) User asks 'what can you do' or provides NO specific task; "
+                "(2) Task has multiple EQUALLY valid approaches requiring user choice; "
+                "(3) User provides ambiguous request like 'help me with this file' without details. "
+                "DO NOT USE if user has specified a clear task (e.g., 'add timeout', 'fix bugs', 'generate tests'). "
+                "If you've read a file and user task is clear, CONTINUE execution - don't ask. "
                 "Always includes 'Other' option for custom input. Returns selected option ID."
             ),
             'zh': (
                 "向用户提出选项以获取决策。"
-                "必须使用此工具的场景: "
-                "(1) 用户意图不明确，需要询问用户想做什么; "
-                "(2) 存在多种可行方案，需要用户输入; "
-                "(3) 提供了上下文文件但未指定具体任务。"
-                "不要用纯文本提问 - 始终使用此工具让用户选择。"
+                "仅在用户意图真正不明确时使用。"
+                "使用场景: "
+                "(1) 用户询问'你能做什么'或完全未提供具体任务; "
+                "(2) 任务有多种同样有效的方案，需要用户选择; "
+                "(3) 用户提供模糊请求如'帮我处理这个文件'但没有细节。"
+                "如果用户已指定明确任务（如'添加超时'、'修复bug'、'生成测试'），不要使用此工具。"
+                "如果已读取文件且用户任务明确，继续执行 - 不要询问。"
                 "自动包含'其他'选项供自定义输入。返回所选选项 ID。"
             )
         }
