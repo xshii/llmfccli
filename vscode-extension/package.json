@@ -85,7 +85,7 @@
         "claude-qwen.socketPath": {
           "type": "string",
           "default": "/tmp/claude-qwen.sock",
-          "description": "Socket path or address. Unix socket: /tmp/claude-qwen.sock (Linux/macOS), TCP socket: tcp://localhost:11435 (Windows recommended)"
+          "description": "Socket path or address. Auto-detects platform: Unix socket on Linux/macOS (/tmp/claude-qwen.sock), TCP socket on Windows (tcp://localhost:11435). Set explicitly to override."
         },
         "claude-qwen.autoStart": {
           "type": "boolean",

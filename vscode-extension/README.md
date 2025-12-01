@@ -61,9 +61,9 @@ Open VSCode settings and configure:
 
 #### Windows
 
-**Important:** Windows users must use TCP socket mode.
+**Automatic Platform Detection**: The extension automatically detects Windows and switches to TCP socket mode. You'll see a notification if you need to update your settings.
 
-Add to `.vscode/settings.json`:
+**Recommended Configuration** - Add to `.vscode/settings.json`:
 
 ```json
 {
@@ -73,7 +73,7 @@ Add to `.vscode/settings.json`:
 ```
 
 Supported formats:
-- `tcp://localhost:11435` - Full format
+- `tcp://localhost:11435` - Full format (recommended)
 - `localhost:11435` - Simplified format
 - `11435` - Port only (defaults to localhost)
 
