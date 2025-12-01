@@ -55,7 +55,7 @@ def test_file_location_and_feature_addition():
     print("\n=== 验证点 ===")
 
     # 检查目标文件路径
-    network_handler_path = os.path.join(project_root, 'src/network/network_handler.cpp')
+    network_handler_path = os.path.join(project_root, 'src/network_handler.cpp')
 
     # 1. 检查是否定位到了正确的文件（grep_search 或直接推断都可以）
     has_grep = any(tool.get('function', {}).get('name') == 'grep_search' for tool in agent.tool_calls)
