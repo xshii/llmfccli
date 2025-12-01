@@ -52,8 +52,43 @@ Open VSCode settings and configure:
 
 - `claude-qwen.pythonPath`: Path to Python interpreter (default: `python3`)
 - `claude-qwen.cliPath`: Path to claude-qwen CLI (default: `claude-qwen`)
+- `claude-qwen.communicationMode`: Communication mode (`ipc` or `socket`, default: `socket`)
+- `claude-qwen.socketPath`: Socket path or address (see platform-specific notes below)
 - `claude-qwen.autoStart`: Auto-start CLI when opening C/C++ files (default: `false`)
 - `claude-qwen.logLevel`: Log level for extension (default: `info`)
+
+### Platform-Specific Configuration
+
+#### Windows
+
+**Important:** Windows users must use TCP socket mode.
+
+Add to `.vscode/settings.json`:
+
+```json
+{
+  "claude-qwen.communicationMode": "socket",
+  "claude-qwen.socketPath": "tcp://localhost:11435"
+}
+```
+
+Supported formats:
+- `tcp://localhost:11435` - Full format
+- `localhost:11435` - Simplified format
+- `11435` - Port only (defaults to localhost)
+
+#### Linux/macOS
+
+Unix socket is the default and recommended:
+
+```json
+{
+  "claude-qwen.communicationMode": "socket",
+  "claude-qwen.socketPath": "/tmp/claude-qwen.sock"
+}
+```
+
+Alternatively, you can use TCP socket on Linux/macOS as well.
 
 ## Usage
 

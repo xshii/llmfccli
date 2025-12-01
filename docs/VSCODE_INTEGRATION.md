@@ -57,9 +57,37 @@ VSCode extension 通过 JSON-RPC 2.0 协议与 CLI 通信。
    - 通过 stdin/stdout 进行通信
    - 适用于 VSCode extension 作为子进程的场景
 
-3. **Socket 模式** (计划中)
-   - 通过 Unix Domain Socket 或 TCP Socket 通信
+3. **Socket 模式** (已实现)
+   - 支持两种 socket 类型：
+     - **Unix Domain Socket** (Linux/macOS): `/tmp/claude-qwen.sock`
+     - **TCP Socket** (Windows/跨平台): `tcp://localhost:11435`
    - 适用于独立运行的 CLI 进程
+
+### Windows 平台配置
+
+**重要：** Windows 平台必须使用 TCP Socket 模式。
+
+在 VSCode 设置中配置：
+
+```json
+{
+  "claude-qwen.communicationMode": "socket",
+  "claude-qwen.socketPath": "tcp://localhost:11435"
+}
+```
+
+或者在 `.vscode/settings.json` 中：
+
+```json
+{
+  "claude-qwen.socketPath": "localhost:11435"
+}
+```
+
+支持的格式：
+- `tcp://localhost:11435` - 完整格式
+- `localhost:11435` - 简化格式
+- `11435` - 仅端口号（默认 host 为 localhost）
 
 ### JSON-RPC 消息格式
 

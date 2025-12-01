@@ -1,7 +1,8 @@
 """
 JSON-RPC Client for VSCode Communication (Socket Mode)
 
-通过 Unix Socket 与 VSCode extension 通信
+通过 Socket 与 VSCode extension 通信
+支持 Unix Socket 和 TCP Socket
 定期心跳检测连接状态
 """
 
@@ -10,12 +11,29 @@ import socket
 import threading
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from queue import Queue, Empty
 
 
 # 默认 socket 路径
 DEFAULT_SOCKET_PATH = "/tmp/claude-qwen.sock"
+DEFAULT_TCP_PORT = 11435
+
+
+def get_default_socket_path() -> str:
+    """
+    根据平台返回默认的 socket 路径
+
+    Returns:
+        Windows: tcp://localhost:11435
+        Linux/macOS: /tmp/claude-qwen.sock
+    """
+    import platform
+
+    if platform.system() == 'Windows':
+        return f"tcp://localhost:{DEFAULT_TCP_PORT}"
+    else:
+        return DEFAULT_SOCKET_PATH
 
 
 class SocketRpcClient:
@@ -26,11 +44,16 @@ class SocketRpcClient:
         初始化 Socket RPC 客户端
 
         Args:
-            socket_path: Unix socket 路径
+            socket_path: Socket 路径或地址
+                - Unix socket: /tmp/claude-qwen.sock
+                - TCP socket: tcp://localhost:11435 或 localhost:11435
             heartbeat_interval: 心跳检测间隔（秒）
         """
         self.socket_path = socket_path
         self.heartbeat_interval = heartbeat_interval
+
+        # 解析 socket 配置
+        self.use_tcp, self.tcp_host, self.tcp_port = self._parse_socket_config(socket_path)
 
         self._socket: Optional[socket.socket] = None
         self._connected = False
@@ -42,6 +65,36 @@ class SocketRpcClient:
 
         self._heartbeat_thread: Optional[threading.Thread] = None
         self._receiver_thread: Optional[threading.Thread] = None
+
+    def _parse_socket_config(self, socket_path: str) -> Tuple[bool, str, int]:
+        """
+        解析 socket 配置
+
+        Args:
+            socket_path: Socket 路径或地址
+
+        Returns:
+            (use_tcp, tcp_host, tcp_port)
+        """
+        # 检测是否是 TCP 配置
+        if socket_path.startswith('tcp://') or ':' in socket_path:
+            # TCP socket 模式
+            address = socket_path.replace('tcp://', '')
+
+            # 解析 host:port
+            parts = address.split(':')
+            if len(parts) == 2:
+                host = parts[0] or 'localhost'
+                port = int(parts[1]) if parts[1].isdigit() else DEFAULT_TCP_PORT
+            else:
+                # 只有端口号
+                host = 'localhost'
+                port = int(address) if address.isdigit() else DEFAULT_TCP_PORT
+
+            return True, host, port
+        else:
+            # Unix socket 模式
+            return False, '', 0
 
     def start(self):
         """启动客户端（心跳线程）"""
@@ -99,15 +152,24 @@ class SocketRpcClient:
             if self._connected:
                 return True
 
-            # 检查 socket 文件是否存在
-            if not Path(self.socket_path).exists():
-                return False
-
             try:
-                self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                self._socket.settimeout(2.0)
-                self._socket.connect(self.socket_path)
-                self._socket.settimeout(None)
+                if self.use_tcp:
+                    # TCP socket 模式
+                    self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    self._socket.settimeout(2.0)
+                    self._socket.connect((self.tcp_host, self.tcp_port))
+                    self._socket.settimeout(None)
+                else:
+                    # Unix socket 模式
+                    # 检查 socket 文件是否存在
+                    if not Path(self.socket_path).exists():
+                        return False
+
+                    self._socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                    self._socket.settimeout(2.0)
+                    self._socket.connect(self.socket_path)
+                    self._socket.settimeout(None)
+
                 self._connected = True
 
                 # 启动接收线程
@@ -259,10 +321,10 @@ _client: Optional[SocketRpcClient] = None
 
 
 def get_client() -> SocketRpcClient:
-    """获取全局 RPC 客户端"""
+    """获取全局 RPC 客户端（使用平台相关的默认 socket 路径）"""
     global _client
     if _client is None:
-        _client = SocketRpcClient()
+        _client = SocketRpcClient(socket_path=get_default_socket_path())
         _client.start()
     return _client
 

@@ -214,11 +214,25 @@ async function sendCliCommand(command: string): Promise<void> {
  */
 function getConfig(): ExtensionConfig {
     const config = vscode.workspace.getConfiguration('claude-qwen');
+
+    // 平台检测：Windows 使用 TCP，其他平台使用 Unix socket
+    const isWindows = process.platform === 'win32';
+    const defaultSocketPath = isWindows ? 'tcp://localhost:11435' : '/tmp/claude-qwen.sock';
+
+    const socketPath = config.get('socketPath', defaultSocketPath);
+
+    // 如果用户配置了 Unix socket 路径但在 Windows 上运行，输出警告
+    if (isWindows && socketPath.startsWith('/')) {
+        outputChannel.appendLine('WARNING: Unix socket path detected on Windows platform');
+        outputChannel.appendLine(`Path: ${socketPath}`);
+        outputChannel.appendLine('Recommendation: Use TCP socket (e.g., tcp://localhost:11435)');
+    }
+
     return {
         cliPath: config.get('cliPath', 'claude-qwen'),
         pythonPath: config.get('pythonPath', 'python3'),
         communicationMode: config.get('communicationMode', 'socket'),
-        socketPath: config.get('socketPath', '/tmp/claude-qwen.sock'),
+        socketPath: socketPath,
         autoStart: config.get('autoStart', false),
         logLevel: config.get('logLevel', 'info')
     };
