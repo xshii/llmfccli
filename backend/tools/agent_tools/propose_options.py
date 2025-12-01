@@ -42,26 +42,18 @@ class ProposeOptionsTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                "Present options to user for decision making. "
-                "ONLY USE when user intent is GENUINELY UNCLEAR. "
-                "Use cases: "
-                "(1) User asks 'what can you do' or provides NO specific task; "
-                "(2) Task has multiple EQUALLY valid approaches requiring user choice; "
-                "(3) User provides ambiguous request like 'help me with this file' without details. "
-                "DO NOT USE if user has specified a clear task (e.g., 'add timeout', 'fix bugs', 'generate tests'). "
-                "If you've read a file and user task is clear, CONTINUE execution - don't ask. "
-                "Always includes 'Other' option for custom input. Returns selected option ID."
+                "Ask user for decision when intent is GENUINELY UNCLEAR. "
+                "Use ONLY if: (1) No specific task provided; "
+                "(2) Multiple equally valid approaches need user choice; "
+                "(3) Ambiguous request without details. "
+                "DO NOT use if task is clear (e.g., 'add timeout', 'fix bug'). "
+                "Returns selected option ID (A/B/C/D or X for custom)."
             ),
             'zh': (
-                "向用户提出选项以获取决策。"
-                "仅在用户意图真正不明确时使用。"
-                "使用场景: "
-                "(1) 用户询问'你能做什么'或完全未提供具体任务; "
-                "(2) 任务有多种同样有效的方案，需要用户选择; "
-                "(3) 用户提供模糊请求如'帮我处理这个文件'但没有细节。"
-                "如果用户已指定明确任务（如'添加超时'、'修复bug'、'生成测试'），不要使用此工具。"
-                "如果已读取文件且用户任务明确，继续执行 - 不要询问。"
-                "自动包含'其他'选项供自定义输入。返回所选选项 ID。"
+                "在意图真正不明确时询问用户决策。"
+                "仅当: (1)无具体任务; (2)多种同等方案需选择; (3)模糊请求无细节时使用。"
+                "任务明确时禁用（如'添加超时'、'修复bug'）。"
+                "返回选项ID（A/B/C/D 或 X 表示自定义）。"
             )
         }
 
@@ -76,24 +68,17 @@ class ProposeOptionsTool(BaseTool):
     def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
         return {
             'question': {
-                'en': "Question to ask the user, e.g. 'What would you like me to do with this file?'",
-                'zh': "向用户提出的问题，如'您希望我对这个文件做什么？'"
+                'en': "The question to ask (clear and concise)",
+                'zh': "向用户提出的问题（清晰简洁）"
             },
             'options': {
                 'en': (
-                    "List of options in format ['A: Title - Description', 'B: Title - Description']. "
-                    "2-5 options. Example: "
-                    "['A: View - Read and explain the file', "
-                    "'B: Edit - Modify specific parts', "
-                    "'C: Fix - Find and fix bugs', "
-                    "'D: Explain - Explain how it works']"
+                    "List of 2-5 options in format: ['A: Action - Brief description', ...]. "
+                    "Example: ['A: View - Read file content', 'B: Edit - Modify code', 'C: Fix - Find bugs']"
                 ),
                 'zh': (
-                    "选项列表，格式 ['A: 标题 - 描述', 'B: 标题 - 描述']，2-5个选项。"
-                    "示例: ['A: 查看 - 阅读并解释文件内容', "
-                    "'B: 编辑 - 修改特定部分', "
-                    "'C: 修复 - 查找并修复bug', "
-                    "'D: 解释 - 解释其工作原理']"
+                    "2-5个选项，格式: ['A: 动作 - 简述', ...]。"
+                    "示例: ['A: 查看 - 读取内容', 'B: 编辑 - 修改代码', 'C: 修复 - 查找bug']"
                 )
             }
         }
