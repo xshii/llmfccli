@@ -219,13 +219,25 @@ function getConfig(): ExtensionConfig {
     const isWindows = process.platform === 'win32';
     const defaultSocketPath = isWindows ? 'tcp://localhost:11435' : '/tmp/claude-qwen.sock';
 
-    const socketPath = config.get('socketPath', defaultSocketPath);
+    let socketPath = config.get('socketPath', defaultSocketPath);
 
-    // 如果用户配置了 Unix socket 路径但在 Windows 上运行，输出警告
+    // 如果在 Windows 上且配置的是 Unix socket 路径，自动切换到 TCP
     if (isWindows && socketPath.startsWith('/')) {
         outputChannel.appendLine('WARNING: Unix socket path detected on Windows platform');
-        outputChannel.appendLine(`Path: ${socketPath}`);
-        outputChannel.appendLine('Recommendation: Use TCP socket (e.g., tcp://localhost:11435)');
+        outputChannel.appendLine(`Configured path: ${socketPath}`);
+        outputChannel.appendLine('Auto-switching to TCP socket: tcp://localhost:11435');
+        socketPath = 'tcp://localhost:11435';
+
+        // 提示用户更新配置
+        vscode.window.showWarningMessage(
+            'Unix socket is not supported on Windows. Using TCP socket instead. ' +
+            'Please update your settings: "claude-qwen.socketPath": "tcp://localhost:11435"',
+            'Open Settings'
+        ).then(selection => {
+            if (selection === 'Open Settings') {
+                vscode.commands.executeCommand('workbench.action.openSettings', 'claude-qwen.socketPath');
+            }
+        });
     }
 
     return {
