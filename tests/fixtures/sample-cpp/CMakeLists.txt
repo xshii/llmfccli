@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD 17)
 add_executable(sample_app
     src/main.cpp
     src/network_handler.cpp
+    src/parser/json_parser.cpp
 )
 
 # Include directories
-target_include_directories(sample_app PRIVATE src)
+target_include_directories(sample_app PRIVATE src src/parser)
