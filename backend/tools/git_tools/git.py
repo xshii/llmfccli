@@ -54,6 +54,7 @@ def git(action: str, args: Dict[str, Any] = None, project_root: str = None) -> D
         'log': _git_log,
         'diff': _git_diff,
         'show': _git_show,
+        'mr': _git_mr,
     }
 
     handler = handlers.get(action)
@@ -481,3 +482,61 @@ def _git_show(args: Dict, project_root: str) -> Dict[str, Any]:
         cmd.append('--stat')
 
     return _run_git_command(cmd, project_root)
+
+
+def _git_mr(args: Dict, project_root: str) -> Dict[str, Any]:
+    """Create merge request (custom operation)
+
+    Args:
+        args: {
+            'title': str,           # MR title (-T)
+            'description': str,     # MR description (-D)
+            'dest_branch': str,     # Destination branch (--dest)
+            'auto_confirm': bool    # Auto confirm flag (-y)
+        }
+    """
+    cmd = ['mr']
+
+    # Validate required parameters
+    title = args.get('title')
+    if not title:
+        return {
+            'success': False,
+            'output': '',
+            'error': 'Title is required for merge request (-T)',
+            'returncode': 1
+        }
+
+    dest_branch = args.get('dest_branch')
+    if not dest_branch:
+        return {
+            'success': False,
+            'output': '',
+            'error': 'Destination branch is required (--dest)',
+            'returncode': 1
+        }
+
+    description = args.get('description')
+    if not description:
+        return {
+            'success': False,
+            'output': '',
+            'error': 'Description is required (-D)',
+            'returncode': 1
+        }
+
+    # Auto confirm flag
+    if args.get('auto_confirm', False):
+        cmd.append('-y')
+
+    # Add destination branch
+    cmd.extend(['--dest', dest_branch])
+
+    # Add title
+    cmd.extend(['-T', title])
+
+    # Add description
+    cmd.extend(['-D', description])
+
+    # Execute with longer timeout for MR operations
+    return _run_git_command(cmd, project_root, timeout=120)
