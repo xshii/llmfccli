@@ -3,7 +3,7 @@
 """
 Test two-layer confirmation integration between ToolConfirmation and edit_file
 
-Tests the smart confirmation flow:
+Tests the smart confirmation flow with line-based editing:
 1. First-time edit_file: ToolConfirmation layer + edit_file confirm layer (2 confirmations)
 2. After "always allow": ToolConfirmation allows + auto confirm=False (0 confirmations)
 3. Smart parameter adaptation in RegistryToolExecutor
@@ -35,7 +35,7 @@ def test_two_layer_confirmation_first_time():
     with tempfile.TemporaryDirectory() as project_root:
         # Create test file
         test_file = Path(project_root) / 'test.txt'
-        test_file.write_text('old content\n')
+        test_file.write_text('line 1\nline 2\nline 3\n')
 
         # Initialize with registry for dynamic lookup
         registry = ToolRegistry(project_root=project_root)
@@ -51,8 +51,9 @@ def test_two_layer_confirmation_first_time():
         # Check: edit_file should need confirmation (first time)
         needs_confirm = confirmation.needs_confirmation('edit_file', {
             'path': str(test_file),
-            'old_str': 'old content',
-            'new_str': 'new content'
+            'start_line': 2,
+            'end_line': 2,
+            'new_content': 'line TWO'
         })
         print(f"✓ Layer 1 (ToolConfirmation) needs confirmation: {needs_confirm}")
         assert needs_confirm is True, "First-time edit_file should need ToolConfirmation"
@@ -74,7 +75,7 @@ def test_two_layer_confirmation_after_allow_always():
     with tempfile.TemporaryDirectory() as project_root:
         # Create test file
         test_file = Path(project_root) / 'test.txt'
-        test_file.write_text('old content\n')
+        test_file.write_text('line 1\nline 2\nline 3\n')
 
         # Initialize with registry
         registry = ToolRegistry(project_root=project_root)
@@ -90,8 +91,9 @@ def test_two_layer_confirmation_after_allow_always():
         # First execution: user allows always
         action = confirmation.confirm_tool_execution('edit_file', {
             'path': str(test_file),
-            'old_str': 'old content',
-            'new_str': 'new content'
+            'start_line': 2,
+            'end_line': 2,
+            'new_content': 'line TWO'
         })
         assert action == ConfirmAction.ALLOW_ALWAYS
         print(f"✓ User set 'always allow' for edit_file")
@@ -106,8 +108,9 @@ def test_two_layer_confirmation_after_allow_always():
         # Check: edit_file should NOT need confirmation now
         needs_confirm = confirmation.needs_confirmation('edit_file', {
             'path': str(test_file),
-            'old_str': 'old content',
-            'new_str': 'new content'
+            'start_line': 2,
+            'end_line': 2,
+            'new_content': 'line TWO'
         })
         print(f"✓ Layer 1 (ToolConfirmation) needs confirmation: {needs_confirm}")
         assert needs_confirm is False, "Should not need ToolConfirmation after ALLOW_ALWAYS"
@@ -116,13 +119,15 @@ def test_two_layer_confirmation_after_allow_always():
         # The smart logic in RegistryToolExecutor should auto-set confirm=False
         result = executor.execute_tool('edit_file', {
             'path': str(test_file),
-            'old_str': 'old content',
-            'new_str': 'new content'
+            'start_line': 2,
+            'end_line': 2,
+            'new_content': 'line TWO'
         })
 
         # Verify edit was applied directly (confirm=False was auto-set)
         assert result['success'] is True
-        assert 'new content' in test_file.read_text()
+        content = test_file.read_text()
+        assert 'line TWO' in content
         print(f"✓ Layer 2 (edit_file): auto-set confirm=False, edit applied directly")
         print(f"✓ Smart adaptation: 0 confirmations needed")
 
@@ -159,8 +164,9 @@ def test_smart_parameter_adaptation():
 
         result = executor.execute_tool('edit_file', {
             'path': str(test_file),
-            'old_str': 'line two',
-            'new_str': 'line TWO (modified)'
+            'start_line': 2,
+            'end_line': 2,
+            'new_content': 'line TWO (modified)'
         })
 
         assert result['success'] is True
@@ -190,7 +196,7 @@ def test_executor_without_confirmation_manager():
     with tempfile.TemporaryDirectory() as project_root:
         # Create test file
         test_file = Path(project_root) / 'test.txt'
-        test_file.write_text('original content\n')
+        test_file.write_text('original line\n')
 
         # Initialize executor WITHOUT confirmation manager
         executor = RegistryToolExecutor(project_root, confirmation_manager=None)
@@ -198,13 +204,14 @@ def test_executor_without_confirmation_manager():
         # Verify executor works normally (no smart adaptation)
         result = executor.execute_tool('edit_file', {
             'path': str(test_file),
-            'old_str': 'original content',
-            'new_str': 'modified content',
+            'start_line': 1,
+            'end_line': 1,
+            'new_content': 'modified line',
             'confirm': False  # Explicitly disable confirmation
         })
 
         assert result['success'] is True
-        assert 'modified content' in test_file.read_text()
+        assert 'modified line' in test_file.read_text()
         print(f"✓ Executor works without confirmation_manager")
         print(f"✓ Backward compatibility maintained")
 
@@ -238,8 +245,9 @@ def test_multiple_edits_workflow():
         print("\n  [Step 1] First edit - user must confirm")
         needs_confirm = confirmation.needs_confirmation('edit_file', {
             'path': str(file1),
-            'old_str': 'content 1',
-            'new_str': 'CONTENT 1'
+            'start_line': 1,
+            'end_line': 1,
+            'new_content': 'CONTENT 1'
         })
         assert needs_confirm is True
         print(f"    ✓ First edit needs confirmation: {needs_confirm}")
@@ -254,8 +262,9 @@ def test_multiple_edits_workflow():
         print("\n  [Step 2] Second edit - should be auto-approved")
         result = executor.execute_tool('edit_file', {
             'path': str(file2),
-            'old_str': 'content 2',
-            'new_str': 'CONTENT 2'
+            'start_line': 1,
+            'end_line': 1,
+            'new_content': 'CONTENT 2'
         })
         assert result['success'] is True
         assert 'CONTENT 2' in file2.read_text()
@@ -264,8 +273,9 @@ def test_multiple_edits_workflow():
         print("\n  [Step 3] Third edit - still auto-approved")
         result = executor.execute_tool('edit_file', {
             'path': str(file3),
-            'old_str': 'content 3',
-            'new_str': 'CONTENT 3'
+            'start_line': 1,
+            'end_line': 1,
+            'new_content': 'CONTENT 3'
         })
         assert result['success'] is True
         assert 'CONTENT 3' in file3.read_text()
@@ -315,9 +325,83 @@ def test_session_level_confirmations():
         print("\n✅ Test 6 PASSED\n")
 
 
+def test_line_based_editing():
+    """
+    Test 7: Line-based editing with Unix line endings
+    """
+    print("=" * 70)
+    print("Test 7: Line-based editing with Unix line endings")
+    print("=" * 70)
+
+    with tempfile.TemporaryDirectory() as project_root:
+        # Create test file with multiple lines
+        test_file = Path(project_root) / 'test.py'
+        original_content = "def hello():\n    print('Hello')\n    return 42\n"
+        test_file.write_text(original_content)
+
+        # Initialize executor
+        executor = RegistryToolExecutor(project_root, confirmation_manager=None)
+
+        # Test 1: Replace single line
+        print("\n  [Test 1] Replace single line (line 2)")
+        result = executor.execute_tool('edit_file', {
+            'path': str(test_file),
+            'start_line': 2,
+            'end_line': 2,
+            'new_content': "    print('Goodbye')",
+            'confirm': False
+        })
+        assert result['success'] is True
+        content = test_file.read_text()
+        assert "print('Goodbye')" in content
+        assert "print('Hello')" not in content
+        print(f"    ✓ Single line replacement successful")
+
+        # Test 2: Replace multiple lines
+        print("\n  [Test 2] Replace lines 2-3 with single line")
+        test_file.write_text(original_content)
+        result = executor.execute_tool('edit_file', {
+            'path': str(test_file),
+            'start_line': 2,
+            'end_line': 3,
+            'new_content': "    return 'Done'",
+            'confirm': False
+        })
+        assert result['success'] is True
+        content = test_file.read_text()
+        expected = "def hello():\n    return 'Done'\n"
+        assert content == expected
+        print(f"    ✓ Multi-line replacement successful")
+
+        # Test 3: Insert new lines (replace 1 line with multiple)
+        print("\n  [Test 3] Replace line 1 with multiple lines")
+        test_file.write_text("line1\nline2\nline3\n")
+        result = executor.execute_tool('edit_file', {
+            'path': str(test_file),
+            'start_line': 1,
+            'end_line': 1,
+            'new_content': "new line 1\nnew line 2",
+            'confirm': False
+        })
+        assert result['success'] is True
+        content = test_file.read_text()
+        expected = "new line 1\nnew line 2\nline2\nline3\n"
+        assert content == expected
+        print(f"    ✓ Line insertion successful")
+
+        # Test 4: Verify Unix line endings
+        print("\n  [Test 4] Verify Unix line endings (\\n)")
+        lines = content.split('\n')
+        # Check no \r\n (Windows) or \r (Mac Classic) line endings
+        assert '\r' not in content
+        print(f"    ✓ Unix line endings verified")
+
+        print("\n✅ Test 7 PASSED\n")
+
+
 if __name__ == '__main__':
     print("\n" + "=" * 70)
-    print("Testing Two-Layer Confirmation Integration")
+    print("Testing Two-Layer Confirmation Integration (Line-Based Editing)")
     print("=" * 70 + "\n")
 
     try:
@@ -327,9 +411,10 @@ if __name__ == '__main__':
         test_executor_without_confirmation_manager()
         test_multiple_edits_workflow()
         test_session_level_confirmations()
+        test_line_based_editing()
 
         print("\n" + "=" * 70)
-        print("✅ ALL TESTS PASSED - Two-layer confirmation working correctly!")
+        print("✅ ALL TESTS PASSED - Line-based editing working correctly!")
         print("=" * 70 + "\n")
 
         print("Summary:")
@@ -338,6 +423,8 @@ if __name__ == '__main__':
         print("  ✓ Smart adaptation: auto confirm=False when tool in allowed_tool_calls")
         print("  ✓ Backward compatibility: works without confirmation_manager")
         print("  ✓ Session-level: confirmations don't persist across sessions")
+        print("  ✓ Line-based editing: accurate line range replacement")
+        print("  ✓ Unix line endings: \\n separator enforced")
         print()
 
     except AssertionError as e:
