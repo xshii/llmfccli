@@ -251,6 +251,15 @@ class AgentLoop:
 
                 # Check if confirmation is needed
                 if self.confirmation.needs_confirmation(tool_name, arguments):
+                    # Show preview before asking user to confirm (only when confirmation needed)
+                    tool_instance = self.tool_executor.registry.get(tool_name)
+                    if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
+                        try:
+                            tool_instance.get_diff_preview(**arguments)
+                        except Exception:
+                            # Preview failed, continue with confirmation
+                            pass
+
                     action = self.confirmation.confirm_tool_execution(tool_name, arguments)
 
                     if action == ConfirmAction.DENY:
