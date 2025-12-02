@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-GrepSearch Tool - 文件内容搜索
+GrepSearch Tool - Search for patterns in files using ripgrep
 """
 
 import os
@@ -18,7 +18,7 @@ class FileSystemError(Exception):
 
 
 class GrepSearchParams(BaseModel):
-    """GrepSearch 工具参数"""
+    """GrepSearch tool parameters"""
     pattern: str = Field(
         description="Search pattern (regex)"
     )
@@ -27,12 +27,12 @@ class GrepSearchParams(BaseModel):
     )
     file_pattern: Optional[str] = Field(
         None,
-        description="Optional file pattern filter (e.g., '*.cpp')"
+        description="Optional file pattern filter (e.g., '*.cpp', '*.h')"
     )
 
 
 class GrepSearchTool(BaseTool):
-    """文件内容搜索工具"""
+    """Search for patterns in files using ripgrep"""
 
     @property
     def name(self) -> str:
@@ -77,7 +77,20 @@ class GrepSearchTool(BaseTool):
         return GrepSearchParams
 
     def execute(self, pattern: str, scope: str, file_pattern: Optional[str] = None) -> Dict[str, Any]:
-        """执行文件搜索"""
+        """
+        Search for pattern in files using ripgrep
+
+        Args:
+            pattern: Search pattern (regex supported)
+            scope: Search scope directory (e.g., '.', 'src/', 'backend/')
+            file_pattern: Optional file pattern filter (e.g., '*.cpp', '*.h')
+
+        Returns:
+            Dict containing search results with file paths, line numbers, and matched content
+
+        Raises:
+            FileSystemError: If scope is outside project root or search fails
+        """
         # Resolve scope path
         if not os.path.isabs(scope) and self.project_root:
             scope_path = os.path.join(self.project_root, scope)

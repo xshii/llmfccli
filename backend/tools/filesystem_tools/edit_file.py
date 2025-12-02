@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-EditFile Tool - 编辑文件
+EditFile Tool - Performs exact string replacements in files
 """
 
 import os
@@ -16,16 +16,16 @@ class FileSystemError(Exception):
 
 
 class EditFileParams(BaseModel):
-    """EditFile 工具参数"""
+    """EditFile tool parameters"""
     path: str = Field(
-        description="File path",
+        description="File path (relative to project root or absolute path)",
         json_schema_extra={"format": "filepath"}
     )
     old_str: str = Field(
-        description="String to replace (must appear exactly once)"
+        description="Text to replace (must be unique in file). Provide surrounding context to ensure uniqueness."
     )
     new_str: str = Field(
-        description="Replacement string"
+        description="Replacement text (must preserve exact indentation)"
     )
     confirm: bool = Field(
         True,
@@ -34,7 +34,7 @@ class EditFileParams(BaseModel):
 
 
 class EditFileTool(BaseTool):
-    """编辑文件工具"""
+    """Edit file using exact string replacement"""
 
     @property
     def name(self) -> str:
@@ -43,24 +43,24 @@ class EditFileTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': 'Edit file using str_replace (old_str must be unique)',
-            'zh': '使用字符串替换编辑文件（old_str 必须唯一）'
+            'en': 'Performs exact string replacements in files. You must use view_file at least once before editing. The old_str must be unique in the file or the edit will fail. Provide larger context to ensure uniqueness. Preserve exact indentation (tabs/spaces) when editing.',
+            'zh': '执行精确字符串替换。必须先使用 view_file 读取文件。old_str 必须在文件中唯一，否则编辑失败。提供更大上下文确保唯一性。编辑时保持精确缩进（tabs/spaces）。'
         }
 
 
     def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
         return {
             'path': {
-                'en': 'File path',
-                'zh': '文件路径',
+                'en': 'File path (relative to project root or absolute path)',
+                'zh': '文件路径（相对于项目根目录或绝对路径）',
             },
             'old_str': {
-                'en': 'String to replace (must appear exactly once)',
-                'zh': '要替换的字符串（必须唯一出现）',
+                'en': 'Text to replace (must be unique in file). Include surrounding context to ensure uniqueness.',
+                'zh': '要替换的文本（必须在文件中唯一）。包含周围上下文以确保唯一性。',
             },
             'new_str': {
-                'en': 'Replacement string',
-                'zh': '替换后的字符串',
+                'en': 'Replacement text (preserve exact indentation - tabs/spaces)',
+                'zh': '替换后的文本（保持精确缩进 - tabs/spaces）',
             },
             'confirm': {
                 'en': 'Whether to confirm before editing (default true)',
@@ -76,7 +76,21 @@ class EditFileTool(BaseTool):
         return EditFileParams
 
     def execute(self, path: str, old_str: str, new_str: str, confirm: bool = True) -> Dict[str, Any]:
-        """执行文件编辑"""
+        """
+        Execute file editing with exact string replacement
+
+        Args:
+            path: File path (relative to project root or absolute)
+            old_str: Text to replace (must be unique in file)
+            new_str: Replacement text (preserve exact indentation)
+            confirm: Whether to confirm before editing (default: True)
+
+        Returns:
+            Dict containing success status and edit details
+
+        Raises:
+            FileSystemError: If file not found, old_str not unique, or write fails
+        """
         # Resolve path
         if not os.path.isabs(path) and self.project_root:
             full_path = os.path.join(self.project_root, path)
@@ -104,12 +118,18 @@ class EditFileTool(BaseTool):
 
         # Check if old_str exists
         if old_str not in content:
-            raise FileSystemError(f"String not found in file: {old_str[:50]}...")
+            raise FileSystemError(
+                f"Text not found in file: {old_str[:50]}...\n"
+                f"Make sure to copy the exact text including indentation."
+            )
 
-        # Check uniqueness
+        # Check uniqueness - must appear exactly once
         count = content.count(old_str)
         if count > 1:
-            raise FileSystemError(f"String appears {count} times (must be unique): {old_str[:50]}...")
+            raise FileSystemError(
+                f"Text appears {count} times in file (must be unique): {old_str[:50]}...\n"
+                f"Provide more surrounding context to make it unique."
+            )
 
         # Generate new content
         new_content = content.replace(old_str, new_str)

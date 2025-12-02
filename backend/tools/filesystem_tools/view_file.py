@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-ViewFile Tool - 读取文件内容
+ViewFile Tool - Read file contents with optional line range
 """
 
 import os
@@ -16,7 +16,7 @@ class FileSystemError(Exception):
 
 
 class ViewFileParams(BaseModel):
-    """ViewFile 工具参数"""
+    """ViewFile tool parameters"""
     path: str = Field(
         description="File path (relative to project root or absolute path)",
         json_schema_extra={"format": "filepath"}
@@ -28,7 +28,7 @@ class ViewFileParams(BaseModel):
 
 
 class ViewFileTool(BaseTool):
-    """读取文件内容工具"""
+    """Read file contents with optional line range"""
 
     @property
     def name(self) -> str:
@@ -37,8 +37,8 @@ class ViewFileTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': 'Read file contents with optional line range',
-            'zh': '读取文件内容（可指定行范围）'
+            'en': 'Read file contents with optional line range. Results include line numbers for reference. Always use this before edit_file to understand context and ensure accurate string matching.',
+            'zh': '读取文件内容（可指定行范围）。结果包含行号供参考。在使用 edit_file 前必须先使用此工具以理解上下文并确保准确的字符串匹配。'
         }
 
 
@@ -62,7 +62,19 @@ class ViewFileTool(BaseTool):
         return ViewFileParams
 
     def execute(self, path: str, line_range: Optional[Tuple[int, int]] = None) -> Dict[str, Any]:
-        """执行文件读取"""
+        """
+        Read file contents with optional line range
+
+        Args:
+            path: File path (relative to project root or absolute)
+            line_range: Optional [start_line, end_line] tuple (1-indexed, use -1 for EOF)
+
+        Returns:
+            Dict containing file content, path, total lines, and actual line range
+
+        Raises:
+            FileSystemError: If file not found, invalid range, or read fails
+        """
         # Resolve path
         if not os.path.isabs(path) and self.project_root:
             path = os.path.join(self.project_root, path)
