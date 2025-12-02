@@ -71,8 +71,6 @@ def test_replace_multiple_lines():
         )
 
         assert result['success'] is True
-        assert result['old_line_count'] == 3  # Replaced 3 lines
-        assert result['new_line_count'] == 2  # With 2 lines
         print(f"✓ Result: {result['message']}")
 
         # Verify file content

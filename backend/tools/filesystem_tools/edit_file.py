@@ -272,13 +272,6 @@ class EditFileTool(BaseTool):
 
             return {
                 'success': True,
-                'path': full_path,
-                'line_range': line_range,
-                'start_line': start_line,
-                'end_line': end_line,
-                'old_line_count': old_line_count,
-                'new_line_count': new_line_count,
-                'lines_changed': new_line_count - old_line_count,
                 'message': f"Successfully edited {os.path.basename(full_path)} (lines {start_line}-{end_line})"
             }
         except Exception as e:

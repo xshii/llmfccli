@@ -249,6 +249,15 @@ class AgentLoop:
                 except Exception as e:
                     arguments = {}
 
+                # Show preview if tool supports it (before confirmation)
+                tool_instance = self.tool_executor.registry.get(tool_name)
+                if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
+                    try:
+                        tool_instance.get_diff_preview(**arguments)
+                    except Exception:
+                        # Preview failed, continue
+                        pass
+
                 # Check if confirmation is needed
                 if self.confirmation.needs_confirmation(tool_name, arguments):
                     action = self.confirmation.confirm_tool_execution(tool_name, arguments)
