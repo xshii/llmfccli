@@ -40,17 +40,10 @@ class EditFileParams(BaseModel):
             raise ValueError("line_range must contain exactly 2 elements: [start_line, end_line]")
         start_line, end_line = v
 
-        # INSERT MODE: When end_line < start_line (e.g., [3, 2] means insert after line 2)
-        if end_line < start_line:
-            # For insert mode, end_line represents the position to insert after
-            if end_line < 0:
-                raise ValueError(f"Insert position (end_line) must be >= 0, got {end_line}")
-            # start_line should be end_line + 1 for clarity, but we'll allow any start > end
-            return v
-
-        # REPLACE MODE: Normal validation
         if start_line < 1:
             raise ValueError(f"start_line must be >= 1, got {start_line}")
+        if end_line < start_line:
+            raise ValueError(f"end_line ({end_line}) must be >= start_line ({start_line})")
         return v
 
 
@@ -65,28 +58,34 @@ class EditFileTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                'Edit file by replacing or inserting lines. Line numbers start from 1. Must use view_file first. Use \\n for line breaks.\n\n'
-                '**Mode Selection (by line_range=[start, end]):**\n'
-                '  REPLACE: end >= start, e.g., [2, 5] replaces lines 2-5\n'
-                '  INSERT: end < start, e.g., [3, 2] inserts after line 2 (keeps line 2)\n\n'
+                'Edit file by replacing lines. Line numbers start from 1. Must use view_file first. Use \\n for line breaks.\n\n'
+                '**How it works:**\n'
+                '  line_range=[start, end] replaces lines start to end (inclusive) with new_content\n\n'
                 '**Examples:**\n'
-                '  line_range=[5, 5], new_content="fixed"        # Replace line 5\n'
-                '  line_range=[3, 2], new_content="import json"  # Insert after line 2\n'
-                '  line_range=[1, 0], new_content="header"       # Insert at beginning\n'
-                '  line_range=[6, 5], new_content="footer"       # Insert after line 5 (if file has 5 lines)\n\n'
-                '**Rule:** To add content without removing existing lines, use INSERT mode (end < start).'
+                '  # Replace line 5\n'
+                '  line_range=[5, 5], new_content="fixed line"\n\n'
+                '  # Replace lines 2-4\n'
+                '  line_range=[2, 4], new_content="new\\ncode\\nhere"\n\n'
+                '  # Insert after line 2 (keep line 2, add new line after it)\n'
+                '  line_range=[2, 2], new_content="original line 2 content\\nimport json"\n\n'
+                '  # Insert at beginning\n'
+                '  line_range=[1, 1], new_content="#!/usr/bin/env python3\\noriginal line 1 content"\n\n'
+                '**Key rule:** To insert without removing existing content, include the original line(s) in new_content.'
             ),
             'zh': (
-                '通过替换或插入编辑文件。行号从 1 开始。必须先使用 view_file。使用 \\n 换行。\n\n'
-                '**模式选择（通过 line_range=[start, end]）：**\n'
-                '  替换：end >= start，如 [2, 5] 替换第 2-5 行\n'
-                '  插入：end < start，如 [3, 2] 在第 2 行后插入（保留第 2 行）\n\n'
+                '通过替换行来编辑文件。行号从 1 开始。必须先使用 view_file。使用 \\n 换行。\n\n'
+                '**工作原理：**\n'
+                '  line_range=[start, end] 将第 start 到 end 行（包含）替换为 new_content\n\n'
                 '**示例：**\n'
-                '  line_range=[5, 5], new_content="修复"         # 替换第 5 行\n'
-                '  line_range=[3, 2], new_content="import json"  # 在第 2 行后插入\n'
-                '  line_range=[1, 0], new_content="头部"         # 在开头插入\n'
-                '  line_range=[6, 5], new_content="尾部"         # 在第 5 行后插入（如果文件有 5 行）\n\n'
-                '**规则：** 添加内容且不删除现有行时，使用插入模式（end < start）。'
+                '  # 替换第 5 行\n'
+                '  line_range=[5, 5], new_content="修复的行"\n\n'
+                '  # 替换第 2-4 行\n'
+                '  line_range=[2, 4], new_content="新\\n代码\\n这里"\n\n'
+                '  # 在第 2 行后插入（保留第 2 行，在后面添加新行）\n'
+                '  line_range=[2, 2], new_content="原第2行内容\\nimport json"\n\n'
+                '  # 在开头插入\n'
+                '  line_range=[1, 1], new_content="#!/usr/bin/env python3\\n原第1行内容"\n\n'
+                '**关键规则：** 要插入而不删除现有内容，需要在 new_content 中包含原行内容。'
             )
         }
 
@@ -142,6 +141,10 @@ class EditFileTool(BaseTool):
         # Extract start and end lines
         start_line, end_line = line_range
 
+        # Validate line_range
+        if end_line < start_line:
+            raise FileSystemError(f"end_line ({end_line}) must be >= start_line ({start_line})")
+
         # Resolve path
         if not os.path.isabs(path) and self.project_root:
             full_path = os.path.join(self.project_root, path)
@@ -174,48 +177,21 @@ class EditFileTool(BaseTool):
         # Prepare new content lines (split by \n, preserve empty lines)
         new_lines = new_content.split('\n') if new_content else ['']
 
-        # Determine operation mode: insert or replace
-        if end_line < start_line:
-            # INSERT MODE: line_range=[3, 2] means insert after line 2 (between lines 2 and 3)
-            insert_after_line = end_line
+        # Validate line range
+        if start_line < 1:
+            raise FileSystemError(f"start_line must be >= 1, got {start_line}")
+        if end_line > total_lines:
+            raise FileSystemError(
+                f"end_line ({end_line}) exceeds file length ({total_lines} lines)"
+            )
 
-            # Validate insert position
-            if insert_after_line < 0:
-                raise FileSystemError(f"Insert position must be >= 0, got {insert_after_line}")
-            if insert_after_line > total_lines:
-                raise FileSystemError(
-                    f"Insert position ({insert_after_line}) exceeds file length ({total_lines} lines)"
-                )
+        # Replace the line range (convert to 0-based indexing)
+        before = lines[:start_line - 1]
+        after = lines[end_line:]
+        result_lines = before + new_lines + after
 
-            # Insert new lines after insert_after_line (0-based indexing)
-            before = lines[:insert_after_line]
-            after = lines[insert_after_line:]
-            result_lines = before + new_lines + after
-
-            operation_mode = "insert"
-            display_range = f"after line {insert_after_line}" if insert_after_line > 0 else "at beginning"
-            old_line_count = 0
-            new_line_count = len(new_lines)
-
-        else:
-            # REPLACE MODE: line_range=[2, 3] means replace lines 2-3
-            # Validate line range
-            if start_line < 1:
-                raise FileSystemError(f"start_line must be >= 1, got {start_line}")
-            if end_line > total_lines:
-                raise FileSystemError(
-                    f"end_line ({end_line}) exceeds file length ({total_lines} lines)"
-                )
-
-            # Replace the line range (convert to 0-based indexing)
-            before = lines[:start_line - 1]
-            after = lines[end_line:]
-            result_lines = before + new_lines + after
-
-            operation_mode = "replace"
-            display_range = f"lines {start_line}-{end_line}"
-            old_line_count = end_line - start_line + 1
-            new_line_count = len(new_lines)
+        old_line_count = end_line - start_line + 1
+        new_line_count = len(new_lines)
 
         # Join with Unix line endings
         new_file_content = '\n'.join(result_lines)
@@ -263,8 +239,7 @@ class EditFileTool(BaseTool):
                 'old_line_count': old_line_count,
                 'new_line_count': new_line_count,
                 'lines_changed': new_line_count - old_line_count,
-                'operation_mode': operation_mode,
-                'message': f"Successfully edited {os.path.basename(full_path)} ({display_range})"
+                'message': f"Successfully edited {os.path.basename(full_path)} (lines {start_line}-{end_line})"
             }
         except Exception as e:
             raise FileSystemError(f"Failed to write file {path}: {e}")
