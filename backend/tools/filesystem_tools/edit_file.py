@@ -122,6 +122,67 @@ class EditFileTool(BaseTool):
     def parameters_model(self):
         return EditFileParams
 
+    def get_diff_preview(self, path: str, line_range: List[int], new_content: str) -> None:
+        """
+        Generate and show diff preview in VSCode (without applying changes)
+
+        This method is called by Agent during confirmation stage to show the diff
+        before user confirms the operation.
+
+        Args:
+            path: File path
+            line_range: Line range [start_line, end_line]
+            new_content: New content
+        """
+        start_line, end_line = line_range
+
+        # Validate
+        if end_line < start_line:
+            return  # Invalid range, skip preview
+
+        # Resolve path
+        if not os.path.isabs(path) and self.project_root:
+            full_path = os.path.join(self.project_root, path)
+        else:
+            full_path = path
+        full_path = os.path.abspath(full_path)
+
+        # Check if file exists
+        if not os.path.isfile(full_path):
+            return  # File doesn't exist, skip preview
+
+        try:
+            # Read file
+            with open(full_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # Calculate new content
+            lines = content.splitlines(keepends=False)
+            new_lines = new_content.split('\n') if new_content else ['']
+
+            before = lines[:start_line - 1]
+            after = lines[end_line:]
+            result_lines = before + new_lines + after
+            new_file_content = '\n'.join(result_lines)
+
+            if content and content[-1] == '\n':
+                new_file_content += '\n'
+
+            # Show diff in VSCode
+            from backend.feature import is_feature_enabled
+            from backend.rpc.client import is_vscode_mode
+
+            if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
+                from backend.tools.vscode_tools import vscode
+                vscode.show_diff(
+                    title=f"Preview: Edit {os.path.basename(full_path)} (lines {start_line}-{end_line})",
+                    original_path=full_path,
+                    modified_content=new_file_content
+                )
+        except Exception:
+            # Preview failed, continue silently
+            pass
+
     def execute(self, path: str, line_range: List[int], new_content: str, confirm: bool = True) -> Dict[str, Any]:
         """
         Execute file editing by replacing a line range
@@ -131,6 +192,7 @@ class EditFileTool(BaseTool):
             line_range: Line range as [start_line, end_line] (1-based, inclusive)
             new_content: New content to replace the line range
             confirm: Whether to confirm before editing (default: True)
+                     Note: If VSCode diff preview is enabled, diff is shown during confirmation
 
         Returns:
             Dict containing success status and edit details
@@ -200,37 +262,8 @@ class EditFileTool(BaseTool):
         if content and content[-1] == '\n':
             new_file_content += '\n'
 
-        # VSCode integration: Show diff preview before applying changes
-        from backend.feature import is_feature_enabled
-        from backend.rpc.client import is_vscode_mode
-
-        if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
-            try:
-                from backend.tools.vscode_tools import vscode
-
-                # Show diff in VSCode
-                vscode.show_diff(
-                    title=f"Edit {os.path.basename(full_path)} (lines {start_line}-{end_line})",
-                    original_path=full_path,
-                    modified_content=new_file_content
-                )
-
-                # Wait for user confirmation if enabled
-                if is_feature_enabled("ide_integration.require_user_confirm"):
-                    confirmed = vscode.confirm_dialog(
-                        message=f"Apply changes to {os.path.basename(full_path)} (lines {start_line}-{end_line})?",
-                        title="Confirm Edit"
-                    )
-                    if not confirmed:
-                        raise FileSystemError("Edit cancelled by user in VSCode diff preview")
-
-            except FileSystemError:
-                # Re-raise cancellation errors
-                raise
-            except Exception as e:
-                # If VSCode diff preview fails, continue with file write
-                # This ensures edit_file still works even if VSCode integration fails
-                pass
+        # Note: Diff preview is shown during confirmation stage (see get_diff_preview())
+        # No need to show it again here to avoid duplication
 
         # Write file with Unix line endings
         try:

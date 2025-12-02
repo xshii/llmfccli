@@ -15,9 +15,4 @@ ide_integration:
   # edit_file 工具在 VSCode 模式下自动展示 diff 预览
   show_diff_before_edit:
     enabled: true
-    description: "在 VSCode 中编辑文件前自动展示 diff 预览"
-
-  # 是否要求用户在 VSCode 中手动确认后再应用修改
-  require_user_confirm:
-    enabled: false
-    description: "要求用户在 VSCode diff 预览中确认后再应用修改（需要 VSCode 扩展支持 confirmDialog RPC 方法）"
+    description: "在用户确认工具调用时同步展示 diff 预览（在 VSCode 中）"

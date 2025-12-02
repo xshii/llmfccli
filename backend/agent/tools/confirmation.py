@@ -193,6 +193,15 @@ class ToolConfirmation:
         if self.confirm_callback is None:
             return ConfirmAction.ALLOW_ONCE
 
+        # Show preview if tool supports it (e.g., edit_file shows diff before confirmation)
+        tool = self._get_tool_instance(tool_name)
+        if tool and hasattr(tool, 'get_diff_preview'):
+            try:
+                tool.get_diff_preview(**arguments)
+            except Exception:
+                # Preview failed, continue with confirmation
+                pass
+
         # Get tool category
         category = self.get_tool_category(tool_name)
 
