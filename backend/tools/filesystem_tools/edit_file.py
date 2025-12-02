@@ -58,34 +58,18 @@ class EditFileTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                'Edit file by replacing lines. Line numbers start from 1. Must use view_file first. Use \\n for line breaks.\n\n'
-                '**How it works:**\n'
-                '  line_range=[start, end] replaces lines start to end (inclusive) with new_content\n\n'
-                '**Examples:**\n'
-                '  # Replace line 5\n'
-                '  line_range=[5, 5], new_content="fixed line"\n\n'
-                '  # Replace lines 2-4\n'
-                '  line_range=[2, 4], new_content="new\\ncode\\nhere"\n\n'
-                '  # Insert after line 2 (keep line 2, add new line after it)\n'
-                '  line_range=[2, 2], new_content="original line 2 content\\nimport json"\n\n'
-                '  # Insert at beginning\n'
-                '  line_range=[1, 1], new_content="#!/usr/bin/env python3\\noriginal line 1 content"\n\n'
-                '**Key rule:** To insert without removing existing content, include the original line(s) in new_content.'
+                'Edit file by replacing lines. Line numbers start from 1. Must use view_file first.\n\n'
+                'Examples:\n'
+                '  line_range=[5, 5], new_content="fixed line"  # Replace line 5\n'
+                '  line_range=[2, 4], new_content="new\\ncode\\nhere"  # Replace lines 2-4\n'
+                '  line_range=[2, 2], new_content="line2\\nimport json"  # Insert after line 2'
             ),
             'zh': (
-                '通过替换行来编辑文件。行号从 1 开始。必须先使用 view_file。使用 \\n 换行。\n\n'
-                '**工作原理：**\n'
-                '  line_range=[start, end] 将第 start 到 end 行（包含）替换为 new_content\n\n'
-                '**示例：**\n'
-                '  # 替换第 5 行\n'
-                '  line_range=[5, 5], new_content="修复的行"\n\n'
-                '  # 替换第 2-4 行\n'
-                '  line_range=[2, 4], new_content="新\\n代码\\n这里"\n\n'
-                '  # 在第 2 行后插入（保留第 2 行，在后面添加新行）\n'
-                '  line_range=[2, 2], new_content="原第2行内容\\nimport json"\n\n'
-                '  # 在开头插入\n'
-                '  line_range=[1, 1], new_content="#!/usr/bin/env python3\\n原第1行内容"\n\n'
-                '**关键规则：** 要插入而不删除现有内容，需要在 new_content 中包含原行内容。'
+                '通过替换行来编辑文件。行号从 1 开始。必须先使用 view_file。\n\n'
+                '示例：\n'
+                '  line_range=[5, 5], new_content="修复的行"  # 替换第 5 行\n'
+                '  line_range=[2, 4], new_content="新\\n代码\\n这里"  # 替换第 2-4 行\n'
+                '  line_range=[2, 2], new_content="line2\\nimport json"  # 在第 2 行后插入'
             )
         }
 
@@ -97,12 +81,12 @@ class EditFileTool(BaseTool):
                 'zh': '文件路径（相对于项目根目录或绝对路径）',
             },
             'line_range': {
-                'en': '[start_line, end_line] to replace (1-indexed, inclusive). Example: [5, 5] replaces line 5, [2, 4] replaces lines 2-4',
-                'zh': '[起始行, 结束行] 进行替换（从1开始，包含边界）。示例：[5, 5] 替换第5行，[2, 4] 替换第2-4行',
+                'en': '[start_line, end_line] to replace (1-indexed, inclusive)',
+                'zh': '[起始行, 结束行] 进行替换（从1开始，包含边界）',
             },
             'new_content': {
-                'en': 'New content (use \\n for line breaks). To insert, include original line content',
-                'zh': '新内容（使用 \\n 换行）。要插入而不删除，需包含原行内容',
+                'en': 'New content (use \\n for line breaks)',
+                'zh': '新内容（使用 \\n 换行）',
             },
             'confirm': {
                 'en': 'Whether to confirm before editing (default true)',
