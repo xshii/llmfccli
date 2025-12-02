@@ -210,32 +210,3 @@ def get_workspace_folder() -> str:
             return response["folder"]
         else:
             raise VSCodeError(response.get("error", "Failed to get workspace folder"))
-
-
-def confirm_dialog(message: str, title: str = "Confirm") -> bool:
-    """Show confirmation dialog in VSCode
-
-    Args:
-        message: Dialog message
-        title: Dialog title (default: "Confirm")
-
-    Returns:
-        bool: True if user clicked "Yes", False if clicked "No"
-    """
-    from backend.rpc.client import is_vscode_mode, send_vscode_request
-
-    params = {
-        "message": message,
-        "title": title
-    }
-
-    if is_vscode_mode():
-        try:
-            response = send_vscode_request("confirmDialog", params, timeout=60.0)  # 60s timeout for user decision
-            return response.get("confirmed", False)
-        except Exception:
-            # If RPC fails, default to no confirmation (safe fallback)
-            return False
-    else:
-        # Mock mode: always return True
-        return True
