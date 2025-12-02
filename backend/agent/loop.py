@@ -249,17 +249,17 @@ class AgentLoop:
                 except Exception as e:
                     arguments = {}
 
-                # Always show preview if tool supports it (regardless of whitelist status)
-                tool_instance = self.tool_executor.registry.get(tool_name)
-                if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
-                    try:
-                        tool_instance.get_diff_preview(**arguments)
-                    except Exception:
-                        # Preview failed, continue
-                        pass
-
                 # Check if confirmation is needed
+                tool_instance = self.tool_executor.registry.get(tool_name)
                 if self.confirmation.needs_confirmation(tool_name, arguments):
+                    # Show preview before asking user to confirm (only when confirmation needed)
+                    if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
+                        try:
+                            tool_instance.get_diff_preview(**arguments)
+                        except Exception:
+                            # Preview failed, continue with confirmation
+                            pass
+
                     action = self.confirmation.confirm_tool_execution(tool_name, arguments)
 
                     if action == ConfirmAction.DENY:
@@ -300,6 +300,18 @@ class AgentLoop:
 
                 # Execute tool via executor
                 result = self.tool_executor.execute_tool(tool_name, arguments)
+
+                # Close diff preview after successful execution (so next preview shows updated file)
+                if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
+                    try:
+                        from backend.rpc.client import is_vscode_mode
+                        from backend.feature import is_feature_enabled
+                        if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
+                            from backend.tools.vscode_tools import vscode
+                            vscode.close_diff()
+                    except Exception:
+                        # Failed to close diff, continue
+                        pass
 
                 # Call tool output callback if provided
                 if self.tool_output_callback:
