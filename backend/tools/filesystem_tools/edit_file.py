@@ -215,11 +215,18 @@ class EditFileTool(BaseTool):
                     modified_content=new_file_content
                 )
 
-                # Future: Wait for user confirmation if enabled
-                # if is_feature_enabled("ide_integration.require_user_confirm"):
-                #     # TODO: Implement confirmation mechanism via RPC
-                #     pass
+                # Wait for user confirmation if enabled
+                if is_feature_enabled("ide_integration.require_user_confirm"):
+                    confirmed = vscode.confirm_dialog(
+                        message=f"Apply changes to {os.path.basename(full_path)} (lines {start_line}-{end_line})?",
+                        title="Confirm Edit"
+                    )
+                    if not confirmed:
+                        raise FileSystemError("Edit cancelled by user in VSCode diff preview")
 
+            except FileSystemError:
+                # Re-raise cancellation errors
+                raise
             except Exception as e:
                 # If VSCode diff preview fails, continue with file write
                 # This ensures edit_file still works even if VSCode integration fails

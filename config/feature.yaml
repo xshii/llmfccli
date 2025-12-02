@@ -20,4 +20,4 @@ ide_integration:
   # 是否要求用户在 VSCode 中手动确认后再应用修改
   require_user_confirm:
     enabled: false
-    description: "要求用户在 VSCode diff 预览中确认后再应用修改（未实现）"
+    description: "要求用户在 VSCode diff 预览中确认后再应用修改（需要 VSCode 扩展支持 confirmDialog RPC 方法）"
