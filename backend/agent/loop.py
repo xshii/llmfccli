@@ -179,9 +179,18 @@ class AgentLoop:
                     print(f"First tool: {tools[0]['function']['name']}")
                 print("=== END REQUEST ===\n")
 
+            # Performance monitoring: record LLM call start time
+            llm_start_time = time.time()
+
             # Call LLM
             try:
                 response = self.client.chat_with_tools(messages, tools, stream=stream, on_chunk=on_chunk)
+
+                # Performance monitoring: record LLM call duration
+                llm_duration = time.time() - llm_start_time
+                if os.getenv('DEBUG_AGENT') or True:  # Always log performance
+                    print(f"[Performance] LLM call took {llm_duration:.2f}s | "
+                          f"History: {len(messages)} msgs, {current_tokens} tokens")
 
                 # DEBUG: Log raw response
                 if os.getenv('DEBUG_AGENT'):
