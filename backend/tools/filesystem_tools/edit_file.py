@@ -22,28 +22,44 @@ class EditFileParams(BaseModel):
         json_schema_extra={"format": "filepath"}
     )
     line_range: List[int] = Field(
-        description="Line range [start_line, end_line]. REPLACE MODE: [10, 15] replaces lines 10-15. INSERT MODE: [3, 2] inserts after line 2",
+        description="Line range [start_line, end_line] (1-indexed)",
         min_items=2,
         max_items=2
     )
     new_content: str = Field(
-        description="New content to replace the specified line range (use \\n for line breaks)"
+        description="New content (use \\n for line breaks)"
     )
-    confirm: bool = Field(
-        True,
-        description="Whether to confirm before editing (default true)"
+    mode: int = Field(
+        0,
+        description="Edit mode: 0=replace, 1=insert_before, 2=insert_after"
     )
 
+    @validator('mode')
+    def validate_mode(cls, v):
+        if v not in (0, 1, 2):
+            raise ValueError(f"mode must be 0 (replace), 1 (insert_before), or 2 (insert_after), got {v}")
+        return v
+
     @validator('line_range')
-    def validate_line_range(cls, v):
+    def validate_line_range(cls, v, values):
         if len(v) != 2:
             raise ValueError("line_range must contain exactly 2 elements: [start_line, end_line]")
         start_line, end_line = v
 
         if start_line < 1:
             raise ValueError(f"start_line must be >= 1, got {start_line}")
-        if end_line < start_line:
-            raise ValueError(f"end_line ({end_line}) must be >= start_line ({start_line})")
+
+        mode = values.get('mode', 0)
+
+        # For insert modes, only single line is allowed
+        if mode in (1, 2):
+            if start_line != end_line:
+                raise ValueError(f"Insert mode requires single line: start_line must equal end_line, got [{start_line}, {end_line}]")
+        # For replace mode, end >= start
+        else:
+            if end_line < start_line:
+                raise ValueError(f"Replace mode: end_line ({end_line}) must be >= start_line ({start_line})")
+
         return v
 
 
@@ -58,18 +74,20 @@ class EditFileTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                'Edit file by replacing lines. Line numbers start from 1. Must use view_file first.\n\n'
+                'Edit file with explicit mode. Line numbers start from 1. Must use view_file first.\n\n'
                 'Examples:\n'
-                '  line_range=[5, 5], new_content="fixed line"  # Replace line 5\n'
-                '  line_range=[2, 4], new_content="new\\ncode\\nhere"  # Replace lines 2-4\n'
-                '  line_range=[2, 2], new_content="line2\\nimport json"  # Insert after line 2'
+                '  mode=0, line_range=[5, 5], new_content="fixed"  # Replace line 5\n'
+                '  mode=0, line_range=[2, 4], new_content="new\\ncode"  # Replace lines 2-4\n'
+                '  mode=1, line_range=[3, 3], new_content="import json"  # Insert before line 3\n'
+                '  mode=2, line_range=[2, 2], new_content="import json"  # Insert after line 2'
             ),
             'zh': (
-                '通过替换行来编辑文件。行号从 1 开始。必须先使用 view_file。\n\n'
+                '使用明确模式编辑文件。行号从 1 开始。必须先使用 view_file。\n\n'
                 '示例：\n'
-                '  line_range=[5, 5], new_content="修复的行"  # 替换第 5 行\n'
-                '  line_range=[2, 4], new_content="新\\n代码\\n这里"  # 替换第 2-4 行\n'
-                '  line_range=[2, 2], new_content="line2\\nimport json"  # 在第 2 行后插入'
+                '  mode=0, line_range=[5, 5], new_content="修复"  # 替换第 5 行\n'
+                '  mode=0, line_range=[2, 4], new_content="新\\n代码"  # 替换第 2-4 行\n'
+                '  mode=1, line_range=[3, 3], new_content="import json"  # 在第 3 行前插入\n'
+                '  mode=2, line_range=[2, 2], new_content="import json"  # 在第 2 行后插入'
             )
         }
 
@@ -81,16 +99,16 @@ class EditFileTool(BaseTool):
                 'zh': '文件路径（相对于项目根目录或绝对路径）',
             },
             'line_range': {
-                'en': '[start_line, end_line] to replace (1-indexed, inclusive)',
-                'zh': '[起始行, 结束行] 进行替换（从1开始，包含边界）',
+                'en': '[start_line, end_line] (1-indexed). For insert modes, start must equal end',
+                'zh': '[起始行, 结束行]（从1开始）。插入模式下必须相等',
             },
             'new_content': {
                 'en': 'New content (use \\n for line breaks)',
                 'zh': '新内容（使用 \\n 换行）',
             },
-            'confirm': {
-                'en': 'Whether to confirm before editing (default true)',
-                'zh': '是否需要用户确认（默认 true）',
+            'mode': {
+                'en': 'Edit mode: 0=replace (default), 1=insert_before, 2=insert_after',
+                'zh': '编辑模式：0=替换（默认），1=在前插入，2=在后插入',
             },
         }
 
@@ -106,7 +124,7 @@ class EditFileTool(BaseTool):
     def parameters_model(self):
         return EditFileParams
 
-    def get_diff_preview(self, path: str, line_range: List[int], new_content: str) -> None:
+    def get_diff_preview(self, path: str, line_range: List[int], new_content: str, mode: int = 0) -> None:
         """
         Generate and show diff preview in VSCode (without applying changes)
 
@@ -117,12 +135,9 @@ class EditFileTool(BaseTool):
             path: File path
             line_range: Line range [start_line, end_line]
             new_content: New content
+            mode: Edit mode (0=replace, 1=insert_before, 2=insert_after)
         """
         start_line, end_line = line_range
-
-        # Validate
-        if end_line < start_line:
-            return  # Invalid range, skip preview
 
         # Resolve path
         if not os.path.isabs(path) and self.project_root:
@@ -140,13 +155,28 @@ class EditFileTool(BaseTool):
             with open(full_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
-            # Calculate new content
+            # Calculate new content based on mode
             lines = content.splitlines(keepends=False)
             new_lines = new_content.split('\n') if new_content else ['']
 
-            before = lines[:start_line - 1]
-            after = lines[end_line:]
-            result_lines = before + new_lines + after
+            if mode == 0:  # replace
+                before = lines[:start_line - 1]
+                after = lines[end_line:]
+                result_lines = before + new_lines + after
+                title_op = "Replace"
+            elif mode == 1:  # insert_before
+                before = lines[:start_line - 1]
+                after = lines[start_line - 1:]
+                result_lines = before + new_lines + after
+                title_op = "Insert before"
+            elif mode == 2:  # insert_after
+                before = lines[:end_line]
+                after = lines[end_line:]
+                result_lines = before + new_lines + after
+                title_op = "Insert after"
+            else:
+                return  # Invalid mode
+
             new_file_content = '\n'.join(result_lines)
 
             if content and content[-1] == '\n':
@@ -159,7 +189,7 @@ class EditFileTool(BaseTool):
             if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
                 from backend.tools.vscode_tools import vscode
                 vscode.show_diff(
-                    title=f"Preview: Edit {os.path.basename(full_path)} (lines {start_line}-{end_line})",
+                    title=f"Preview: {title_op} line {start_line} in {os.path.basename(full_path)}",
                     original_path=full_path,
                     modified_content=new_file_content
                 )
@@ -167,16 +197,15 @@ class EditFileTool(BaseTool):
             # Preview failed, continue silently
             pass
 
-    def execute(self, path: str, line_range: List[int], new_content: str, confirm: bool = True) -> Dict[str, Any]:
+    def execute(self, path: str, line_range: List[int], new_content: str, mode: int = 0) -> Dict[str, Any]:
         """
-        Execute file editing by replacing a line range
+        Execute file editing with specified mode
 
         Args:
             path: File path (relative to project root or absolute)
-            line_range: Line range as [start_line, end_line] (1-based, inclusive)
-            new_content: New content to replace the line range
-            confirm: Whether to confirm before editing (default: True)
-                     Note: If VSCode diff preview is enabled, diff is shown during confirmation
+            line_range: Line range as [start_line, end_line] (1-based)
+            new_content: New content
+            mode: Edit mode (0=replace, 1=insert_before, 2=insert_after)
 
         Returns:
             Dict containing success status and edit details
@@ -186,10 +215,6 @@ class EditFileTool(BaseTool):
         """
         # Extract start and end lines
         start_line, end_line = line_range
-
-        # Validate line_range
-        if end_line < start_line:
-            raise FileSystemError(f"end_line ({end_line}) must be >= start_line ({start_line})")
 
         # Resolve path
         if not os.path.isabs(path) and self.project_root:
@@ -223,21 +248,45 @@ class EditFileTool(BaseTool):
         # Prepare new content lines (split by \n, preserve empty lines)
         new_lines = new_content.split('\n') if new_content else ['']
 
-        # Validate line range
+        # Validate line range based on mode
         if start_line < 1:
             raise FileSystemError(f"start_line must be >= 1, got {start_line}")
-        if end_line > total_lines:
-            raise FileSystemError(
-                f"end_line ({end_line}) exceeds file length ({total_lines} lines)"
-            )
 
-        # Replace the line range (convert to 0-based indexing)
-        before = lines[:start_line - 1]
-        after = lines[end_line:]
-        result_lines = before + new_lines + after
+        if mode == 0:  # replace mode
+            if end_line < start_line:
+                raise FileSystemError(f"Replace mode: end_line ({end_line}) must be >= start_line ({start_line})")
+            if end_line > total_lines:
+                raise FileSystemError(f"end_line ({end_line}) exceeds file length ({total_lines} lines)")
+            # Replace lines
+            before = lines[:start_line - 1]
+            after = lines[end_line:]
+            result_lines = before + new_lines + after
+            op_msg = f"replaced lines {start_line}-{end_line}"
 
-        old_line_count = end_line - start_line + 1
-        new_line_count = len(new_lines)
+        elif mode == 1:  # insert_before
+            if start_line != end_line:
+                raise FileSystemError(f"Insert mode requires single line: start_line must equal end_line")
+            if start_line > total_lines:
+                raise FileSystemError(f"start_line ({start_line}) exceeds file length ({total_lines} lines)")
+            # Insert before line
+            before = lines[:start_line - 1]
+            after = lines[start_line - 1:]
+            result_lines = before + new_lines + after
+            op_msg = f"inserted before line {start_line}"
+
+        elif mode == 2:  # insert_after
+            if start_line != end_line:
+                raise FileSystemError(f"Insert mode requires single line: start_line must equal end_line")
+            if end_line > total_lines:
+                raise FileSystemError(f"end_line ({end_line}) exceeds file length ({total_lines} lines)")
+            # Insert after line
+            before = lines[:end_line]
+            after = lines[end_line:]
+            result_lines = before + new_lines + after
+            op_msg = f"inserted after line {end_line}"
+
+        else:
+            raise FileSystemError(f"Invalid mode: {mode} (must be 0, 1, or 2)")
 
         # Join with Unix line endings
         new_file_content = '\n'.join(result_lines)
@@ -246,9 +295,6 @@ class EditFileTool(BaseTool):
         if content and content[-1] == '\n':
             new_file_content += '\n'
 
-        # Note: Diff preview is shown during confirmation stage (see get_diff_preview())
-        # No need to show it again here to avoid duplication
-
         # Write file with Unix line endings
         try:
             with open(full_path, 'w', encoding='utf-8', newline='') as f:
@@ -256,25 +302,26 @@ class EditFileTool(BaseTool):
 
             return {
                 'success': True,
-                'message': f"Successfully edited {os.path.basename(full_path)} (lines {start_line}-{end_line})"
+                'message': f"Successfully {op_msg} in {os.path.basename(full_path)}"
             }
         except Exception as e:
             raise FileSystemError(f"Failed to write file {path}: {e}")
 
 
 # Export function interface for backward compatibility
-def edit_file(path: str, line_range: List[int], new_content: str, project_root: str = None) -> Dict[str, Any]:
+def edit_file(path: str, line_range: List[int], new_content: str, project_root: str = None, mode: int = 0) -> Dict[str, Any]:
     """
-    Edit file by replacing a line range with new content
+    Edit file with specified mode
 
     Args:
         path: File path (relative to project root or absolute)
-        line_range: Line range as [start_line, end_line] (1-based, inclusive)
-        new_content: New content to replace the line range
+        line_range: Line range as [start_line, end_line] (1-based)
+        new_content: New content
         project_root: Project root directory
+        mode: Edit mode (0=replace, 1=insert_before, 2=insert_after)
 
     Returns:
         Dict containing success status and edit details
     """
     tool = EditFileTool(project_root=project_root)
-    return tool.execute(path=path, line_range=line_range, new_content=new_content, confirm=False)
+    return tool.execute(path=path, line_range=line_range, new_content=new_content, mode=mode)
