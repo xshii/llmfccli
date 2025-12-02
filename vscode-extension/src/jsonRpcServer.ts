@@ -12,6 +12,7 @@ import { FileInfo, Selection, DiffParams, ApplyChangesParams, OpenFileParams } f
 export class JsonRpcServer {
     private protocol: JsonRpcProtocol;
     private currentDiffEditor: vscode.TextEditor | undefined;
+    private currentOriginalPath: string | undefined;
 
     constructor() {
         this.protocol = new JsonRpcProtocol();
@@ -129,9 +130,10 @@ export class JsonRpcServer {
 
             const registration = vscode.workspace.registerTextDocumentContentProvider('claude-qwen', provider);
 
-            // Show diff and save editor reference
+            // Show diff and save editor reference and original path
             await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title);
             this.currentDiffEditor = vscode.window.activeTextEditor;
+            this.currentOriginalPath = originalPath;
 
             // Always focus back to terminal (where CLI is running)
             await vscode.commands.executeCommand('workbench.action.terminal.focus');
@@ -151,10 +153,27 @@ export class JsonRpcServer {
     private async handleCloseDiff(params: any): Promise<{ success: boolean; message?: string; error?: string }> {
         try {
             if (this.currentDiffEditor && !this.currentDiffEditor.document.isClosed) {
+                // Save original path before closing
+                const originalPath = this.currentOriginalPath;
+
                 // Close the diff editor
                 await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
                 this.currentDiffEditor = undefined;
-                return { success: true, message: 'Diff closed' };
+                this.currentOriginalPath = undefined;
+
+                // Open the original file
+                if (originalPath) {
+                    const uri = vscode.Uri.file(originalPath);
+                    await vscode.window.showTextDocument(uri, {
+                        preview: false,
+                        preserveFocus: false
+                    });
+
+                    // Focus back to terminal
+                    await vscode.commands.executeCommand('workbench.action.terminal.focus');
+                }
+
+                return { success: true, message: 'Diff closed and original file opened' };
             }
             return { success: true, message: 'No diff to close' };
         } catch (error: any) {
