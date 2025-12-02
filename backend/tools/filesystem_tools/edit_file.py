@@ -65,27 +65,27 @@ class EditFileTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                'Edit file by replacing or inserting lines. Must use view_file first. Use \\n for line breaks.\n\n'
-                '**Mode Selection (by line_range):**\n'
+                'Edit file by replacing or inserting lines. Line numbers start from 1. Must use view_file first. Use \\n for line breaks.\n\n'
+                '**Mode Selection (by line_range=[start, end]):**\n'
                 '  REPLACE: end >= start, e.g., [2, 5] replaces lines 2-5\n'
                 '  INSERT: end < start, e.g., [3, 2] inserts after line 2 (keeps line 2)\n\n'
                 '**Examples:**\n'
-                '  line_range=[5, 5], new_content="fixed line"           # Replace line 5\n'
-                '  line_range=[10, 15], new_content="new\\ncode"          # Replace lines 10-15\n'
-                '  line_range=[3, 2], new_content="import json"          # Insert after line 2\n'
-                '  line_range=[1, 0], new_content="#!/usr/bin/env"       # Insert at beginning\n\n'
+                '  line_range=[5, 5], new_content="fixed"        # Replace line 5\n'
+                '  line_range=[3, 2], new_content="import json"  # Insert after line 2\n'
+                '  line_range=[1, 0], new_content="header"       # Insert at beginning\n'
+                '  line_range=[6, 5], new_content="footer"       # Insert after line 5 (if file has 5 lines)\n\n'
                 '**Rule:** To add content without removing existing lines, use INSERT mode (end < start).'
             ),
             'zh': (
-                '通过替换或插入编辑文件。必须先使用 view_file。使用 \\n 换行。\n\n'
-                '**模式选择（通过 line_range）：**\n'
+                '通过替换或插入编辑文件。行号从 1 开始。必须先使用 view_file。使用 \\n 换行。\n\n'
+                '**模式选择（通过 line_range=[start, end]）：**\n'
                 '  替换：end >= start，如 [2, 5] 替换第 2-5 行\n'
                 '  插入：end < start，如 [3, 2] 在第 2 行后插入（保留第 2 行）\n\n'
                 '**示例：**\n'
-                '  line_range=[5, 5], new_content="修复的行"             # 替换第 5 行\n'
-                '  line_range=[10, 15], new_content="新\\n代码"          # 替换第 10-15 行\n'
-                '  line_range=[3, 2], new_content="import json"         # 在第 2 行后插入\n'
-                '  line_range=[1, 0], new_content="#!/usr/bin/env"      # 在开头插入\n\n'
+                '  line_range=[5, 5], new_content="修复"         # 替换第 5 行\n'
+                '  line_range=[3, 2], new_content="import json"  # 在第 2 行后插入\n'
+                '  line_range=[1, 0], new_content="头部"         # 在开头插入\n'
+                '  line_range=[6, 5], new_content="尾部"         # 在第 5 行后插入（如果文件有 5 行）\n\n'
                 '**规则：** 添加内容且不删除现有行时，使用插入模式（end < start）。'
             )
         }
