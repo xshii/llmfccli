@@ -186,6 +186,31 @@ class EditFileTool(BaseTool):
         if content and content[-1] == '\n':
             new_file_content += '\n'
 
+        # VSCode integration: Show diff preview before applying changes
+        from backend.feature import is_feature_enabled
+        from backend.rpc.client import is_vscode_mode
+
+        if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
+            try:
+                from backend.tools.vscode_tools import vscode
+
+                # Show diff in VSCode
+                vscode.show_diff(
+                    title=f"Edit {os.path.basename(full_path)} (lines {start_line}-{end_line})",
+                    original_path=full_path,
+                    modified_content=new_file_content
+                )
+
+                # Future: Wait for user confirmation if enabled
+                # if is_feature_enabled("ide_integration.require_user_confirm"):
+                #     # TODO: Implement confirmation mechanism via RPC
+                #     pass
+
+            except Exception as e:
+                # If VSCode diff preview fails, continue with file write
+                # This ensures edit_file still works even if VSCode integration fails
+                pass
+
         # Write file with Unix line endings
         try:
             with open(full_path, 'w', encoding='utf-8', newline='') as f:
