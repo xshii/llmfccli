@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Test edit_file with explicit mode parameter
+Test edit_file with explicit operation parameter
 """
 
 import os
@@ -15,9 +15,9 @@ from backend.tools.filesystem_tools.edit_file import EditFileTool
 
 
 def test_mode_0_replace_single_line():
-    """Test mode=0: Replace single line"""
+    """Test operation=0: Replace single line"""
     print("=" * 70)
-    print("Test: mode=0 replace single line")
+    print("Test: operation=0 replace single line")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -29,7 +29,7 @@ def test_mode_0_replace_single_line():
             path=str(test_file),
             line_range=[2, 2],
             new_content="REPLACED_LINE2",
-            mode=0
+            operation=0
         )
 
         assert result['success'] is True
@@ -45,9 +45,9 @@ def test_mode_0_replace_single_line():
 
 
 def test_mode_0_replace_multiple_lines():
-    """Test mode=0: Replace multiple lines"""
+    """Test operation=0: Replace multiple lines"""
     print("=" * 70)
-    print("Test: mode=0 replace multiple lines")
+    print("Test: operation=0 replace multiple lines")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -59,7 +59,7 @@ def test_mode_0_replace_multiple_lines():
             path=str(test_file),
             line_range=[2, 4],
             new_content="NEW_A\nNEW_B",
-            mode=0
+            operation=0
         )
 
         assert result['success'] is True
@@ -75,9 +75,9 @@ def test_mode_0_replace_multiple_lines():
 
 
 def test_mode_1_insert_before():
-    """Test mode=1: Insert before line"""
+    """Test operation=1: Insert before line"""
     print("=" * 70)
-    print("Test: mode=1 insert before line")
+    print("Test: operation=1 insert before line")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -89,7 +89,7 @@ def test_mode_1_insert_before():
             path=str(test_file),
             line_range=[2, 2],
             new_content="import json",
-            mode=1
+            operation=1
         )
 
         assert result['success'] is True
@@ -105,9 +105,9 @@ def test_mode_1_insert_before():
 
 
 def test_mode_2_insert_after():
-    """Test mode=2: Insert after line"""
+    """Test operation=2: Insert after line"""
     print("=" * 70)
-    print("Test: mode=2 insert after line")
+    print("Test: operation=2 insert after line")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -119,7 +119,7 @@ def test_mode_2_insert_after():
             path=str(test_file),
             line_range=[2, 2],
             new_content="import json",
-            mode=2
+            operation=2
         )
 
         assert result['success'] is True
@@ -135,9 +135,9 @@ def test_mode_2_insert_after():
 
 
 def test_mode_1_insert_at_beginning():
-    """Test mode=1: Insert at beginning of file"""
+    """Test operation=1: Insert at beginning of file"""
     print("=" * 70)
-    print("Test: mode=1 insert at beginning")
+    print("Test: operation=1 insert at beginning")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -149,7 +149,7 @@ def test_mode_1_insert_at_beginning():
             path=str(test_file),
             line_range=[1, 1],
             new_content="#!/usr/bin/env python3",
-            mode=1
+            operation=1
         )
 
         assert result['success'] is True
@@ -165,9 +165,9 @@ def test_mode_1_insert_at_beginning():
 
 
 def test_mode_2_insert_at_end():
-    """Test mode=2: Insert at end of file"""
+    """Test operation=2: Insert at end of file"""
     print("=" * 70)
-    print("Test: mode=2 insert at end")
+    print("Test: operation=2 insert at end")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -179,7 +179,7 @@ def test_mode_2_insert_at_end():
             path=str(test_file),
             line_range=[2, 2],
             new_content="# End of file",
-            mode=2
+            operation=2
         )
 
         assert result['success'] is True
@@ -194,10 +194,10 @@ def test_mode_2_insert_at_end():
     print("\n✅ Test PASSED\n")
 
 
-def test_insert_mode_validation():
-    """Test that insert modes require single line"""
+def test_insert_operation_ignores_end_line():
+    """Test that insert operations only use start_line (end_line is ignored)"""
     print("=" * 70)
-    print("Test: Insert modes validation")
+    print("Test: Insert operations ignore end_line")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -206,38 +206,47 @@ def test_insert_mode_validation():
 
         tool = EditFileTool(project_root=project_root)
 
-        # mode=1 with range should fail
-        try:
-            tool.execute(
-                path=str(test_file),
-                line_range=[2, 3],
-                new_content="new",
-                mode=1
-            )
-            assert False, "Should have raised error"
-        except Exception as e:
-            assert "Insert mode requires single line" in str(e)
-            print(f"✓ Correctly rejected mode=1 with range: {e}")
+        # operation=1 with different end_line - should work and ignore end_line
+        result = tool.execute(
+            path=str(test_file),
+            line_range=[2, 99],  # end_line=99 is ignored
+            new_content="inserted_before",
+            operation=1
+        )
+        assert result['success'] is True
+        print(f"✓ operation=1 with different end_line works (end_line ignored)")
 
-        # mode=2 with range should fail
-        try:
-            tool.execute(
-                path=str(test_file),
-                line_range=[2, 3],
-                new_content="new",
-                mode=2
-            )
-            assert False, "Should have raised error"
-        except Exception as e:
-            assert "Insert mode requires single line" in str(e)
-            print(f"✓ Correctly rejected mode=2 with range: {e}")
+        # Verify insertion happened before line 2
+        final_content = test_file.read_text()
+        expected_content = "line1\ninserted_before\nline2\nline3\n"
+        assert final_content == expected_content
+        print("✓ Correctly inserted before line 2 (start_line)")
+
+        # Reset file for operation=2 test
+        test_file.write_text("line1\nline2\nline3\n")
+
+        # operation=2 with different end_line - should work and ignore end_line
+        result = tool.execute(
+            path=str(test_file),
+            line_range=[2, 99],  # end_line=99 is ignored
+            new_content="inserted_after",
+            operation=2
+        )
+        assert result['success'] is True
+        print(f"✓ operation=2 with different end_line works (end_line ignored)")
+
+        # Verify insertion happened after line 2
+        final_content = test_file.read_text()
+        expected_content = "line1\nline2\ninserted_after\nline3\n"
+        assert final_content == expected_content
+        print("✓ Correctly inserted after line 2 (start_line)")
 
     print("\n✅ Test PASSED\n")
 
 
 if __name__ == '__main__':
     print("\n" + "=" * 70)
-    print("Testing edit_file with mode parameter")
+    print("Testing edit_file with operation parameter")
     print("=" * 70 + "\n")
 
     try:
@@ -247,20 +256,20 @@ if __name__ == '__main__':
         test_mode_2_insert_after()
         test_mode_1_insert_at_beginning()
         test_mode_2_insert_at_end()
-        test_insert_mode_validation()
+        test_insert_operation_ignores_end_line()
 
         print("\n" + "=" * 70)
-        print("✅ ALL TESTS PASSED - Mode parameter working correctly!")
+        print("✅ ALL TESTS PASSED - Operation parameter working correctly!")
         print("=" * 70 + "\n")
 
         print("Summary:")
-        print("  ✓ mode=0: Replace single line works")
-        print("  ✓ mode=0: Replace multiple lines works")
-        print("  ✓ mode=1: Insert before line works")
-        print("  ✓ mode=2: Insert after line works")
-        print("  ✓ mode=1: Insert at beginning works")
-        print("  ✓ mode=2: Insert at end works")
-        print("  ✓ Insert modes validation works")
+        print("  ✓ operation=0: Replace single line works")
+        print("  ✓ operation=0: Replace multiple lines works")
+        print("  ✓ operation=1: Insert before line works")
+        print("  ✓ operation=2: Insert after line works")
+        print("  ✓ operation=1: Insert at beginning works")
+        print("  ✓ operation=2: Insert at end works")
+        print("  ✓ Insert operations correctly ignore end_line")
         print()
 
     except AssertionError as e:
