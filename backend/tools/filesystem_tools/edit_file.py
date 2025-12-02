@@ -4,8 +4,8 @@ EditFile Tool - Line-based file editing with Unix line endings
 """
 
 import os
-from typing import Dict, Any
-from pydantic import BaseModel, Field
+from typing import Dict, Any, List
+from pydantic import BaseModel, Field, validator
 
 from backend.tools.base import BaseTool
 
@@ -21,13 +21,10 @@ class EditFileParams(BaseModel):
         description="File path (relative to project root or absolute path)",
         json_schema_extra={"format": "filepath"}
     )
-    start_line: int = Field(
-        description="Start line number (1-based, inclusive)",
-        ge=1
-    )
-    end_line: int = Field(
-        description="End line number (1-based, inclusive)",
-        ge=1
+    line_range: List[int] = Field(
+        description="Line range as [start_line, end_line] (1-based, inclusive). Example: [10, 15] edits lines 10 through 15",
+        min_items=2,
+        max_items=2
     )
     new_content: str = Field(
         description="New content to replace the specified line range (use \\n for line breaks)"
@@ -36,6 +33,17 @@ class EditFileParams(BaseModel):
         True,
         description="Whether to confirm before editing (default true)"
     )
+
+    @validator('line_range')
+    def validate_line_range(cls, v):
+        if len(v) != 2:
+            raise ValueError("line_range must contain exactly 2 elements: [start_line, end_line]")
+        start_line, end_line = v
+        if start_line < 1:
+            raise ValueError(f"start_line must be >= 1, got {start_line}")
+        if end_line < start_line:
+            raise ValueError(f"end_line ({end_line}) must be >= start_line ({start_line})")
+        return v
 
 
 class EditFileTool(BaseTool):
@@ -50,18 +58,18 @@ class EditFileTool(BaseTool):
         return {
             'en': (
                 'Replaces a range of lines in a file with new content. You must use view_file at least once before editing. '
-                'Specify start_line and end_line (1-based, inclusive) to define the range. '
+                'Specify line_range as [start_line, end_line] (1-based, inclusive) to define the range. '
                 'Use Unix line endings (\\n) in new_content. Lines are preserved with \\n separator.\n\n'
-                'GOOD: Edit lines 10-15 with accurate line numbers from view_file\n'
-                'GOOD: new_content="def foo():\\n    return 42\\n" (explicit \\n)\n'
+                'GOOD: line_range=[10, 15] edits lines 10-15 with accurate line numbers from view_file\n'
+                'GOOD: new_content="def foo():\\n    return 42" (explicit \\n)\n'
                 'BAD: Using wrong line numbers without checking view_file first'
             ),
             'zh': (
                 '替换文件中的行范围为新内容。必须先使用 view_file 读取文件。'
-                '指定 start_line 和 end_line（从1开始，包含边界）定义范围。'
+                '指定 line_range 为 [start_line, end_line]（从1开始，包含边界）定义范围。'
                 '在 new_content 中使用 Unix 行结束符（\\n）。行之间用 \\n 分隔。\n\n'
-                '好例子：使用 view_file 中准确的行号编辑 10-15 行\n'
-                '好例子：new_content="def foo():\\n    return 42\\n"（显式 \\n）\n'
+                '好例子：line_range=[10, 15] 使用 view_file 中准确的行号编辑 10-15 行\n'
+                '好例子：new_content="def foo():\\n    return 42"（显式 \\n）\n'
                 '坏例子：不先查看 view_file 就使用错误的行号'
             )
         }
@@ -73,13 +81,9 @@ class EditFileTool(BaseTool):
                 'en': 'File path (relative to project root or absolute path)',
                 'zh': '文件路径（相对于项目根目录或绝对路径）',
             },
-            'start_line': {
-                'en': 'Start line number (1-based, inclusive)',
-                'zh': '起始行号（从1开始，包含）',
-            },
-            'end_line': {
-                'en': 'End line number (1-based, inclusive)',
-                'zh': '结束行号（从1开始，包含）',
+            'line_range': {
+                'en': 'Line range as [start_line, end_line] (1-based, inclusive). Example: [10, 15]',
+                'zh': '行范围 [起始行, 结束行]（从1开始，包含边界）。示例：[10, 15]',
             },
             'new_content': {
                 'en': 'New content to replace the line range (use \\n for line breaks)',
@@ -103,14 +107,13 @@ class EditFileTool(BaseTool):
     def parameters_model(self):
         return EditFileParams
 
-    def execute(self, path: str, start_line: int, end_line: int, new_content: str, confirm: bool = True) -> Dict[str, Any]:
+    def execute(self, path: str, line_range: List[int], new_content: str, confirm: bool = True) -> Dict[str, Any]:
         """
         Execute file editing by replacing a line range
 
         Args:
             path: File path (relative to project root or absolute)
-            start_line: Start line number (1-based, inclusive)
-            end_line: End line number (1-based, inclusive)
+            line_range: Line range as [start_line, end_line] (1-based, inclusive)
             new_content: New content to replace the line range
             confirm: Whether to confirm before editing (default: True)
 
@@ -120,6 +123,9 @@ class EditFileTool(BaseTool):
         Raises:
             FileSystemError: If file not found, invalid line range, or write fails
         """
+        # Extract start and end lines
+        start_line, end_line = line_range
+
         # Resolve path
         if not os.path.isabs(path) and self.project_root:
             full_path = os.path.join(self.project_root, path)
@@ -191,6 +197,7 @@ class EditFileTool(BaseTool):
             return {
                 'success': True,
                 'path': full_path,
+                'line_range': line_range,
                 'start_line': start_line,
                 'end_line': end_line,
                 'old_line_count': old_line_count,
@@ -203,14 +210,13 @@ class EditFileTool(BaseTool):
 
 
 # Export function interface for backward compatibility
-def edit_file(path: str, start_line: int, end_line: int, new_content: str, project_root: str = None) -> Dict[str, Any]:
+def edit_file(path: str, line_range: List[int], new_content: str, project_root: str = None) -> Dict[str, Any]:
     """
     Edit file by replacing a line range with new content
 
     Args:
         path: File path (relative to project root or absolute)
-        start_line: Start line number (1-based, inclusive)
-        end_line: End line number (1-based, inclusive)
+        line_range: Line range as [start_line, end_line] (1-based, inclusive)
         new_content: New content to replace the line range
         project_root: Project root directory
 
@@ -218,4 +224,4 @@ def edit_file(path: str, start_line: int, end_line: int, new_content: str, proje
         Dict containing success status and edit details
     """
     tool = EditFileTool(project_root=project_root)
-    return tool.execute(path=path, start_line=start_line, end_line=end_line, new_content=new_content, confirm=False)
+    return tool.execute(path=path, line_range=line_range, new_content=new_content, confirm=False)

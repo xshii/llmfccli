@@ -51,8 +51,7 @@ def test_two_layer_confirmation_first_time():
         # Check: edit_file should need confirmation (first time)
         needs_confirm = confirmation.needs_confirmation('edit_file', {
             'path': str(test_file),
-            'start_line': 2,
-            'end_line': 2,
+            'line_range': [2, 2],
             'new_content': 'line TWO'
         })
         print(f"✓ Layer 1 (ToolConfirmation) needs confirmation: {needs_confirm}")
@@ -91,8 +90,7 @@ def test_two_layer_confirmation_after_allow_always():
         # First execution: user allows always
         action = confirmation.confirm_tool_execution('edit_file', {
             'path': str(test_file),
-            'start_line': 2,
-            'end_line': 2,
+            'line_range': [2, 2],
             'new_content': 'line TWO'
         })
         assert action == ConfirmAction.ALLOW_ALWAYS
@@ -108,8 +106,7 @@ def test_two_layer_confirmation_after_allow_always():
         # Check: edit_file should NOT need confirmation now
         needs_confirm = confirmation.needs_confirmation('edit_file', {
             'path': str(test_file),
-            'start_line': 2,
-            'end_line': 2,
+            'line_range': [2, 2],
             'new_content': 'line TWO'
         })
         print(f"✓ Layer 1 (ToolConfirmation) needs confirmation: {needs_confirm}")
@@ -119,8 +116,7 @@ def test_two_layer_confirmation_after_allow_always():
         # The smart logic in RegistryToolExecutor should auto-set confirm=False
         result = executor.execute_tool('edit_file', {
             'path': str(test_file),
-            'start_line': 2,
-            'end_line': 2,
+            'line_range': [2, 2],
             'new_content': 'line TWO'
         })
 
@@ -164,8 +160,7 @@ def test_smart_parameter_adaptation():
 
         result = executor.execute_tool('edit_file', {
             'path': str(test_file),
-            'start_line': 2,
-            'end_line': 2,
+            'line_range': [2, 2],
             'new_content': 'line TWO (modified)'
         })
 
@@ -204,8 +199,7 @@ def test_executor_without_confirmation_manager():
         # Verify executor works normally (no smart adaptation)
         result = executor.execute_tool('edit_file', {
             'path': str(test_file),
-            'start_line': 1,
-            'end_line': 1,
+            'line_range': [1, 1],
             'new_content': 'modified line',
             'confirm': False  # Explicitly disable confirmation
         })
@@ -245,8 +239,7 @@ def test_multiple_edits_workflow():
         print("\n  [Step 1] First edit - user must confirm")
         needs_confirm = confirmation.needs_confirmation('edit_file', {
             'path': str(file1),
-            'start_line': 1,
-            'end_line': 1,
+            'line_range': [1, 1],
             'new_content': 'CONTENT 1'
         })
         assert needs_confirm is True
@@ -262,8 +255,7 @@ def test_multiple_edits_workflow():
         print("\n  [Step 2] Second edit - should be auto-approved")
         result = executor.execute_tool('edit_file', {
             'path': str(file2),
-            'start_line': 1,
-            'end_line': 1,
+            'line_range': [1, 1],
             'new_content': 'CONTENT 2'
         })
         assert result['success'] is True
@@ -273,8 +265,7 @@ def test_multiple_edits_workflow():
         print("\n  [Step 3] Third edit - still auto-approved")
         result = executor.execute_tool('edit_file', {
             'path': str(file3),
-            'start_line': 1,
-            'end_line': 1,
+            'line_range': [1, 1],
             'new_content': 'CONTENT 3'
         })
         assert result['success'] is True
@@ -346,8 +337,7 @@ def test_line_based_editing():
         print("\n  [Test 1] Replace single line (line 2)")
         result = executor.execute_tool('edit_file', {
             'path': str(test_file),
-            'start_line': 2,
-            'end_line': 2,
+            'line_range': [2, 2],
             'new_content': "    print('Goodbye')",
             'confirm': False
         })
@@ -362,8 +352,7 @@ def test_line_based_editing():
         test_file.write_text(original_content)
         result = executor.execute_tool('edit_file', {
             'path': str(test_file),
-            'start_line': 2,
-            'end_line': 3,
+            'line_range': [2, 3],
             'new_content': "    return 'Done'",
             'confirm': False
         })
@@ -378,8 +367,7 @@ def test_line_based_editing():
         test_file.write_text("line1\nline2\nline3\n")
         result = executor.execute_tool('edit_file', {
             'path': str(test_file),
-            'start_line': 1,
-            'end_line': 1,
+            'line_range': [1, 1],
             'new_content': "new line 1\nnew line 2",
             'confirm': False
         })
