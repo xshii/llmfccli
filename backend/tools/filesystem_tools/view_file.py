@@ -38,16 +38,14 @@ class ViewFileTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                'Read file contents with optional line range. Results include line numbers for reference. '
-                'Always use this before edit_file to understand context and ensure accurate string matching.\n\n'
-                'GOOD: view_file then edit_file with exact text from output\n'
+                'Read file contents with line numbers. Always use before edit_file to see current content and line numbers.\n\n'
+                'GOOD: view_file to check line numbers, then edit_file with line_range\n'
                 'GOOD: Use line_range=[100,150] for large files\n'
                 'BAD: Directly call edit_file without viewing'
             ),
             'zh': (
-                '读取文件内容（可指定行范围）。结果包含行号供参考。'
-                '在使用 edit_file 前必须先使用此工具以理解上下文并确保准确的字符串匹配。\n\n'
-                '好例子：先 view_file 再用输出中的精确文本调用 edit_file\n'
+                '读取文件内容（包含行号）。在使用 edit_file 前必须先使用此工具查看当前内容和行号。\n\n'
+                '好例子：先 view_file 查看行号，然后用 line_range 调用 edit_file\n'
                 '好例子：大文件使用 line_range=[100,150]\n'
                 '坏例子：不查看文件直接调用 edit_file'
             )
