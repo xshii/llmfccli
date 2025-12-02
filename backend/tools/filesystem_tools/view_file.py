@@ -38,16 +38,16 @@ class ViewFileTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                'Read file contents with line numbers. Always use before edit_file to see current content and line numbers.\n\n'
-                'GOOD: view_file to check line numbers, then edit_file with line_range\n'
-                'GOOD: Use line_range=[100,150] for large files\n'
-                'BAD: Directly call edit_file without viewing'
+                'Read file contents with line numbers. Useful to see current content and line numbers before editing.\n\n'
+                'Examples:\n'
+                '  path="src/main.py"  # View entire file\n'
+                '  path="src/main.py", line_range=[100, 150]  # View lines 100-150 of large file'
             ),
             'zh': (
-                '读取文件内容（包含行号）。在使用 edit_file 前必须先使用此工具查看当前内容和行号。\n\n'
-                '好例子：先 view_file 查看行号，然后用 line_range 调用 edit_file\n'
-                '好例子：大文件使用 line_range=[100,150]\n'
-                '坏例子：不查看文件直接调用 edit_file'
+                '读取文件内容（包含行号）。在编辑前查看当前内容和行号很有用。\n\n'
+                '示例：\n'
+                '  path="src/main.py"  # 查看整个文件\n'
+                '  path="src/main.py", line_range=[100, 150]  # 查看大文件的第 100-150 行'
             )
         }
 

@@ -73,7 +73,7 @@ class EditFileTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                'Edit file with explicit mode. Line numbers start from 1. Must use view_file first.\n\n'
+                'Edit file with explicit mode. Line numbers start from 1.\n\n'
                 'Examples:\n'
                 '  mode=0, line_range=[5, 5], new_content="fixed"  # Replace line 5\n'
                 '  mode=0, line_range=[2, 4], new_content="new\\ncode"  # Replace lines 2-4\n'
@@ -81,7 +81,7 @@ class EditFileTool(BaseTool):
                 '  mode=2, line_range=[2, 2], new_content="import json"  # Insert after line 2'
             ),
             'zh': (
-                '使用明确模式编辑文件。行号从 1 开始。必须先使用 view_file。\n\n'
+                '使用明确模式编辑文件。行号从 1 开始。\n\n'
                 '示例：\n'
                 '  mode=0, line_range=[5, 5], new_content="修复"  # 替换第 5 行\n'
                 '  mode=0, line_range=[2, 4], new_content="新\\n代码"  # 替换第 2-4 行\n'
