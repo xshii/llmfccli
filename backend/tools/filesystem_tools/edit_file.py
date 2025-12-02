@@ -85,6 +85,10 @@ class EditFileTool(BaseTool):
         return "filesystem"
 
     @property
+    def priority(self) -> int:
+        return 90
+
+    @property
     def parameters_model(self):
         return EditFileParams
 

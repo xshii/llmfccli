@@ -59,6 +59,10 @@ class ListDirTool(BaseTool):
         return "filesystem"
 
     @property
+    def priority(self) -> int:
+        return 65
+
+    @property
     def parameters_model(self):
         return ListDirParams
 

@@ -70,6 +70,10 @@ class ViewFileTool(BaseTool):
         return "filesystem"
 
     @property
+    def priority(self) -> int:
+        return 95  # Highest priority - most frequently used, required before edit_file
+
+    @property
     def parameters_model(self):
         return ViewFileParams
 

@@ -36,6 +36,10 @@ class RunTestsTool(BaseTool):
         return "executor"
 
     @property
+    def priority(self) -> int:
+        return 35
+
+    @property
     def parameters_model(self):
         return RunTestsParams
 

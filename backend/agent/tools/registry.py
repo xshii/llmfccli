@@ -266,18 +266,55 @@ class ToolRegistry:
         return list(self._tool_metadata.keys())
 
     def get_openai_schemas(self) -> List[Dict[str, Any]]:
-        """获取所有工具的 OpenAI function calling schemas"""
-        schemas = []
+        """
+        获取所有工具的 OpenAI function calling schemas
 
-        # 为每个工具生成 schema（需要临时实例）
+        工具列表按优先级排序以优化 LLM 选择：
+        - 前30%高优先级工具（80-100）放在列表前面
+        - 中30%中优先级工具（50-79）放在列表最后（倒序）
+        - 后40%低优先级工具（1-49）放在列表中间（随机）
+
+        基于研究：列表两端的工具有更高被选择概率
+        """
+        import random
+
+        # 收集所有工具及其优先级
+        tools_with_priority = []
+
         for tool_name in self._tool_metadata.keys():
             tool = self.get(tool_name)
             if tool:
                 try:
                     schema = tool.get_openai_schema()
-                    schemas.append(schema)
+                    priority = getattr(tool, 'priority', 50)  # Default priority: 50
+                    tools_with_priority.append((priority, schema, tool_name))
                 except Exception as e:
                     print(f"警告: 无法生成工具 {tool_name} 的 schema: {e}")
+
+        # Sort by priority (descending)
+        tools_with_priority.sort(key=lambda x: x[0], reverse=True)
+
+        # Split into three groups based on priority ranges
+        high_priority = []  # 80-100
+        mid_priority = []   # 50-79
+        low_priority = []   # 1-49
+
+        for priority, schema, name in tools_with_priority:
+            if priority >= 80:
+                high_priority.append(schema)
+            elif priority >= 50:
+                mid_priority.append(schema)
+            else:
+                low_priority.append(schema)
+
+        # Reverse mid-priority group (put at end)
+        mid_priority.reverse()
+
+        # Randomize low-priority group (put in middle)
+        random.shuffle(low_priority)
+
+        # Construct final list: high + low + mid
+        schemas = high_priority + low_priority + mid_priority
 
         return schemas
 

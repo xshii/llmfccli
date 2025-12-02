@@ -40,6 +40,10 @@ class GitTool(BaseTool):
         return "git"
 
     @property
+    def priority(self) -> int:
+        return 30
+
+    @property
     def parameters_model(self):
         return GitParams
 

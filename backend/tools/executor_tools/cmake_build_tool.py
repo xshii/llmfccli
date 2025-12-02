@@ -35,6 +35,10 @@ class CmakeBuildTool(BaseTool):
         return "executor"
 
     @property
+    def priority(self) -> int:
+        return 60
+
+    @property
     def parameters_model(self):
         return CmakeBuildParams
 
