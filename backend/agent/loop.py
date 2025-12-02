@@ -134,13 +134,8 @@ class AgentLoop:
             }
             self.conversation_history.append(project_context_msg)
 
-        # Add current working directory context as system reminder (updated each run)
-        import os
-        current_cwd = os.getcwd()
-        cwd_reminder = f'<system-reminder>\nCurrent working directory: {current_cwd}\n</system-reminder>\n\n'
-
-        # Add user message with cwd reminder
-        user_message = {'role': 'user', 'content': cwd_reminder + user_input}
+        # Add user message
+        user_message = {'role': 'user', 'content': user_input}
         self.conversation_history.append(user_message)
 
         # Update token count
