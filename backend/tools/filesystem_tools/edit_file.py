@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-EditFile Tool - Performs exact string replacements in files
+EditFile Tool - Line-based file editing with Unix line endings
 """
 
 import os
@@ -21,11 +21,16 @@ class EditFileParams(BaseModel):
         description="File path (relative to project root or absolute path)",
         json_schema_extra={"format": "filepath"}
     )
-    old_str: str = Field(
-        description="Text to replace (must be unique in file). Provide surrounding context to ensure uniqueness."
+    start_line: int = Field(
+        description="Start line number (1-based, inclusive)",
+        ge=1
     )
-    new_str: str = Field(
-        description="Replacement text (must preserve exact indentation)"
+    end_line: int = Field(
+        description="End line number (1-based, inclusive)",
+        ge=1
+    )
+    new_content: str = Field(
+        description="New content to replace the specified line range (use \\n for line breaks)"
     )
     confirm: bool = Field(
         True,
@@ -34,7 +39,7 @@ class EditFileParams(BaseModel):
 
 
 class EditFileTool(BaseTool):
-    """Edit file using exact string replacement"""
+    """Edit file by replacing a line range with new content"""
 
     @property
     def name(self) -> str:
@@ -44,19 +49,20 @@ class EditFileTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                'Performs exact string replacements in files. You must use view_file at least once before editing. '
-                'The old_str must be unique in the file or the edit will fail. Provide larger context to ensure uniqueness. '
-                'Preserve exact indentation (tabs/spaces) when editing.\n\n'
-                'GOOD: old_str includes surrounding lines for uniqueness\n'
-                'GOOD: Indentation matches exactly (spaces/tabs)\n'
-                'BAD: old_str="return 0;" appears 10 times in file'
+                'Replaces a range of lines in a file with new content. You must use view_file at least once before editing. '
+                'Specify start_line and end_line (1-based, inclusive) to define the range. '
+                'Use Unix line endings (\\n) in new_content. Lines are preserved with \\n separator.\n\n'
+                'GOOD: Edit lines 10-15 with accurate line numbers from view_file\n'
+                'GOOD: new_content="def foo():\\n    return 42\\n" (explicit \\n)\n'
+                'BAD: Using wrong line numbers without checking view_file first'
             ),
             'zh': (
-                '执行精确字符串替换。必须先使用 view_file 读取文件。old_str 必须在文件中唯一，否则编辑失败。'
-                '提供更大上下文确保唯一性。编辑时保持精确缩进（tabs/spaces）。\n\n'
-                '好例子：old_str 包含周围行以确保唯一性\n'
-                '好例子：缩进完全匹配（空格/制表符）\n'
-                '坏例子：old_str="return 0;" 在文件中出现 10 次'
+                '替换文件中的行范围为新内容。必须先使用 view_file 读取文件。'
+                '指定 start_line 和 end_line（从1开始，包含边界）定义范围。'
+                '在 new_content 中使用 Unix 行结束符（\\n）。行之间用 \\n 分隔。\n\n'
+                '好例子：使用 view_file 中准确的行号编辑 10-15 行\n'
+                '好例子：new_content="def foo():\\n    return 42\\n"（显式 \\n）\n'
+                '坏例子：不先查看 view_file 就使用错误的行号'
             )
         }
 
@@ -67,19 +73,24 @@ class EditFileTool(BaseTool):
                 'en': 'File path (relative to project root or absolute path)',
                 'zh': '文件路径（相对于项目根目录或绝对路径）',
             },
-            'old_str': {
-                'en': 'Text to replace (must be unique in file). Include surrounding context to ensure uniqueness.',
-                'zh': '要替换的文本（必须在文件中唯一）。包含周围上下文以确保唯一性。',
+            'start_line': {
+                'en': 'Start line number (1-based, inclusive)',
+                'zh': '起始行号（从1开始，包含）',
             },
-            'new_str': {
-                'en': 'Replacement text (preserve exact indentation - tabs/spaces)',
-                'zh': '替换后的文本（保持精确缩进 - tabs/spaces）',
+            'end_line': {
+                'en': 'End line number (1-based, inclusive)',
+                'zh': '结束行号（从1开始，包含）',
+            },
+            'new_content': {
+                'en': 'New content to replace the line range (use \\n for line breaks)',
+                'zh': '替换行范围的新内容（使用 \\n 作为换行符）',
             },
             'confirm': {
                 'en': 'Whether to confirm before editing (default true)',
                 'zh': '是否需要用户确认（默认 true）',
             },
         }
+
     @property
     def category(self) -> str:
         return "filesystem"
@@ -92,21 +103,22 @@ class EditFileTool(BaseTool):
     def parameters_model(self):
         return EditFileParams
 
-    def execute(self, path: str, old_str: str, new_str: str, confirm: bool = True) -> Dict[str, Any]:
+    def execute(self, path: str, start_line: int, end_line: int, new_content: str, confirm: bool = True) -> Dict[str, Any]:
         """
-        Execute file editing with exact string replacement
+        Execute file editing by replacing a line range
 
         Args:
             path: File path (relative to project root or absolute)
-            old_str: Text to replace (must be unique in file)
-            new_str: Replacement text (preserve exact indentation)
+            start_line: Start line number (1-based, inclusive)
+            end_line: End line number (1-based, inclusive)
+            new_content: New content to replace the line range
             confirm: Whether to confirm before editing (default: True)
 
         Returns:
             Dict containing success status and edit details
 
         Raises:
-            FileSystemError: If file not found, old_str not unique, or write fails
+            FileSystemError: If file not found, invalid line range, or write fails
         """
         # Resolve path
         if not os.path.isabs(path) and self.project_root:
@@ -126,44 +138,84 @@ class EditFileTool(BaseTool):
         if not os.path.exists(full_path):
             raise FileSystemError(f"File not found: {path}")
 
-        # Read file
+        # Validate line range
+        if start_line < 1:
+            raise FileSystemError(f"start_line must be >= 1, got {start_line}")
+        if end_line < start_line:
+            raise FileSystemError(f"end_line ({end_line}) must be >= start_line ({start_line})")
+
+        # Read file with Unix line endings
         try:
-            with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(full_path, 'r', encoding='utf-8', errors='replace', newline='') as f:
                 content = f.read()
         except Exception as e:
             raise FileSystemError(f"Failed to read file {path}: {e}")
 
-        # Check if old_str exists
-        if old_str not in content:
+        # Split into lines (preserve empty lines)
+        lines = content.splitlines(keepends=False)
+        total_lines = len(lines)
+
+        # Validate line range against file size
+        if start_line > total_lines:
             raise FileSystemError(
-                f"Text not found in file: {old_str[:50]}...\n"
-                f"Make sure to copy the exact text including indentation."
+                f"start_line ({start_line}) exceeds file length ({total_lines} lines)"
+            )
+        if end_line > total_lines:
+            raise FileSystemError(
+                f"end_line ({end_line}) exceeds file length ({total_lines} lines)"
             )
 
-        # Check uniqueness - must appear exactly once
-        count = content.count(old_str)
-        if count > 1:
-            raise FileSystemError(
-                f"Text appears {count} times in file (must be unique): {old_str[:50]}...\n"
-                f"Provide more surrounding context to make it unique."
-            )
+        # Prepare new content lines (split by \n, preserve empty lines)
+        new_lines = new_content.split('\n') if new_content else ['']
 
-        # Generate new content
-        new_content = content.replace(old_str, new_str)
+        # Replace the line range (convert to 0-based indexing)
+        before = lines[:start_line - 1]
+        after = lines[end_line:]
+        result_lines = before + new_lines + after
 
-        # Write file (直接写入，确认逻辑由 AgentLoop 处理)
+        # Join with Unix line endings
+        new_file_content = '\n'.join(result_lines)
+
+        # Ensure file ends with newline if it originally did
+        if content and content[-1] == '\n':
+            new_file_content += '\n'
+
+        # Write file with Unix line endings
         try:
-            with open(full_path, 'w', encoding='utf-8') as f:
-                f.write(new_content)
+            with open(full_path, 'w', encoding='utf-8', newline='') as f:
+                f.write(new_file_content)
+
+            old_line_count = end_line - start_line + 1
+            new_line_count = len(new_lines)
 
             return {
                 'success': True,
                 'path': full_path,
-                'mode': 'direct',
-                'old_str': old_str[:100] + ('...' if len(old_str) > 100 else ''),
-                'new_str': new_str[:100] + ('...' if len(new_str) > 100 else ''),
-                'changes': len(new_str) - len(old_str),
-                'message': f"Successfully edited {os.path.basename(full_path)}"
+                'start_line': start_line,
+                'end_line': end_line,
+                'old_line_count': old_line_count,
+                'new_line_count': new_line_count,
+                'lines_changed': new_line_count - old_line_count,
+                'message': f"Successfully edited {os.path.basename(full_path)} (lines {start_line}-{end_line})"
             }
         except Exception as e:
             raise FileSystemError(f"Failed to write file {path}: {e}")
+
+
+# Export function interface for backward compatibility
+def edit_file(path: str, start_line: int, end_line: int, new_content: str, project_root: str = None) -> Dict[str, Any]:
+    """
+    Edit file by replacing a line range with new content
+
+    Args:
+        path: File path (relative to project root or absolute)
+        start_line: Start line number (1-based, inclusive)
+        end_line: End line number (1-based, inclusive)
+        new_content: New content to replace the line range
+        project_root: Project root directory
+
+    Returns:
+        Dict containing success status and edit details
+    """
+    tool = EditFileTool(project_root=project_root)
+    return tool.execute(path=path, start_line=start_line, end_line=end_line, new_content=new_content, confirm=False)
