@@ -444,36 +444,44 @@ class CLI:
         self.console.print(Panel(welcome, title="欢迎", border_style="blue"))
 
     def _get_ide_context(self) -> str:
-        """获取 IDE 上下文（当前打开的文件信息）
+        """获取 IDE 上下文（project root + cwd + 当前打开的文件信息）
 
         Returns:
-            str: 包含 <system-reminder> 标签的上下文字符串，如果不可用则返回空字符串
+            str: 包含 <system-reminder> 标签的上下文字符串
         """
+        import os
+
+        context_parts = []
+
+        # 始终添加 project root 和当前工作目录
+        context_parts.append(f'Project root: {self.project_root}')
+
+        current_cwd = os.getcwd()
+        context_parts.append(f'Current working directory: {current_cwd}')
+
         # 检查功能开关
-        if not is_feature_enabled("ide_integration.inject_active_file_context"):
-            return ""
+        if is_feature_enabled("ide_integration.inject_active_file_context"):
+            # 检查是否连接到 VSCode extension（动态检测）
+            from backend.rpc.client import is_vscode_mode
+            if is_vscode_mode():
+                try:
+                    from backend.tools import vscode
 
-        # 检查是否连接到 VSCode extension（动态检测）
-        from backend.rpc.client import is_vscode_mode
-        if not is_vscode_mode():
-            return ""
+                    file_info = vscode.get_active_file()
+                    file_path = file_info['path']
 
-        try:
-            from backend.tools import vscode
-            from backend.i18n import t
+                    file_msg = (f'The user\'s IDE has file "{file_path}" open (for context only). '
+                                f'This is NOT a request to process this file. Only act on the file if the user explicitly asks.')
+                    context_parts.append(file_msg)
+                except Exception:
+                    pass  # IDE 文件信息获取失败，仅使用 project root + cwd
 
-            file_info = vscode.get_active_file()
-            file_path = file_info['path']
-
-            context_msg = t({
-                'en': f'The user\'s IDE has file "{file_path}" open (for context only). '
-                      f'This is NOT a request to process this file. Only act on the file if the user explicitly asks.',
-                'zh': f'当前文件: {file_path}（仅作上下文，非处理请求）'
-            })
-
+        # 组合上下文
+        if context_parts:
+            context_msg = '\n'.join(context_parts)
             return f"<system-reminder>\n{context_msg}\n</system-reminder>"
-        except Exception:
-            return ""
+
+        return ""
 
     def run(self):
         """运行交互循环"""

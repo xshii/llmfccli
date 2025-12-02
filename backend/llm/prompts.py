@@ -276,8 +276,10 @@ def format_prompt(template: str, **kwargs) -> str:
     return template.format(**kwargs)
 
 
-def get_system_prompt() -> str:
-    """Get the main system prompt"""
+def get_system_prompt(project_root: str = "") -> str:
+    """Get the main system prompt with project root context"""
+    if project_root:
+        return f"{SYSTEM_PROMPT}\n\n# PROJECT CONTEXT\n\nProject root: {project_root}\nAll relative paths are resolved from this root directory."
     return SYSTEM_PROMPT
 
 
