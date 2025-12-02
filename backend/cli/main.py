@@ -444,23 +444,20 @@ class CLI:
         self.console.print(Panel(welcome, title="欢迎", border_style="blue"))
 
     def _get_ide_context(self) -> str:
-        """获取 IDE 上下文（当前打开的文件信息 + cwd）
+        """获取 IDE 上下文（project root + cwd + 当前打开的文件信息）
 
         Returns:
             str: 包含 <system-reminder> 标签的上下文字符串
         """
         import os
-        from backend.i18n import t
 
         context_parts = []
 
-        # 始终添加当前工作目录
+        # 始终添加 project root 和当前工作目录
+        context_parts.append(f'Project root: {self.project_root}')
+
         current_cwd = os.getcwd()
-        cwd_msg = t({
-            'en': f'Current working directory: {current_cwd}',
-            'zh': f'当前工作目录: {current_cwd}'
-        })
-        context_parts.append(cwd_msg)
+        context_parts.append(f'Current working directory: {current_cwd}')
 
         # 检查功能开关
         if is_feature_enabled("ide_integration.inject_active_file_context"):
@@ -473,14 +470,11 @@ class CLI:
                     file_info = vscode.get_active_file()
                     file_path = file_info['path']
 
-                    file_msg = t({
-                        'en': f'The user\'s IDE has file "{file_path}" open (for context only). '
-                              f'This is NOT a request to process this file. Only act on the file if the user explicitly asks.',
-                        'zh': f'当前文件: {file_path}（仅作上下文，非处理请求）'
-                    })
+                    file_msg = (f'The user\'s IDE has file "{file_path}" open (for context only). '
+                                f'This is NOT a request to process this file. Only act on the file if the user explicitly asks.')
                     context_parts.append(file_msg)
                 except Exception:
-                    pass  # IDE 文件信息获取失败，仅使用 cwd
+                    pass  # IDE 文件信息获取失败，仅使用 project root + cwd
 
         # 组合上下文
         if context_parts:

@@ -126,14 +126,6 @@ class AgentLoop:
         # Store stream mode for later use
         self._stream_mode = stream
 
-        # Add project root context as system message (first message only)
-        if not self.conversation_history:
-            project_context_msg = {
-                'role': 'system',
-                'content': f'# PROJECT CONTEXT\n\nProject root: {self.project_root}\nAll relative paths are resolved from the project root.'
-            }
-            self.conversation_history.append(project_context_msg)
-
         # Add user message
         user_message = {'role': 'user', 'content': user_input}
         self.conversation_history.append(user_message)
