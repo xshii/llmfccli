@@ -11,6 +11,7 @@ import { FileInfo, Selection, DiffParams, ApplyChangesParams, OpenFileParams } f
 
 export class JsonRpcServer {
     private protocol: JsonRpcProtocol;
+    private currentDiffEditor: vscode.TextEditor | undefined;
 
     constructor() {
         this.protocol = new JsonRpcProtocol();
@@ -25,6 +26,7 @@ export class JsonRpcServer {
         this.protocol.registerMethod('getActiveFile', this.handleGetActiveFile.bind(this));
         this.protocol.registerMethod('getSelection', this.handleGetSelection.bind(this));
         this.protocol.registerMethod('showDiff', this.handleShowDiff.bind(this));
+        this.protocol.registerMethod('closeDiff', this.handleCloseDiff.bind(this));
         this.protocol.registerMethod('applyChanges', this.handleApplyChanges.bind(this));
         this.protocol.registerMethod('openFile', this.handleOpenFile.bind(this));
         this.protocol.registerMethod('getWorkspaceFolder', this.handleGetWorkspaceFolder.bind(this));
@@ -113,9 +115,10 @@ export class JsonRpcServer {
         try {
             const { title, originalPath, modifiedContent } = params;
 
-            // Create URIs for diff view
+            // Create URIs for diff view with unique timestamp to ensure refresh
             const originalUri = vscode.Uri.file(originalPath);
-            const modifiedUri = vscode.Uri.parse(`claude-qwen:${originalPath}?modified`);
+            const timestamp = Date.now();
+            const modifiedUri = vscode.Uri.parse(`claude-qwen:${originalPath}?modified=${timestamp}`);
 
             // Register text document content provider for modified content
             const provider = new (class implements vscode.TextDocumentContentProvider {
@@ -126,13 +129,31 @@ export class JsonRpcServer {
 
             const registration = vscode.workspace.registerTextDocumentContentProvider('claude-qwen', provider);
 
-            // Show diff
+            // Show diff and save editor reference
             await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title);
+            this.currentDiffEditor = vscode.window.activeTextEditor;
 
             // Dispose registration after a delay
             setTimeout(() => registration.dispose(), 60000);
 
             return { success: true, message: `Diff shown: ${title}` };
+        } catch (error: any) {
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Handle closeDiff request
+     */
+    private async handleCloseDiff(params: any): Promise<{ success: boolean; message?: string; error?: string }> {
+        try {
+            if (this.currentDiffEditor && !this.currentDiffEditor.document.isClosed) {
+                // Close the diff editor
+                await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+                this.currentDiffEditor = undefined;
+                return { success: true, message: 'Diff closed' };
+            }
+            return { success: true, message: 'No diff to close' };
         } catch (error: any) {
             return { success: false, error: error.message };
         }
