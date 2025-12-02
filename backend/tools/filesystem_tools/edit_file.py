@@ -72,19 +72,25 @@ class EditFileTool(BaseTool):
         return {
             'en': (
                 'Edit file with explicit operation type. Line numbers start from 1.\n\n'
+                'IMPORTANT: To insert content, you MUST set operation=1 (insert before) or operation=2 (insert after).\n'
+                'When inserting after the last line, DO NOT include trailing newline in new_content.\n\n'
                 'Examples:\n'
                 '  operation=0, line_range=[5, 5], new_content="fixed"  # Replace line 5\n'
                 '  operation=0, line_range=[2, 4], new_content="new\\ncode"  # Replace lines 2-4\n'
                 '  operation=1, line_range=[3, 3], new_content="import json"  # Insert before line 3\n'
-                '  operation=2, line_range=[2, 2], new_content="import json"  # Insert after line 2'
+                '  operation=2, line_range=[2, 2], new_content="import json"  # Insert after line 2\n'
+                '  operation=2, line_range=[10, 10], new_content="# last"  # Insert after last line (no \\n at end)'
             ),
             'zh': (
                 '使用明确操作类型编辑文件。行号从 1 开始。\n\n'
+                '重要：要插入内容，必须明确设置 operation=1（在前插入）或 operation=2（在后插入）。\n'
+                '在最后一行后插入时，不要在 new_content 末尾包含回车符。\n\n'
                 '示例：\n'
                 '  operation=0, line_range=[5, 5], new_content="修复"  # 替换第 5 行\n'
                 '  operation=0, line_range=[2, 4], new_content="新\\n代码"  # 替换第 2-4 行\n'
                 '  operation=1, line_range=[3, 3], new_content="import json"  # 在第 3 行前插入\n'
-                '  operation=2, line_range=[2, 2], new_content="import json"  # 在第 2 行后插入'
+                '  operation=2, line_range=[2, 2], new_content="import json"  # 在第 2 行后插入\n'
+                '  operation=2, line_range=[10, 10], new_content="# 最后"  # 在最后一行后插入（末尾无 \\n）'
             )
         }
 
@@ -100,12 +106,12 @@ class EditFileTool(BaseTool):
                 'zh': '[起始行, 结束行]（从1开始）。插入操作（1/2）只使用起始行',
             },
             'new_content': {
-                'en': 'New content (use \\n for line breaks)',
-                'zh': '新内容（使用 \\n 换行）',
+                'en': 'New content (use \\n for line breaks). When inserting after the last line, omit trailing \\n',
+                'zh': '新内容（使用 \\n 换行）。在最后一行后插入时，省略末尾的 \\n',
             },
             'operation': {
-                'en': 'Operation type (required): 0=replace (uses both start and end), 1=insert before (uses start only), 2=insert after (uses start only)',
-                'zh': '操作类型（必填）：0=替换（使用起始和结束行），1=在前插入（只使用起始行），2=在后插入（只使用起始行）',
+                'en': 'Operation type (required): 0=replace lines, 1=insert before line (MUST set explicitly for insert), 2=insert after line (MUST set explicitly for insert). Only start_line is used for insert operations (1/2)',
+                'zh': '操作类型（必填）：0=替换行，1=在行前插入（插入必须明确设置），2=在行后插入（插入必须明确设置）。插入操作（1/2）只使用起始行',
             },
         }
 
