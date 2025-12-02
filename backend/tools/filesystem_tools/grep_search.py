@@ -44,11 +44,17 @@ class GrepSearchTool(BaseTool):
             'en': (
                 "Search for pattern in files using ripgrep. Returns structured JSON results "
                 "(file path, line number, matched content). Preferred over bash_run for code search. "
-                "Use bash_run instead ONLY when you need pipes (grep | head | wc) or complex shell combinations."
+                "Use bash_run instead ONLY when you need pipes (grep | head | wc) or complex shell combinations.\n\n"
+                'GOOD: pattern="class.*Calculator", file_pattern="*.cpp"\n'
+                'GOOD: pattern="void initialize\\(", scope="src/"\n'
+                'BAD: Using bash_run with grep for simple pattern search'
             ),
             'zh': (
                 "使用 ripgrep 搜索文件内容。返回结构化 JSON 结果（文件路径、行号、匹配内容）。"
-                "优先使用此工具进行代码搜索。仅当需要管道（grep | head | wc）或复杂 shell 组合时才使用 bash_run。"
+                "优先使用此工具进行代码搜索。仅当需要管道（grep | head | wc）或复杂 shell 组合时才使用 bash_run。\n\n"
+                '好例子：pattern="class.*Calculator", file_pattern="*.cpp"\n'
+                '好例子：pattern="void initialize\\(", scope="src/"\n'
+                '坏例子：简单搜索却使用 bash_run grep'
             )
         }
 

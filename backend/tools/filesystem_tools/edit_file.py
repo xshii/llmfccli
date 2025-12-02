@@ -43,8 +43,21 @@ class EditFileTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': 'Performs exact string replacements in files. You must use view_file at least once before editing. The old_str must be unique in the file or the edit will fail. Provide larger context to ensure uniqueness. Preserve exact indentation (tabs/spaces) when editing.',
-            'zh': '执行精确字符串替换。必须先使用 view_file 读取文件。old_str 必须在文件中唯一，否则编辑失败。提供更大上下文确保唯一性。编辑时保持精确缩进（tabs/spaces）。'
+            'en': (
+                'Performs exact string replacements in files. You must use view_file at least once before editing. '
+                'The old_str must be unique in the file or the edit will fail. Provide larger context to ensure uniqueness. '
+                'Preserve exact indentation (tabs/spaces) when editing.\n\n'
+                'GOOD: old_str includes surrounding lines for uniqueness\n'
+                'GOOD: Indentation matches exactly (spaces/tabs)\n'
+                'BAD: old_str="return 0;" appears 10 times in file'
+            ),
+            'zh': (
+                '执行精确字符串替换。必须先使用 view_file 读取文件。old_str 必须在文件中唯一，否则编辑失败。'
+                '提供更大上下文确保唯一性。编辑时保持精确缩进（tabs/spaces）。\n\n'
+                '好例子：old_str 包含周围行以确保唯一性\n'
+                '好例子：缩进完全匹配（空格/制表符）\n'
+                '坏例子：old_str="return 0;" 在文件中出现 10 次'
+            )
         }
 
 
