@@ -263,6 +263,18 @@ class AgentLoop:
                     action = self.confirmation.confirm_tool_execution(tool_name, arguments)
 
                     if action == ConfirmAction.DENY:
+                        # Close diff preview if it was shown
+                        if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
+                            try:
+                                from backend.rpc.client import is_vscode_mode
+                                from backend.feature import is_feature_enabled
+                                if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
+                                    from backend.tools.vscode_tools import vscode
+                                    vscode.close_diff()
+                            except Exception:
+                                # Failed to close diff, continue
+                                pass
+
                         # User denied - add error message and skip execution
                         result = {
                             'success': False,
