@@ -97,12 +97,12 @@ class EditFileTool(BaseTool):
                 'zh': '文件路径（相对于项目根目录或绝对路径）',
             },
             'line_range': {
-                'en': 'Line range [start_line, end_line]. REPLACE: [10, 15] replaces lines 10-15. INSERT: [3, 2] inserts after line 2',
-                'zh': '行范围 [起始行, 结束行]。替换：[10, 15] 替换 10-15 行。插入：[3, 2] 在第 2 行后插入',
+                'en': '[start_line, end_line] to replace (1-indexed, inclusive). Example: [5, 5] replaces line 5, [2, 4] replaces lines 2-4',
+                'zh': '[起始行, 结束行] 进行替换（从1开始，包含边界）。示例：[5, 5] 替换第5行，[2, 4] 替换第2-4行',
             },
             'new_content': {
-                'en': 'New content to replace the line range (use \\n for line breaks)',
-                'zh': '替换行范围的新内容（使用 \\n 作为换行符）',
+                'en': 'New content (use \\n for line breaks). To insert, include original line content',
+                'zh': '新内容（使用 \\n 换行）。要插入而不删除，需包含原行内容',
             },
             'confirm': {
                 'en': 'Whether to confirm before editing (default true)',
