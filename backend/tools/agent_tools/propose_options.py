@@ -62,6 +62,10 @@ class ProposeOptionsTool(BaseTool):
         return "agent"
 
     @property
+    def priority(self) -> int:
+        return 20
+
+    @property
     def parameters_model(self):
         return ProposeOptionsParams
 

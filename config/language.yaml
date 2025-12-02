@@ -6,7 +6,7 @@
 
 # Default language for tool descriptions and parameters
 # Can be overridden by environment variable CLAUDE_QWEN_LANG
-default: zh
+default: en
 
 # Language detection strategy
 # - config: Always use the default language specified above

@@ -108,6 +108,10 @@ class BashRunTool(BaseTool):
         return "executor"
 
     @property
+    def priority(self) -> int:
+        return 70
+
+    @property
     def parameters_model(self):
         return BashRunParams
 

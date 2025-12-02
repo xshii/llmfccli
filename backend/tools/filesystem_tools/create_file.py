@@ -56,6 +56,10 @@ class CreateFileTool(BaseTool):
         return "filesystem"
 
     @property
+    def priority(self) -> int:
+        return 40
+
+    @property
     def parameters_model(self):
         return CreateFileParams
 

@@ -81,6 +81,19 @@ class BaseTool(ABC):
         return "other"
 
     @property
+    def priority(self) -> int:
+        """工具优先级 (用于工具列表排序)
+
+        优先级范围: 1-100
+        - 高优先级 (80-100): 最常用工具，放在列表前面 (前30%)
+        - 中优先级 (50-79): 常用工具，放在列表最后倒序 (中30%)
+        - 低优先级 (1-49): 较少使用工具，放在列表中间随机 (后40%)
+
+        默认: 50 (中优先级)
+        """
+        return 50
+
+    @property
     def parameters_model(self) -> Type[BaseModel]:
         """参数模型（Pydantic）- 自动生成 JSON Schema
 

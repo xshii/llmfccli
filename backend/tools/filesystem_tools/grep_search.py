@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-GrepSearch Tool - 文件内容搜索
+GrepSearch Tool - Search for patterns in files using ripgrep
 """
 
 import os
@@ -18,7 +18,7 @@ class FileSystemError(Exception):
 
 
 class GrepSearchParams(BaseModel):
-    """GrepSearch 工具参数"""
+    """GrepSearch tool parameters"""
     pattern: str = Field(
         description="Search pattern (regex)"
     )
@@ -27,12 +27,12 @@ class GrepSearchParams(BaseModel):
     )
     file_pattern: Optional[str] = Field(
         None,
-        description="Optional file pattern filter (e.g., '*.cpp')"
+        description="Optional file pattern filter (e.g., '*.cpp', '*.h')"
     )
 
 
 class GrepSearchTool(BaseTool):
-    """文件内容搜索工具"""
+    """Search for patterns in files using ripgrep"""
 
     @property
     def name(self) -> str:
@@ -44,11 +44,17 @@ class GrepSearchTool(BaseTool):
             'en': (
                 "Search for pattern in files using ripgrep. Returns structured JSON results "
                 "(file path, line number, matched content). Preferred over bash_run for code search. "
-                "Use bash_run instead ONLY when you need pipes (grep | head | wc) or complex shell combinations."
+                "Use bash_run instead ONLY when you need pipes (grep | head | wc) or complex shell combinations.\n\n"
+                'GOOD: pattern="class.*Calculator", file_pattern="*.cpp"\n'
+                'GOOD: pattern="void initialize\\(", scope="src/"\n'
+                'BAD: Using bash_run with grep for simple pattern search'
             ),
             'zh': (
                 "使用 ripgrep 搜索文件内容。返回结构化 JSON 结果（文件路径、行号、匹配内容）。"
-                "优先使用此工具进行代码搜索。仅当需要管道（grep | head | wc）或复杂 shell 组合时才使用 bash_run。"
+                "优先使用此工具进行代码搜索。仅当需要管道（grep | head | wc）或复杂 shell 组合时才使用 bash_run。\n\n"
+                '好例子：pattern="class.*Calculator", file_pattern="*.cpp"\n'
+                '好例子：pattern="void initialize\\(", scope="src/"\n'
+                '坏例子：简单搜索却使用 bash_run grep'
             )
         }
 
@@ -73,11 +79,28 @@ class GrepSearchTool(BaseTool):
         return "filesystem"
 
     @property
+    def priority(self) -> int:
+        return 85
+
+    @property
     def parameters_model(self):
         return GrepSearchParams
 
     def execute(self, pattern: str, scope: str, file_pattern: Optional[str] = None) -> Dict[str, Any]:
-        """执行文件搜索"""
+        """
+        Search for pattern in files using ripgrep
+
+        Args:
+            pattern: Search pattern (regex supported)
+            scope: Search scope directory (e.g., '.', 'src/', 'backend/')
+            file_pattern: Optional file pattern filter (e.g., '*.cpp', '*.h')
+
+        Returns:
+            Dict containing search results with file paths, line numbers, and matched content
+
+        Raises:
+            FileSystemError: If scope is outside project root or search fails
+        """
         # Resolve scope path
         if not os.path.isabs(scope) and self.project_root:
             scope_path = os.path.join(self.project_root, scope)

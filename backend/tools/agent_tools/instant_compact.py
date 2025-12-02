@@ -36,6 +36,10 @@ class InstantCompactTool(BaseTool):
         return "agent"
 
     @property
+    def priority(self) -> int:
+        return 10
+
+    @property
     def parameters_model(self):
         return InstantCompactParams
 
