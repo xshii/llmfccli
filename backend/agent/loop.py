@@ -301,18 +301,6 @@ class AgentLoop:
                 # Execute tool via executor
                 result = self.tool_executor.execute_tool(tool_name, arguments)
 
-                # Close diff preview after successful execution (so next preview shows updated file)
-                if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
-                    try:
-                        from backend.rpc.client import is_vscode_mode
-                        from backend.feature import is_feature_enabled
-                        if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
-                            from backend.tools.vscode_tools import vscode
-                            vscode.close_diff()
-                    except Exception:
-                        # Failed to close diff, continue
-                        pass
-
                 # Call tool output callback if provided
                 if self.tool_output_callback:
                     try:
