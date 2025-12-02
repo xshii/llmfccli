@@ -115,6 +115,9 @@ export class JsonRpcServer {
         try {
             const { title, originalPath, modifiedContent } = params;
 
+            // Save the currently active editor before showing diff
+            const previousEditor = vscode.window.activeTextEditor;
+
             // Create URIs for diff view with unique timestamp to ensure refresh
             const originalUri = vscode.Uri.file(originalPath);
             const timestamp = Date.now();
@@ -132,6 +135,18 @@ export class JsonRpcServer {
             // Show diff and save editor reference
             await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title);
             this.currentDiffEditor = vscode.window.activeTextEditor;
+
+            // Restore focus to previous editor or terminal
+            if (previousEditor && !previousEditor.document.isClosed) {
+                await vscode.window.showTextDocument(previousEditor.document, {
+                    viewColumn: previousEditor.viewColumn,
+                    preserveFocus: false,
+                    preview: false
+                });
+            } else {
+                // If no previous editor, focus back to terminal
+                await vscode.commands.executeCommand('workbench.action.terminal.focus');
+            }
 
             // Dispose registration after a delay
             setTimeout(() => registration.dispose(), 60000);
