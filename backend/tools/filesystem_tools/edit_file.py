@@ -29,14 +29,15 @@ class EditFileParams(BaseModel):
     new_content: str = Field(
         description="New content (use \\n for line breaks)"
     )
-    operation: int = Field(
-        description="Operation type: 0=replace lines, 1=insert before line, 2=insert after line"
+    operation: str = Field(
+        description="Operation type: 'replace', 'insert_before', or 'insert_after'"
     )
 
     @validator('operation')
     def validate_operation(cls, v):
-        if v not in (0, 1, 2):
-            raise ValueError(f"operation must be 0 (replace), 1 (insert_before), or 2 (insert_after), got {v}")
+        allowed = ('replace', 'insert_before', 'insert_after')
+        if v not in allowed:
+            raise ValueError(f"operation must be one of {allowed}, got '{v}'")
         return v
 
     @validator('line_range')
@@ -48,14 +49,14 @@ class EditFileParams(BaseModel):
         if start_line < 1:
             raise ValueError(f"start_line must be >= 1, got {start_line}")
 
-        operation = values.get('operation', 0)
+        operation = values.get('operation', 'replace')
 
-        # For replace mode, validate end_line
-        if operation == 0:
+        # For replace operation, validate end_line
+        if operation == 'replace':
             if end_line < start_line:
                 raise ValueError(f"Replace operation: end_line ({end_line}) must be >= start_line ({start_line})")
-        # For insert modes, only start_line is used (end_line is ignored)
-        # No validation needed for end_line in insert modes
+        # For insert operations, only start_line is used (end_line is ignored)
+        # No validation needed for end_line in insert operations
 
         return v
 
@@ -72,19 +73,25 @@ class EditFileTool(BaseTool):
         return {
             'en': (
                 'Edit file with explicit operation type. Line numbers start from 1.\n\n'
+                'IMPORTANT: To insert content, you MUST set operation="insert_before" or operation="insert_after".\n'
+                'When inserting after the last line, DO NOT include trailing newline in new_content.\n\n'
                 'Examples:\n'
-                '  operation=0, line_range=[5, 5], new_content="fixed"  # Replace line 5\n'
-                '  operation=0, line_range=[2, 4], new_content="new\\ncode"  # Replace lines 2-4\n'
-                '  operation=1, line_range=[3, 3], new_content="import json"  # Insert before line 3\n'
-                '  operation=2, line_range=[2, 2], new_content="import json"  # Insert after line 2'
+                '  operation="replace", line_range=[5, 5], new_content="fixed"  # Replace line 5\n'
+                '  operation="replace", line_range=[2, 4], new_content="new\\ncode"  # Replace lines 2-4\n'
+                '  operation="insert_before", line_range=[3, 3], new_content="import json"  # Insert before line 3\n'
+                '  operation="insert_after", line_range=[2, 2], new_content="import json"  # Insert after line 2\n'
+                '  operation="insert_after", line_range=[10, 10], new_content="# last"  # Insert after last line (no \\n)'
             ),
             'zh': (
                 '使用明确操作类型编辑文件。行号从 1 开始。\n\n'
+                '重要：要插入内容，必须明确设置 operation="insert_before" 或 operation="insert_after"。\n'
+                '在最后一行后插入时，不要在 new_content 末尾包含回车符。\n\n'
                 '示例：\n'
-                '  operation=0, line_range=[5, 5], new_content="修复"  # 替换第 5 行\n'
-                '  operation=0, line_range=[2, 4], new_content="新\\n代码"  # 替换第 2-4 行\n'
-                '  operation=1, line_range=[3, 3], new_content="import json"  # 在第 3 行前插入\n'
-                '  operation=2, line_range=[2, 2], new_content="import json"  # 在第 2 行后插入'
+                '  operation="replace", line_range=[5, 5], new_content="修复"  # 替换第 5 行\n'
+                '  operation="replace", line_range=[2, 4], new_content="新\\n代码"  # 替换第 2-4 行\n'
+                '  operation="insert_before", line_range=[3, 3], new_content="import json"  # 在第 3 行前插入\n'
+                '  operation="insert_after", line_range=[2, 2], new_content="import json"  # 在第 2 行后插入\n'
+                '  operation="insert_after", line_range=[10, 10], new_content="# 最后"  # 在最后一行后插入（末尾无 \\n）'
             )
         }
 
@@ -96,16 +103,16 @@ class EditFileTool(BaseTool):
                 'zh': '文件路径（相对于项目根目录或绝对路径）',
             },
             'line_range': {
-                'en': '[start_line, end_line] (1-indexed). For insert operations (1/2), only start_line is used',
-                'zh': '[起始行, 结束行]（从1开始）。插入操作（1/2）只使用起始行',
+                'en': '[start_line, end_line] (1-indexed). For insert operations, only start_line is used',
+                'zh': '[起始行, 结束行]（从1开始）。插入操作只使用起始行',
             },
             'new_content': {
-                'en': 'New content (use \\n for line breaks)',
-                'zh': '新内容（使用 \\n 换行）',
+                'en': 'New content (use \\n for line breaks). When inserting after the last line, omit trailing \\n',
+                'zh': '新内容（使用 \\n 换行）。在最后一行后插入时，省略末尾的 \\n',
             },
             'operation': {
-                'en': 'Operation type (required): 0=replace (uses both start and end), 1=insert before (uses start only), 2=insert after (uses start only)',
-                'zh': '操作类型（必填）：0=替换（使用起始和结束行），1=在前插入（只使用起始行），2=在后插入（只使用起始行）',
+                'en': 'Operation type (required): "replace", "insert_before", or "insert_after". MUST explicitly set to insert_before/insert_after for insertion',
+                'zh': '操作类型（必填）："replace"（替换）、"insert_before"（在前插入）或 "insert_after"（在后插入）。插入时必须明确设置为 insert_before 或 insert_after',
             },
         }
 
@@ -121,7 +128,7 @@ class EditFileTool(BaseTool):
     def parameters_model(self):
         return EditFileParams
 
-    def get_diff_preview(self, path: str, line_range: List[int], new_content: str, operation: int) -> None:
+    def get_diff_preview(self, path: str, line_range: List[int], new_content: str, operation: str) -> None:
         """
         Generate and show diff preview in VSCode (without applying changes)
 
@@ -132,7 +139,7 @@ class EditFileTool(BaseTool):
             path: File path
             line_range: Line range [start_line, end_line] (for insert ops, only start_line is used)
             new_content: New content
-            operation: Operation type (0=replace, 1=insert_before, 2=insert_after)
+            operation: Operation type ("replace", "insert_before", or "insert_after")
         """
         start_line, end_line = line_range
 
@@ -156,17 +163,17 @@ class EditFileTool(BaseTool):
             lines = content.splitlines(keepends=False)
             new_lines = new_content.split('\n') if new_content else ['']
 
-            if operation == 0:  # replace
+            if operation == 'replace':
                 before = lines[:start_line - 1]
                 after = lines[end_line:]
                 result_lines = before + new_lines + after
                 title_op = "Replace"
-            elif operation == 1:  # insert_before (only uses start_line)
+            elif operation == 'insert_before':  # only uses start_line
                 before = lines[:start_line - 1]
                 after = lines[start_line - 1:]
                 result_lines = before + new_lines + after
                 title_op = "Insert before"
-            elif operation == 2:  # insert_after (only uses start_line)
+            elif operation == 'insert_after':  # only uses start_line
                 before = lines[:start_line]
                 after = lines[start_line:]
                 result_lines = before + new_lines + after
@@ -196,7 +203,7 @@ class EditFileTool(BaseTool):
             # Preview failed, continue silently
             pass
 
-    def execute(self, path: str, line_range: List[int], new_content: str, operation: int) -> Dict[str, Any]:
+    def execute(self, path: str, line_range: List[int], new_content: str, operation: str) -> Dict[str, Any]:
         """
         Execute file editing with specified operation
 
@@ -204,7 +211,7 @@ class EditFileTool(BaseTool):
             path: File path (relative to project root or absolute)
             line_range: Line range as [start_line, end_line] (1-based). For insert operations, only start_line is used
             new_content: New content
-            operation: Operation type (0=replace, 1=insert_before, 2=insert_after)
+            operation: Operation type ("replace", "insert_before", or "insert_after")
 
         Returns:
             Dict containing success status and edit details
@@ -251,7 +258,7 @@ class EditFileTool(BaseTool):
         if start_line < 1:
             raise FileSystemError(f"start_line must be >= 1, got {start_line}")
 
-        if operation == 0:  # replace operation
+        if operation == 'replace':
             if end_line < start_line:
                 raise FileSystemError(f"Replace operation: end_line ({end_line}) must be >= start_line ({start_line})")
             if end_line > total_lines:
@@ -262,7 +269,7 @@ class EditFileTool(BaseTool):
             result_lines = before + new_lines + after
             op_msg = f"replaced lines {start_line}-{end_line}"
 
-        elif operation == 1:  # insert_before (only uses start_line)
+        elif operation == 'insert_before':  # only uses start_line
             if start_line > total_lines:
                 raise FileSystemError(f"start_line ({start_line}) exceeds file length ({total_lines} lines)")
             # Insert before line
@@ -271,7 +278,7 @@ class EditFileTool(BaseTool):
             result_lines = before + new_lines + after
             op_msg = f"inserted before line {start_line}"
 
-        elif operation == 2:  # insert_after (only uses start_line)
+        elif operation == 'insert_after':  # only uses start_line
             if start_line > total_lines:
                 raise FileSystemError(f"start_line ({start_line}) exceeds file length ({total_lines} lines)")
             # Insert after line
@@ -281,7 +288,7 @@ class EditFileTool(BaseTool):
             op_msg = f"inserted after line {start_line}"
 
         else:
-            raise FileSystemError(f"Invalid operation: {operation} (must be 0, 1, or 2)")
+            raise FileSystemError(f"Invalid operation: '{operation}' (must be 'replace', 'insert_before', or 'insert_after')")
 
         # Join with Unix line endings
         new_file_content = '\n'.join(result_lines)

@@ -15,9 +15,9 @@ from backend.tools.filesystem_tools.edit_file import EditFileTool
 
 
 def test_mode_0_replace_single_line():
-    """Test operation=0: Replace single line"""
+    """Test operation="replace": Replace single line"""
     print("=" * 70)
-    print("Test: operation=0 replace single line")
+    print("Test: operation='replace' replace single line")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -29,7 +29,7 @@ def test_mode_0_replace_single_line():
             path=str(test_file),
             line_range=[2, 2],
             new_content="REPLACED_LINE2",
-            operation=0
+            operation="replace"
         )
 
         assert result['success'] is True
@@ -45,9 +45,9 @@ def test_mode_0_replace_single_line():
 
 
 def test_mode_0_replace_multiple_lines():
-    """Test operation=0: Replace multiple lines"""
+    """Test operation="replace": Replace multiple lines"""
     print("=" * 70)
-    print("Test: operation=0 replace multiple lines")
+    print("Test: operation='replace' replace multiple lines")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -59,7 +59,7 @@ def test_mode_0_replace_multiple_lines():
             path=str(test_file),
             line_range=[2, 4],
             new_content="NEW_A\nNEW_B",
-            operation=0
+            operation="replace"
         )
 
         assert result['success'] is True
@@ -75,9 +75,9 @@ def test_mode_0_replace_multiple_lines():
 
 
 def test_mode_1_insert_before():
-    """Test operation=1: Insert before line"""
+    """Test operation="insert_before": Insert before line"""
     print("=" * 70)
-    print("Test: operation=1 insert before line")
+    print("Test: operation='insert_before' insert before line")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -89,7 +89,7 @@ def test_mode_1_insert_before():
             path=str(test_file),
             line_range=[2, 2],
             new_content="import json",
-            operation=1
+            operation="insert_before"
         )
 
         assert result['success'] is True
@@ -105,9 +105,9 @@ def test_mode_1_insert_before():
 
 
 def test_mode_2_insert_after():
-    """Test operation=2: Insert after line"""
+    """Test operation="insert_after": Insert after line"""
     print("=" * 70)
-    print("Test: operation=2 insert after line")
+    print("Test: operation='insert_after' insert after line")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -119,7 +119,7 @@ def test_mode_2_insert_after():
             path=str(test_file),
             line_range=[2, 2],
             new_content="import json",
-            operation=2
+            operation="insert_after"
         )
 
         assert result['success'] is True
@@ -135,9 +135,9 @@ def test_mode_2_insert_after():
 
 
 def test_mode_1_insert_at_beginning():
-    """Test operation=1: Insert at beginning of file"""
+    """Test operation="insert_before": Insert at beginning of file"""
     print("=" * 70)
-    print("Test: operation=1 insert at beginning")
+    print("Test: operation='insert_before' insert at beginning")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -149,7 +149,7 @@ def test_mode_1_insert_at_beginning():
             path=str(test_file),
             line_range=[1, 1],
             new_content="#!/usr/bin/env python3",
-            operation=1
+            operation="insert_before"
         )
 
         assert result['success'] is True
@@ -165,9 +165,9 @@ def test_mode_1_insert_at_beginning():
 
 
 def test_mode_2_insert_at_end():
-    """Test operation=2: Insert at end of file"""
+    """Test operation="insert_after": Insert at end of file"""
     print("=" * 70)
-    print("Test: operation=2 insert at end")
+    print("Test: operation='insert_after' insert at end")
     print("=" * 70)
 
     with tempfile.TemporaryDirectory() as project_root:
@@ -179,7 +179,7 @@ def test_mode_2_insert_at_end():
             path=str(test_file),
             line_range=[2, 2],
             new_content="# End of file",
-            operation=2
+            operation="insert_after"
         )
 
         assert result['success'] is True
@@ -211,10 +211,10 @@ def test_insert_operation_ignores_end_line():
             path=str(test_file),
             line_range=[2, 99],  # end_line=99 is ignored
             new_content="inserted_before",
-            operation=1
+            operation="insert_before"
         )
         assert result['success'] is True
-        print(f"✓ operation=1 with different end_line works (end_line ignored)")
+        print('✓ operation="insert_before" with different end_line works (end_line ignored)')
 
         # Verify insertion happened before line 2
         final_content = test_file.read_text()
@@ -230,10 +230,10 @@ def test_insert_operation_ignores_end_line():
             path=str(test_file),
             line_range=[2, 99],  # end_line=99 is ignored
             new_content="inserted_after",
-            operation=2
+            operation="insert_after"
         )
         assert result['success'] is True
-        print(f"✓ operation=2 with different end_line works (end_line ignored)")
+        print('✓ operation="insert_after" with different end_line works (end_line ignored)')
 
         # Verify insertion happened after line 2
         final_content = test_file.read_text()
@@ -263,12 +263,12 @@ if __name__ == '__main__':
         print("=" * 70 + "\n")
 
         print("Summary:")
-        print("  ✓ operation=0: Replace single line works")
-        print("  ✓ operation=0: Replace multiple lines works")
-        print("  ✓ operation=1: Insert before line works")
-        print("  ✓ operation=2: Insert after line works")
-        print("  ✓ operation=1: Insert at beginning works")
-        print("  ✓ operation=2: Insert at end works")
+        print("  ✓ operation=replace: Replace single line works")
+        print("  ✓ operation=replace: Replace multiple lines works")
+        print("  ✓ operation=insert_before: Insert before line works")
+        print("  ✓ operation=insert_after: Insert after line works")
+        print("  ✓ operation=insert_before: Insert at beginning works")
+        print("  ✓ operation=insert_after: Insert at end works")
         print("  ✓ Insert operations correctly ignore end_line")
         print()
 
