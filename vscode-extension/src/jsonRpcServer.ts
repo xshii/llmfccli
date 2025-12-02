@@ -133,6 +133,9 @@ export class JsonRpcServer {
             await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title);
             this.currentDiffEditor = vscode.window.activeTextEditor;
 
+            // Always focus back to terminal (where CLI is running)
+            await vscode.commands.executeCommand('workbench.action.terminal.focus');
+
             // Dispose registration after a delay
             setTimeout(() => registration.dispose(), 60000);
 
