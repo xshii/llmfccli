@@ -250,9 +250,9 @@ class AgentLoop:
                     arguments = {}
 
                 # Check if confirmation is needed
+                tool_instance = self.tool_executor.registry.get(tool_name)
                 if self.confirmation.needs_confirmation(tool_name, arguments):
                     # Show preview before asking user to confirm (only when confirmation needed)
-                    tool_instance = self.tool_executor.registry.get(tool_name)
                     if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
                         try:
                             tool_instance.get_diff_preview(**arguments)
@@ -263,6 +263,18 @@ class AgentLoop:
                     action = self.confirmation.confirm_tool_execution(tool_name, arguments)
 
                     if action == ConfirmAction.DENY:
+                        # Close diff preview if it was shown
+                        if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
+                            try:
+                                from backend.rpc.client import is_vscode_mode
+                                from backend.feature import is_feature_enabled
+                                if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
+                                    from backend.tools.vscode_tools import vscode
+                                    vscode.close_diff()
+                            except Exception:
+                                # Failed to close diff, continue
+                                pass
+
                         # User denied - add error message and skip execution
                         result = {
                             'success': False,
@@ -288,6 +300,17 @@ class AgentLoop:
 
                 # Execute tool via executor
                 result = self.tool_executor.execute_tool(tool_name, arguments)
+
+                # Close diff preview after execution to ensure clean state
+                if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
+                    try:
+                        from backend.rpc.client import is_vscode_mode
+                        from backend.feature import is_feature_enabled
+                        if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
+                            from backend.tools.vscode_tools import vscode
+                            vscode.close_diff()
+                    except Exception:
+                        pass
 
                 # Call tool output callback if provided
                 if self.tool_output_callback:

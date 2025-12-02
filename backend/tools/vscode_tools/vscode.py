@@ -140,6 +140,20 @@ def show_diff(title: str, original_path: str, modified_content: str) -> Dict[str
         return _mock_response("showDiff", params)
 
 
+def close_diff() -> Dict[str, Any]:
+    """Close currently open diff comparison in VSCode
+
+    Returns:
+        dict: {'success': bool, 'message': str}
+    """
+    from backend.rpc.client import is_vscode_mode, send_vscode_request
+
+    if is_vscode_mode():
+        return send_vscode_request("closeDiff", {})
+    else:
+        return {"success": True, "message": "Closed diff"}
+
+
 def apply_changes(path: str, old_str: str, new_str: str) -> Dict[str, Any]:
     """Apply code changes to a file
 

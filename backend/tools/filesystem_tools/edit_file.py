@@ -30,7 +30,6 @@ class EditFileParams(BaseModel):
         description="New content (use \\n for line breaks)"
     )
     mode: int = Field(
-        0,
         description="Edit mode: 0=replace, 1=insert_before, 2=insert_after"
     )
 
@@ -107,8 +106,8 @@ class EditFileTool(BaseTool):
                 'zh': '新内容（使用 \\n 换行）',
             },
             'mode': {
-                'en': 'Edit mode: 0=replace (default), 1=insert_before, 2=insert_after',
-                'zh': '编辑模式：0=替换（默认），1=在前插入，2=在后插入',
+                'en': 'Edit mode (required): 0=replace, 1=insert_before, 2=insert_after',
+                'zh': '编辑模式（必填）：0=替换，1=在前插入，2=在后插入',
             },
         }
 
@@ -124,7 +123,7 @@ class EditFileTool(BaseTool):
     def parameters_model(self):
         return EditFileParams
 
-    def get_diff_preview(self, path: str, line_range: List[int], new_content: str, mode: int = 0) -> None:
+    def get_diff_preview(self, path: str, line_range: List[int], new_content: str, mode: int) -> None:
         """
         Generate and show diff preview in VSCode (without applying changes)
 
@@ -188,8 +187,10 @@ class EditFileTool(BaseTool):
 
             if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
                 from backend.tools.vscode_tools import vscode
+                import time
+                timestamp = int(time.time() * 1000)  # Milliseconds timestamp
                 vscode.show_diff(
-                    title=f"Preview: {title_op} line {start_line} in {os.path.basename(full_path)}",
+                    title=f"Preview: {title_op} line {start_line} in {os.path.basename(full_path)} [{timestamp}]",
                     original_path=full_path,
                     modified_content=new_file_content
                 )
@@ -197,7 +198,7 @@ class EditFileTool(BaseTool):
             # Preview failed, continue silently
             pass
 
-    def execute(self, path: str, line_range: List[int], new_content: str, mode: int = 0) -> Dict[str, Any]:
+    def execute(self, path: str, line_range: List[int], new_content: str, mode: int) -> Dict[str, Any]:
         """
         Execute file editing with specified mode
 
@@ -309,7 +310,7 @@ class EditFileTool(BaseTool):
 
 
 # Export function interface for backward compatibility
-def edit_file(path: str, line_range: List[int], new_content: str, project_root: str = None, mode: int = 0) -> Dict[str, Any]:
+def edit_file(path: str, line_range: List[int], new_content: str, mode: int, project_root: str = None) -> Dict[str, Any]:
     """
     Edit file with specified mode
 
