@@ -361,11 +361,14 @@ class CLI:
                 border_style="yellow"
             ))
 
+        # 获取工具签名用于显示
+        signature = self.agent.confirmation._get_tool_signature(tool_name, arguments)
+
         # 提示操作
         self.console.print("[bold]选择操作:[/bold]")
-        self.console.print("  [green]1[/green] - 本次允许 (ALLOW_ONCE)")
-        self.console.print("  [blue]2[/blue] - 始终允许 (ALLOW_ALWAYS)")
-        self.console.print("  [red]3[/red] - 拒绝并停止 (DENY)")
+        self.console.print("  [green]1[/green] - 本次允许")
+        self.console.print(f"  [blue]2[/blue] - 始终允许 [cyan]{signature}[/cyan]")
+        self.console.print("  [red]3[/red] - 拒绝并停止")
 
         while True:
             try:
@@ -375,28 +378,17 @@ class CLI:
                     self.console.print("[green]✓ 本次允许执行[/green]")
                     return ConfirmAction.ALLOW_ONCE
                 elif choice == '2':
-                    # 获取工具签名用于显示
-                    signature = self.agent.confirmation._get_tool_signature(tool_name, arguments)
+                    self.console.print(f"[blue]✓ 始终允许: {signature}[/blue]")
 
-                    if tool_name == 'bash_run':
-                        command = arguments.get('command', '')
-                        base_cmd = command.split()[0] if command else ''
-                        self.console.print(f"[blue]✓ 始终允许命令: {base_cmd}[/blue]")
-                    elif tool_name == 'git':
-                        action = arguments.get('action', '')
-                        self.console.print(f"[blue]✓ 始终允许 Git 操作: {action}[/blue]")
-
-                        # 检查是否有危险参数仍需确认
+                    # 对 git 工具额外提示危险参数
+                    if tool_name == 'git':
                         args = arguments.get('args', {})
+                        action = arguments.get('action', '')
                         if self.agent.confirmation.is_dangerous_git_operation(action, args):
                             self.console.print(
                                 f"[yellow]  ⚠️  注意：危险参数仍需确认 (如 --force, --hard)[/yellow]"
                             )
-                    else:
-                        self.console.print(f"[blue]✓ 始终允许工具: {tool_name}[/blue]")
 
-                    # 显示将被允许的签名 key
-                    self.console.print(f"[dim]  允许标识: {signature}[/dim]")
                     return ConfirmAction.ALLOW_ALWAYS
                 elif choice == '3':
                     self.console.print("[red]✗ 已拒绝，停止执行[/red]")
