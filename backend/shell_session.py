@@ -44,7 +44,7 @@ class PersistentShellSession:
         self.process: Optional[subprocess.Popen] = None
         self.stdout_queue: Queue = Queue()
         self.stderr_queue: Queue = Queue()
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()  # Use RLock to allow reentrant locking
 
         # Detect platform
         self.is_windows = platform.system() == 'Windows'
@@ -210,17 +210,37 @@ class PersistentShellSession:
 
         return False, ''
 
-    def execute(self, command: str, timeout: float = 30.0) -> Tuple[bool, str, str]:
+    # Safety limits for output
+    MAX_OUTPUT_LINES = 10000      # Maximum lines before truncation
+    MAX_OUTPUT_BYTES = 1024 * 1024  # 1MB max output
+    IDLE_TIMEOUT = 5.0            # Seconds without output before considering command stuck
+
+    def execute(
+        self,
+        command: str,
+        timeout: float = 30.0,
+        max_lines: Optional[int] = None,
+        max_bytes: Optional[int] = None,
+        idle_timeout: Optional[float] = None
+    ) -> Tuple[bool, str, str]:
         """
-        Execute command in persistent shell
+        Execute command in persistent shell with safety limits
 
         Args:
             command: Command to execute
-            timeout: Maximum time to wait for command output
+            timeout: Maximum total time to wait for command output
+            max_lines: Maximum output lines (default: MAX_OUTPUT_LINES)
+            max_bytes: Maximum output bytes (default: MAX_OUTPUT_BYTES)
+            idle_timeout: Max time without new output (default: IDLE_TIMEOUT)
 
         Returns:
             Tuple of (success, stdout, stderr)
         """
+        # Apply defaults
+        max_lines = max_lines or self.MAX_OUTPUT_LINES
+        max_bytes = max_bytes or self.MAX_OUTPUT_BYTES
+        idle_timeout = idle_timeout or self.IDLE_TIMEOUT
+
         # Check for interactive commands that will hang
         is_interactive, cmd_name = self._is_interactive_command(command)
         if is_interactive:
@@ -263,15 +283,21 @@ class PersistentShellSession:
             stderr_lines = []
             exit_code = 0
             found_marker = False
+            total_bytes = 0
+            truncated = False
+            truncate_reason = ''
 
             # Debug flag (set via environment variable DEBUG_SHELL_SESSION=1)
             debug_marker = os.environ.get('DEBUG_SHELL_SESSION', '0') == '1'
 
             start_time = time.time()
+            last_output_time = start_time  # Track when we last received output
+
             while time.time() - start_time < timeout:
                 try:
                     line = self.stdout_queue.get(timeout=0.1)
                     line = line.rstrip('\r\n')  # Strip both Windows (\r\n) and Unix (\n) line endings
+                    last_output_time = time.time()  # Reset idle timer
 
                     if debug_marker and self.is_windows:
                         print(f"[DEBUG] Line: {repr(line)}")
@@ -291,20 +317,51 @@ class PersistentShellSession:
                         found_marker = True
                         break
 
+                    # Safety check: max lines
+                    if len(stdout_lines) >= max_lines:
+                        truncated = True
+                        truncate_reason = f'输出超过 {max_lines} 行限制'
+                        break
+
+                    # Safety check: max bytes
+                    total_bytes += len(line) + 1
+                    if total_bytes >= max_bytes:
+                        truncated = True
+                        truncate_reason = f'输出超过 {max_bytes // 1024}KB 限制'
+                        break
+
                     stdout_lines.append(line)
                 except Empty:
-                    pass
+                    # Check idle timeout (no output for too long)
+                    if time.time() - last_output_time > idle_timeout:
+                        # Only apply idle timeout after some initial output
+                        # to avoid false positives for slow-starting commands
+                        if len(stdout_lines) > 0:
+                            truncated = True
+                            truncate_reason = f'命令 {idle_timeout} 秒无响应'
+                            break
 
                 try:
                     line = self.stderr_queue.get_nowait()
                     stderr_lines.append(line.rstrip('\r\n'))  # Strip both Windows (\r\n) and Unix (\n) line endings
+                    last_output_time = time.time()  # stderr also counts as activity
                 except Empty:
                     pass
+
+            # Handle truncation or timeout
+            if truncated:
+                # Restart shell to clean up any hanging process
+                self._start_shell()
+                stdout = '\n'.join(stdout_lines)
+                stdout += f'\n\n... [{truncate_reason}，已截断] ...'
+                return False, stdout, f'命令被中断: {truncate_reason}'
 
             if not found_marker:
                 if debug_marker and self.is_windows:
                     print(f"[DEBUG] Marker not found. Expected: {marker}")
                     print(f"[DEBUG] Stdout lines: {stdout_lines}")
+                # Restart shell after timeout to ensure clean state
+                self._start_shell()
                 return False, '\n'.join(stdout_lines), "Command timed out"
 
             # Drain any remaining output
