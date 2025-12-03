@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
 from backend.agent.tools import registry
-from backend.i18n import I18n
+from backend.utils.i18n import I18n
 
 
 def test_tool_i18n():

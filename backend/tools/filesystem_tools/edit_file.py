@@ -145,7 +145,7 @@ class EditFileTool(BaseTool):
                 title_op = "Replace"
 
             # Show diff in VSCode
-            from backend.feature import is_feature_enabled
+            from backend.utils.feature import is_feature_enabled
             from backend.rpc.client import is_vscode_mode
 
             if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):

@@ -14,7 +14,7 @@ sys.path.insert(0, str(project_root))
 def test_context_generation():
     """测试生成包含 system reminder 的上下文"""
     import os
-    from backend.system_reminder import get_system_reminder
+    from backend.cli.system_reminder import get_system_reminder
 
     # 模拟 _get_ide_context 的逻辑
     context_parts = []

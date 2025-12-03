@@ -17,7 +17,7 @@ import threading
 import time
 import os
 import platform
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Iterator, Callable
 from queue import Queue, Empty
 
 
@@ -211,7 +211,7 @@ class PersistentShellSession:
         return False, ''
 
     # Safety limits for output
-    MAX_OUTPUT_LINES = 10000      # Maximum lines before truncation
+    MAX_OUTPUT_LINES = 2500       # Maximum lines before truncation
     MAX_OUTPUT_BYTES = 1024 * 1024  # 1MB max output
     IDLE_TIMEOUT = 5.0            # Seconds without output before considering command stuck
 
@@ -375,6 +375,143 @@ class PersistentShellSession:
             stderr = '\n'.join(stderr_lines)
 
             return exit_code == 0, stdout, stderr
+
+    def execute_streaming(
+        self,
+        command: str,
+        on_stdout: Callable[[str], None],
+        on_stderr: Optional[Callable[[str], None]] = None,
+        timeout: float = 30.0,
+        max_lines: Optional[int] = None,
+        max_bytes: Optional[int] = None,
+        idle_timeout: Optional[float] = None
+    ) -> Tuple[bool, str]:
+        """
+        Execute command with streaming output via callbacks
+
+        Args:
+            command: Command to execute
+            on_stdout: Callback for each stdout line
+            on_stderr: Callback for each stderr line (optional)
+            timeout: Maximum total time to wait
+            max_lines: Maximum output lines (default: MAX_OUTPUT_LINES)
+            max_bytes: Maximum output bytes (default: MAX_OUTPUT_BYTES)
+            idle_timeout: Max time without new output (default: IDLE_TIMEOUT)
+
+        Returns:
+            Tuple of (success, error_message)
+        """
+        # Apply defaults
+        max_lines = max_lines or self.MAX_OUTPUT_LINES
+        max_bytes = max_bytes or self.MAX_OUTPUT_BYTES
+        idle_timeout = idle_timeout or self.IDLE_TIMEOUT
+
+        # Check for interactive commands
+        is_interactive, cmd_name = self._is_interactive_command(command)
+        if is_interactive:
+            error_msg = (
+                f"命令 '{cmd_name}' 需要交互式终端，无法在此环境中运行。\n"
+                f"建议：使用非交互式替代命令"
+            )
+            if on_stderr:
+                on_stderr(error_msg)
+            return False, error_msg
+
+        with self.lock:
+            if self.process is None or self.process.poll() is not None:
+                self._start_shell()
+
+            self._drain_output(timeout=0.1)
+
+            marker = f"__CMD_DONE_{int(time.time() * 1000000)}__"
+            exit_code_var = f"__EXIT_CODE_{int(time.time() * 1000000)}__"
+
+            self._send_raw_command(command)
+
+            if self.is_windows:
+                self._send_raw_command(f'echo {marker}:%ERRORLEVEL%')
+            else:
+                self._send_raw_command(f'{exit_code_var}=$?')
+                self._send_raw_command(f'echo "{marker}:${exit_code_var}"')
+
+            exit_code = 0
+            found_marker = False
+            total_lines = 0
+            total_bytes = 0
+            truncated = False
+            truncate_reason = ''
+
+            start_time = time.time()
+            last_output_time = start_time
+
+            while time.time() - start_time < timeout:
+                try:
+                    line = self.stdout_queue.get(timeout=0.1)
+                    line = line.rstrip('\r\n')
+                    last_output_time = time.time()
+
+                    if line.startswith(marker):
+                        parts = line.split(':')
+                        if len(parts) == 2:
+                            try:
+                                exit_code = int(parts[1])
+                            except ValueError:
+                                pass
+                        found_marker = True
+                        break
+
+                    # Safety checks
+                    total_lines += 1
+                    if total_lines >= max_lines:
+                        truncated = True
+                        truncate_reason = f'输出超过 {max_lines} 行限制'
+                        break
+
+                    total_bytes += len(line) + 1
+                    if total_bytes >= max_bytes:
+                        truncated = True
+                        truncate_reason = f'输出超过 {max_bytes // 1024}KB 限制'
+                        break
+
+                    # Stream output
+                    on_stdout(line)
+
+                except Empty:
+                    if time.time() - last_output_time > idle_timeout:
+                        if total_lines > 0:
+                            truncated = True
+                            truncate_reason = f'命令 {idle_timeout} 秒无响应'
+                            break
+
+                # Handle stderr
+                try:
+                    line = self.stderr_queue.get_nowait()
+                    line = line.rstrip('\r\n')
+                    last_output_time = time.time()
+                    if on_stderr:
+                        on_stderr(line)
+                except Empty:
+                    pass
+
+            if truncated:
+                self._start_shell()
+                on_stdout(f'\n... [{truncate_reason}，已截断] ...')
+                return False, f'命令被中断: {truncate_reason}'
+
+            if not found_marker:
+                self._start_shell()
+                return False, "Command timed out"
+
+            # Drain remaining output
+            extra_stdout, extra_stderr = self._drain_output(timeout=0.2)
+            if extra_stdout:
+                for line in extra_stdout.split('\n'):
+                    on_stdout(line)
+            if extra_stderr and on_stderr:
+                for line in extra_stderr.split('\n'):
+                    on_stderr(line)
+
+            return exit_code == 0, ''
 
     def get_cwd(self) -> str:
         """Get current working directory of the shell"""

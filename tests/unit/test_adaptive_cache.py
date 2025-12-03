@@ -14,7 +14,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from backend.cli_completer import FileNameCompleter
+from backend.cli.cli_completer import FileNameCompleter
 
 
 def create_small_project():
