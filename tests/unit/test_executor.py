@@ -92,8 +92,9 @@ def test_bash_run_with_project_root():
         test_file = Path(tmpdir) / "test.txt"
         test_file.write_text("test content")
 
-        # List files in project root
-        result = bash_run("ls test.txt", project_root=tmpdir, timeout=5)
+        # Use absolute path since session cwd may differ
+        # (In real usage, AI knows cwd from system reminder and uses absolute paths)
+        result = bash_run(f"ls {tmpdir}/test.txt", project_root=tmpdir, timeout=5)
 
         assert result['success'], f"ls failed: {result}"
         assert 'test.txt' in result['stdout']

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
-from backend.cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
+from backend.cli.cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
 
 
 def main():

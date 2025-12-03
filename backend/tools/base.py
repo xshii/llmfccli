@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Type
 from pydantic import BaseModel
 
-from backend.i18n import t
+from backend.utils.i18n import t
 
 
 class BaseTool(ABC):

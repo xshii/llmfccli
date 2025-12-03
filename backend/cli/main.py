@@ -21,10 +21,11 @@ from ..llm.client import OllamaClient
 from ..utils.precheck import PreCheck
 from ..agent.tools import ConfirmAction
 from ..remotectl.commands import RemoteCommands
-from ..cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
-from ..shell_session import PersistentShellSession
-from ..i18n import I18n
-from ..feature import is_feature_enabled
+from .cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
+from ..utils.shell_session import PersistentShellSession
+from ..tools.executor_tools.bash_session import set_shared_session
+from ..utils.i18n import I18n
+from ..utils.feature import is_feature_enabled
 
 from .path_utils import PathUtils
 from .output_manager import ToolOutputManager
@@ -105,8 +106,10 @@ class CLI:
         # 初始化远程命令（用于 /model 命令）
         self.remote_commands = RemoteCommands(self.console)
 
-        # 初始化持久化 shell session（用于 /cmd）
+        # 初始化持久化 shell session（用于 /cmd 和 bash_run tool）
         self.shell_session = PersistentShellSession(initial_cwd=self.project_root)
+        # 共享给 tools，让 Agent 调用 bash_run 时使用同一个 shell
+        set_shared_session(self.shell_session, self.project_root)
 
         # 初始化命令处理器
         self._init_commands()
@@ -117,6 +120,8 @@ class CLI:
             self.console,
             agent=self.agent,
             remote_commands=self.remote_commands,
+            shell_session=self.shell_session,
+            project_root=self.project_root,
         )
 
     def _run_precheck(self):
@@ -450,7 +455,7 @@ class CLI:
             str: 包含 <system-reminder> 标签的上下文字符串
         """
         import os
-        from backend.system_reminder import get_system_reminder
+        from backend.cli.system_reminder import get_system_reminder
 
         context_parts = []
 
@@ -661,27 +666,6 @@ class CLI:
             else:
                 self.console.print(f"当前项目根目录: {self.project_root}")
 
-        elif cmd == 'cmd':
-            # 执行本地命令（持久化 shell）
-            if len(args) > 0:
-                cmd_to_run = ' '.join(args)
-                self.console.print(f"[cyan]执行命令:[/cyan] {cmd_to_run}")
-                success, stdout, stderr = self.shell_session.execute(cmd_to_run)
-
-                if stdout:
-                    self.console.print(stdout)
-                if stderr:
-                    self.console.print(f"[red]{stderr}[/red]")
-
-                if success:
-                    self.console.print(f"[green]✓ 命令执行成功[/green]")
-                else:
-                    self.console.print(f"[red]✗ 命令执行失败[/red]")
-            else:
-                self.console.print("[yellow]用法: /cmd <command>[/yellow]")
-                self.console.print("示例: /cmd ls -la")
-                self.console.print("[dim]提示: 持久化会话，cd 等命令会保留状态[/dim]")
-
         elif cmd == 'cmdremote':
             # 执行远程命令
             if len(args) > 0:
@@ -690,12 +674,6 @@ class CLI:
             else:
                 self.console.print("[yellow]用法: /cmdremote <command>[/yellow]")
                 self.console.print("示例: /cmdremote ps aux | grep ollama")
-
-        elif cmd == 'cmdclear':
-            # 重置持久化 shell session
-            self.console.print("[yellow]重置 shell 会话...[/yellow]")
-            self.shell_session.reset()
-            self.console.print(f"[green]✓ Shell 会话已重置到初始目录: {self.project_root}[/green]")
 
         else:
             self.console.print(f"[yellow]未知命令: /{cmd}[/yellow]")

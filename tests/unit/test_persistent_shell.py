@@ -20,7 +20,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from backend.shell_session import PersistentShellSession
+from backend.utils.shell_session import PersistentShellSession
 
 IS_WINDOWS = platform.system() == 'Windows'
 
@@ -249,6 +249,43 @@ def test_large_output_handling():
         print(f"✓ Test large output handling passed ({len(lines)} lines)")
 
 
+def test_streaming_output():
+    """Test streaming output with callbacks"""
+    with PersistentShellSession() as session:
+        collected_lines = []
+        collected_errors = []
+
+        def on_stdout(line: str):
+            collected_lines.append(line)
+
+        def on_stderr(line: str):
+            collected_errors.append(line)
+
+        # Test normal streaming
+        if IS_WINDOWS:
+            cmd = 'for /L %i in (1,1,10) do @echo Line %i'
+        else:
+            cmd = 'for i in $(seq 1 10); do echo "Line $i"; done'
+
+        success, error = session.execute_streaming(cmd, on_stdout, on_stderr)
+        assert success, f"Streaming command failed: {error}"
+        assert len(collected_lines) == 10, f"Expected 10 lines, got {len(collected_lines)}"
+
+        # Test stderr streaming
+        collected_lines.clear()
+        collected_errors.clear()
+
+        if IS_WINDOWS:
+            cmd = 'echo error message 1>&2'
+        else:
+            cmd = 'echo "error message" >&2'
+
+        success, error = session.execute_streaming(cmd, on_stdout, on_stderr)
+        assert len(collected_errors) > 0, "Should have captured stderr"
+
+        print("✓ Test streaming output passed")
+
+
 def main():
     """Run all tests"""
     print("\n=== Testing Persistent Shell Session ===")
@@ -268,6 +305,7 @@ def main():
         test_pager_disabled()
         test_command_timeout()
         test_large_output_handling()
+        test_streaming_output()
 
         print("\n✅ All tests passed!\n")
         return 0
