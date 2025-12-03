@@ -77,7 +77,8 @@ def git(action: str, args: Dict[str, Any] = None, project_root: str = None) -> D
         }
 
 
-def _run_git_command(cmd: List[str], cwd: str, timeout: int = 30, env: dict = None) -> Dict[str, Any]:
+def _run_git_command(cmd: List[str], cwd: str, timeout: int = 30, env: dict = None,
+                     stdin_devnull: bool = False) -> Dict[str, Any]:
     """
     Execute git command
 
@@ -86,6 +87,7 @@ def _run_git_command(cmd: List[str], cwd: str, timeout: int = 30, env: dict = No
         cwd: Working directory
         timeout: Command timeout in seconds
         env: Optional environment variables
+        stdin_devnull: If True, redirect stdin to /dev/null to prevent waiting for input
 
     Returns:
         Dict with execution results
@@ -97,7 +99,7 @@ def _run_git_command(cmd: List[str], cwd: str, timeout: int = 30, env: dict = No
             capture_output=True,
             text=True,
             timeout=timeout,
-            stdin=subprocess.DEVNULL,  # Prevent waiting for input
+            stdin=subprocess.DEVNULL if stdin_devnull else None,
             env=env
         )
 
@@ -547,6 +549,6 @@ def _git_mr(args: Dict, project_root: str) -> Dict[str, Any]:
     env['GIT_TERMINAL_PROMPT'] = '0'  # Disable git credential prompts
     env['GIT_ASKPASS'] = 'echo'       # Disable password prompts
 
-    # Execute with environment variables and timeout
+    # Execute with environment variables, timeout, and stdin redirected to prevent hanging
     # Reduced timeout from 120 to 30 seconds for faster failure detection
-    return _run_git_command(cmd, project_root, timeout=30, env=env)
+    return _run_git_command(cmd, project_root, timeout=30, env=env, stdin_devnull=True)
