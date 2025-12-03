@@ -17,8 +17,8 @@ git:
 
 # 项目相关配置
 project:
-  # 项目类型（可选值：cpp, python, rust, go, java, etc.）
-  type: "cpp"
+  # 项目类型（可选值：c/c++, python, rust, go, java, etc.）
+  type: "c/c++"
 
   # 是否在 system reminder 中显示项目类型
   show_project_type: true
