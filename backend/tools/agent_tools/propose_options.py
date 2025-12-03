@@ -3,16 +3,22 @@
 ProposeOptions Tool - 向用户提出方案选择
 """
 
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List
 from pydantic import BaseModel, Field
 
 from backend.tools.base import BaseTool
 
 
+class OptionItem(BaseModel):
+    """单个选项"""
+    id: str = Field(description="Option ID (A/B/C/D/E)")
+    description: str = Field(description="Option description")
+
+
 class ProposeOptionsParams(BaseModel):
     """ProposeOptions 工具参数"""
     question: str = Field(description="Question to ask the user")
-    options: List[str] = Field(description="List of options, 2-5 items")
+    options: List[OptionItem] = Field(description="List of 2-5 options with id and description")
 
 
 class ProposeOptionsTool(BaseTool):
@@ -21,18 +27,6 @@ class ProposeOptionsTool(BaseTool):
     def __init__(self, project_root=None, agent=None, **dependencies):
         super().__init__(project_root, **dependencies)
         self.agent = agent
-        self._options_callback: Optional[Callable] = None
-
-    def set_options_callback(self, callback: Callable[[str, List[str]], str]):
-        """
-        设置选项回调函数
-
-        Args:
-            callback: 函数签名 (question, options) -> selected
-                      options 最后一个是 "X: 其他 - 输入自定义方案"
-                      返回用户选择的选项（如 "A" 或用户输入的自定义文本）
-        """
-        self._options_callback = callback
 
     @property
     def name(self) -> str:
@@ -77,18 +71,25 @@ class ProposeOptionsTool(BaseTool):
             },
             'options': {
                 'en': (
-                    "List of 2-5 options in format: ['A: Action - Brief description', ...]. "
-                    "Example: ['A: View - Read file content', 'B: Edit - Modify code', 'C: Fix - Find bugs']"
+                    "List of 2-5 options. Each option has 'id' (A/B/C/D/E) and 'description'. "
+                    "Example: [{\"id\": \"A\", \"description\": \"Read file content\"}, "
+                    "{\"id\": \"B\", \"description\": \"Modify code\"}]"
                 ),
                 'zh': (
-                    "2-5个选项，格式: ['A: 动作 - 简述', ...]。"
-                    "示例: ['A: 查看 - 读取内容', 'B: 编辑 - 修改代码', 'C: 修复 - 查找bug']"
+                    "2-5个选项，每个选项包含 'id' (A/B/C/D/E) 和 'description'。"
+                    "示例: [{\"id\": \"A\", \"description\": \"读取文件内容\"}, "
+                    "{\"id\": \"B\", \"description\": \"修改代码\"}]"
                 )
             }
         }
 
-    def execute(self, question: str, options: List[str]) -> Dict[str, Any]:
-        """执行方案选择"""
+    def execute(self, question: str, options: List[Dict[str, str]]) -> Dict[str, Any]:
+        """执行方案选择 - 直接通过 input() 获取用户输入
+
+        Args:
+            question: 问题文本
+            options: 选项列表，每个选项是 {"id": "A", "description": "描述"}
+        """
         if not options or len(options) < 2:
             return {
                 'success': False,
@@ -98,47 +99,74 @@ class ProposeOptionsTool(BaseTool):
         if len(options) > 5:
             options = options[:5]  # 限制最多 5 个选项
 
-        # 添加"其他"选项
-        other_option = "X: 其他 - 输入自定义方案"
-        full_options = options + [other_option]
+        # 构建选项 ID 到描述的映射
+        option_map = {}
+        for opt in options:
+            opt_id = opt.get('id', '').upper()
+            opt_desc = opt.get('description', '')
+            if opt_id and opt_desc:
+                option_map[opt_id] = opt_desc
 
-        if not self._options_callback:
-            # 无回调时返回第一个选项（用于测试）
-            return {
-                'success': True,
-                'selected': options[0].split(':')[0].strip(),
-                'is_custom': False,
-                'custom_text': None,
-                'warning': 'No callback set, auto-selected first option'
-            }
+        # 添加 "No" 选项 - 让用户告诉 AI 想怎么做
+        option_map['N'] = 'No, 让我告诉你我想怎么做'
+
+        valid_ids = list(option_map.keys())
 
         try:
-            # 调用回调获取用户选择
-            result = self._options_callback(question, full_options)
+            # 显示问题和选项
+            print(f"\n{'='*50}")
+            print(f"📋 {question}")
+            print(f"{'='*50}")
+            for opt_id, opt_desc in option_map.items():
+                print(f"  {opt_id}: {opt_desc}")
+            print()
 
-            # 解析结果
-            if result.upper() == 'X' or result.startswith('X:'):
-                # 用户选择了"其他"，result 应该包含自定义文本
-                # 回调应该返回 "X: 用户输入的内容"
-                custom_text = result[2:].strip() if ':' in result else result
-                return {
-                    'success': True,
-                    'selected': 'X',
-                    'is_custom': True,
-                    'custom_text': custom_text
-                }
-            else:
-                # 用户选择了预设选项
-                selected_id = result.split(':')[0].strip().upper()
-                return {
-                    'success': True,
-                    'selected': selected_id,
-                    'is_custom': False,
-                    'custom_text': None
-                }
+            # 获取用户输入
+            while True:
+                choice = input(f"请选择 ({'/'.join(valid_ids)}): ").strip().upper()
 
-        except Exception as e:
+                if choice == 'N':
+                    # 用户选择 No - 告诉 AI 想怎么做
+                    user_input = input("请告诉我你想怎么做: ").strip()
+                    if user_input:
+                        return {
+                            'success': True,
+                            'selected': 'N',
+                            'is_reject': True,
+                            'user_feedback': user_input,
+                            'options': options
+                        }
+                    else:
+                        print("请输入你的想法")
+                        continue
+
+                elif choice in valid_ids:
+                    # 用户选择了预设选项
+                    return {
+                        'success': True,
+                        'selected': choice,
+                        'selected_description': option_map.get(choice, ''),
+                        'is_reject': False,
+                        'user_feedback': None,
+                        'options': options
+                    }
+                else:
+                    print(f"无效选择，请输入 {'/'.join(valid_ids)}")
+
+        except KeyboardInterrupt:
             return {
                 'success': False,
-                'error': str(e)
+                'error': 'User cancelled'
+            }
+        except EOFError:
+            # 非交互模式（如测试），返回第一个选项
+            first_opt = options[0] if options else {}
+            return {
+                'success': True,
+                'selected': first_opt.get('id', 'A').upper(),
+                'selected_description': first_opt.get('description', ''),
+                'is_reject': False,
+                'user_feedback': None,
+                'options': options,
+                'warning': 'Non-interactive mode, auto-selected first option'
             }
