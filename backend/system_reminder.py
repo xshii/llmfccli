@@ -93,23 +93,6 @@ class SystemReminder:
 
         return hints
 
-    def get_tool_hints(self) -> List[str]:
-        """
-        获取工具相关提示
-
-        Returns:
-            提示列表
-        """
-        hints = []
-
-        # Git MR 工具提示
-        if self.get_config("tools.git_mr.enabled", False):
-            hint = self.get_config("tools.git_mr.hint", "")
-            if hint:
-                hints.append(hint)
-
-        return hints
-
     def get_custom_hints(self) -> List[str]:
         """
         获取自定义提示
@@ -135,7 +118,6 @@ class SystemReminder:
         # 收集所有提示
         all_hints.extend(self.get_git_hints())
         all_hints.extend(self.get_project_hints())
-        all_hints.extend(self.get_tool_hints())
         all_hints.extend(self.get_custom_hints())
 
         # 如果没有任何提示，返回空字符串

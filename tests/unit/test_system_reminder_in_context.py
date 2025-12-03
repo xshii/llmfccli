@@ -48,8 +48,7 @@ def test_context_generation():
     # 验证包含 system reminder 配置的信息（至少一项）
     has_reminder_content = any([
         "Main branch" in full_context,
-        "Project type" in full_context,
-        "git mr" in full_context
+        "Project type" in full_context
     ])
     assert has_reminder_content, "Should contain at least one system reminder item"
 

@@ -45,15 +45,6 @@ def test_get_project_hints():
         print(f"  - {hint}")
 
 
-def test_get_tool_hints():
-    """测试获取工具提示"""
-    reminder = SystemReminder()
-    hints = reminder.get_tool_hints()
-    print(f"✓ Tool hints ({len(hints)}):")
-    for hint in hints:
-        print(f"  - {hint}")
-
-
 def test_get_custom_hints():
     """测试获取自定义提示"""
     reminder = SystemReminder()
@@ -83,7 +74,6 @@ if __name__ == "__main__":
     test_get_main_branch()
     test_get_git_hints()
     test_get_project_hints()
-    test_get_tool_hints()
     test_get_custom_hints()
     test_generate_system_reminder()
 

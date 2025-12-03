@@ -37,13 +37,3 @@ custom_hints:
   # - "Build system: CMake with GoogleTest"
   # - "Code style: Google C++ Style Guide"
   # - "Test framework: GTest + GMock"
-
-# 工具相关提示
-tools:
-  # Git MR 工具提示
-  git_mr:
-    # 是否启用 git mr 工具提示
-    enabled: true
-
-    # 提示内容
-    hint: "For git mr command: prefer Chinese for title and description, extract dest_branch from context"
