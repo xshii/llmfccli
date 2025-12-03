@@ -71,6 +71,13 @@ class PersistentShellSession:
             # Start platform-appropriate shell
             shell_cmd = self._get_shell_command()
 
+            # Prepare environment with pager disabled for non-interactive use
+            env = os.environ.copy()
+            env['PAGER'] = 'cat'           # Disable pager for general commands
+            env['GIT_PAGER'] = 'cat'       # Disable pager for git commands
+            env['LESS'] = '-FRX'           # If less is used anyway: quit if one screen, raw control chars, no init
+            env['MANPAGER'] = 'cat'        # Disable pager for man pages
+
             self.process = subprocess.Popen(
                 shell_cmd,
                 stdin=subprocess.PIPE,
@@ -81,7 +88,7 @@ class PersistentShellSession:
                 encoding='utf-8',
                 errors='replace',  # Replace decode errors with '?' instead of crashing
                 bufsize=1,  # Line buffered
-                env=os.environ.copy()
+                env=env
             )
 
             # Start output reader threads
@@ -155,6 +162,54 @@ class PersistentShellSession:
 
         return '\n'.join(stdout_lines), '\n'.join(stderr_lines)
 
+    # Commands that require interactive terminal and will hang
+    INTERACTIVE_COMMANDS = {
+        'less', 'more', 'vim', 'vi', 'nano', 'emacs', 'pico',
+        'top', 'htop', 'watch', 'tmux', 'screen',
+        'ssh', 'telnet', 'ftp', 'sftp',
+        'python', 'python3', 'ipython', 'node', 'irb', 'ghci',  # REPLs without args
+        'mysql', 'psql', 'sqlite3', 'mongo', 'redis-cli',  # DB shells
+    }
+
+    def _is_interactive_command(self, command: str) -> Tuple[bool, str]:
+        """
+        Check if command is an interactive command that will hang.
+
+        Returns:
+            Tuple of (is_interactive, command_name)
+        """
+        # Get the base command (first word, ignoring env vars and sudo)
+        parts = command.strip().split()
+        if not parts:
+            return False, ''
+
+        # Skip leading env vars (VAR=value) and sudo/env
+        idx = 0
+        while idx < len(parts):
+            part = parts[idx]
+            if '=' in part and not part.startswith('-'):
+                idx += 1  # Skip env var assignment
+            elif part in ('sudo', 'env', 'nohup', 'nice', 'time'):
+                idx += 1  # Skip prefix commands
+            else:
+                break
+
+        if idx >= len(parts):
+            return False, ''
+
+        cmd = parts[idx]
+        # Handle path like /usr/bin/vim
+        cmd = os.path.basename(cmd)
+
+        # Check if it's an interactive command
+        if cmd in self.INTERACTIVE_COMMANDS:
+            # Special case: python/node with args is likely a script, not REPL
+            if cmd in ('python', 'python3', 'node', 'ipython') and len(parts) > idx + 1:
+                return False, ''
+            return True, cmd
+
+        return False, ''
+
     def execute(self, command: str, timeout: float = 30.0) -> Tuple[bool, str, str]:
         """
         Execute command in persistent shell
@@ -166,6 +221,16 @@ class PersistentShellSession:
         Returns:
             Tuple of (success, stdout, stderr)
         """
+        # Check for interactive commands that will hang
+        is_interactive, cmd_name = self._is_interactive_command(command)
+        if is_interactive:
+            return False, '', (
+                f"命令 '{cmd_name}' 需要交互式终端，无法在此环境中运行。\n"
+                f"建议：\n"
+                f"  - 使用非交互式替代命令（如 cat 替代 less）\n"
+                f"  - 对于 git 命令，已自动禁用 pager"
+            )
+
         with self.lock:
             if self.process is None or self.process.poll() is not None:
                 # Shell died, restart it
