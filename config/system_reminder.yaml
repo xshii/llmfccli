@@ -1,0 +1,49 @@
+# System Reminder Configuration
+# 系统提示配置
+#
+# 这些信息会被自动注入到 LLM 上下文中，帮助 LLM 更好地理解项目环境
+# 工具可以从这些信息中提取参数值（例如 git mr 的 dest_branch）
+
+# Git 相关配置
+git:
+  # 主分支名称（用于创建 PR/MR 时的默认目标分支）
+  main_branch: "main"
+
+  # 是否在 system reminder 中显示主分支信息
+  show_main_branch_hint: true
+
+  # 主分支提示文本模板
+  main_branch_hint: "Main branch (you will usually use this for PRs): {branch}"
+
+# 项目相关配置
+project:
+  # 项目类型（可选值：cpp, python, rust, go, java, etc.）
+  type: "cpp"
+
+  # 是否在 system reminder 中显示项目类型
+  show_project_type: true
+
+  # 项目类型提示文本模板
+  project_type_hint: "Project type: {type}"
+
+# 自定义提示
+custom_hints:
+  # 是否启用自定义提示
+  enabled: false
+
+  # 自定义提示列表（每条提示会作为独立的一行显示）
+  hints: []
+  # 示例：
+  # - "Build system: CMake with GoogleTest"
+  # - "Code style: Google C++ Style Guide"
+  # - "Test framework: GTest + GMock"
+
+# 工具相关提示
+tools:
+  # Git MR 工具提示
+  git_mr:
+    # 是否启用 git mr 工具提示
+    enabled: true
+
+    # 提示内容
+    hint: "For git mr command: prefer Chinese for title and description, extract dest_branch from context"
