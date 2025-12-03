@@ -20,7 +20,7 @@ class GitParams(BaseModel):
     ] = Field(description="Git 操作类型")
     args: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="操作参数，例如 {'message': 'commit msg'} 或 {'files': ['a.py']}。对于 mr: {'title': 'MR标题（尽量使用中文）', 'description': 'MR描述（尽量使用中文）', 'dest_branch': '目标分支', 'auto_confirm': True/False}"
+        description="操作参数，例如 {'message': 'commit msg'} 或 {'files': ['a.py']}。对于 mr: {'title': 'MR标题（尽量使用中文）', 'description': 'MR描述（尽量使用中文）', 'dest_branch': '目标分支（优先从 system reminder 或上下文中提取，如 Main branch 等信息）', 'auto_confirm': True/False}"
     )
 
 

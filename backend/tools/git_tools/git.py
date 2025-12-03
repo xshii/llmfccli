@@ -491,7 +491,7 @@ def _git_mr(args: Dict, project_root: str) -> Dict[str, Any]:
         args: {
             'title': str,           # MR title (-T), prefer Chinese
             'description': str,     # MR description (-D), prefer Chinese
-            'dest_branch': str,     # Destination branch (--dest)
+            'dest_branch': str,     # Destination branch (--dest), extract from context if available
             'auto_confirm': bool    # Auto confirm flag (-y)
         }
     """
