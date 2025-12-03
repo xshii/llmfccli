@@ -78,6 +78,8 @@ class PersistentShellSession:
                 stderr=subprocess.PIPE,
                 cwd=self.initial_cwd,
                 text=True,
+                encoding='utf-8',
+                errors='replace',  # Replace decode errors with '?' instead of crashing
                 bufsize=1,  # Line buffered
                 env=os.environ.copy()
             )
