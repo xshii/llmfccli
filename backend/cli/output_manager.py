@@ -5,7 +5,6 @@
 管理工具调用的输出显示和格式化
 """
 
-import os
 import time
 from typing import Dict, Any, List, Optional
 from rich.console import Console
@@ -14,12 +13,13 @@ from rich.panel import Panel
 from rich.markup import render
 
 from .path_utils import PathUtils
+from .hyperlink import create_file_hyperlink, create_tool_hyperlink
 
 
 class ToolOutputManager:
     """工具输出管理器"""
 
-    def __init__(self, console: Console, path_utils: PathUtils, agent, use_vscode_protocol: bool = True):
+    def __init__(self, console: Console, path_utils: PathUtils, agent):
         """
         初始化输出管理器
 
@@ -27,12 +27,10 @@ class ToolOutputManager:
             console: Rich Console 实例
             path_utils: 路径工具实例
             agent: Agent 实例（用于获取 token 信息）
-            use_vscode_protocol: 是否使用 VS Code 协议（默认 True）
         """
         self.console = console
         self.path_utils = path_utils
         self.agent = agent
-        self.use_vscode_protocol = use_vscode_protocol
 
         # 当前命令跟踪
         self.current_command = ""
@@ -72,42 +70,6 @@ class ToolOutputManager:
             'args': args or {}
         })
 
-    def _create_file_hyperlink(self, path: str, line: Optional[int] = None, column: Optional[int] = None) -> str:
-        """创建文件超链接（支持 VS Code 协议和行号跳转）
-
-        Args:
-            path: 文件路径
-            line: 行号（可选）
-            column: 列号（可选）
-
-        Returns:
-            超链接格式的字符串
-
-        格式:
-            - VS Code 协议: vscode://file/absolute/path:line:column
-            - File 协议: file://absolute/path
-        """
-        # 获取绝对路径
-        abs_path = os.path.abspath(path) if not os.path.isabs(path) else path
-
-        # 压缩路径用于显示（使用 50 字符限制，与确认对话框保持一致）
-        compressed = self.path_utils.compress_path(path, max_length=50)
-
-        # 构建超链接 URI
-        if self.use_vscode_protocol:
-            # VS Code 协议: vscode://file/path:line:column
-            uri = f"vscode://file{abs_path}"
-            if line is not None:
-                uri += f":{line}"
-                if column is not None:
-                    uri += f":{column}"
-        else:
-            # 标准 file:// 协议
-            uri = f"file://{abs_path}"
-
-        # 返回 Rich markup 格式的超链接
-        return f"[link={uri}]{compressed}[/link]"
-
     def _format_tool_call(self, tool_name: str, args: Optional[Dict] = None) -> str:
         """格式化工具调用为单行，带路径压缩
 
@@ -118,14 +80,15 @@ class ToolOutputManager:
         Returns:
             格式化的字符串（带 Rich markup）
         """
-        parts = [f"[cyan bold]{tool_name}[/cyan bold]"]
+        # 工具名称带超链接（使用统一的 hyperlink 模块）
+        parts = [create_tool_hyperlink(tool_name)]
 
         if args:
             # 已知的文件路径参数名
             PATH_PARAM_NAMES = {'path', 'file', 'file_path', 'filepath', 'source', 'target', 'destination', 'src', 'dst'}
 
             args_parts = []
-            line_number = None  # 用于行号跳转
+            line_number = None  # 用于显示行号
 
             # 提取行号信息（如果存在）
             if 'line_range' in args and args['line_range']:
@@ -145,10 +108,14 @@ class ToolOutputManager:
                     ('/' in value_str or '\\' in value_str)
                 )
 
-                # 如果是路径参数，压缩并添加超链接
+                # 如果是路径参数，压缩并添加超链接（使用统一的 hyperlink 模块）
                 if is_path_param:
-                    # 创建超链接（支持 VS Code 协议和行号跳转）
-                    value_str = self._create_file_hyperlink(value_str, line=line_number)
+                    value_str = create_file_hyperlink(
+                        path=value_str,
+                        project_root=self.path_utils.project_root,
+                        path_utils=self.path_utils,
+                        line=line_number
+                    )
                 # 截断其他长值
                 elif len(value_str) > 50:
                     value_str = value_str[:47] + "..."

@@ -285,6 +285,8 @@ class CLI:
         Returns:
             ConfirmAction: 用户的选择（ALLOW_ONCE, ALLOW_ALWAYS, DENY）
         """
+        from .hyperlink import create_file_hyperlink
+
         # 获取工具 schema 以检查参数格式
         from backend.agent.tools import registry
         tool_metadata = registry.get_tool_metadata(tool_name)
@@ -314,30 +316,14 @@ class CLI:
         for key, value in arguments.items():
             value_str = str(value)
 
-            # 根据 schema 格式处理路径参数
+            # 根据 schema 格式处理路径参数（使用统一的 hyperlink 模块）
             if param_formats.get(key) == 'filepath':
-                # 获取绝对路径（相对路径基于项目根目录）
-                import os
-                if not os.path.isabs(value_str):
-                    abs_path = os.path.join(self.project_root, value_str)
-                else:
-                    abs_path = value_str
-
-                # 压缩路径用于显示
-                compressed = self.path_utils.compress_path(value_str, max_length=50)
-
-                # 构建 file:// 超链接
-                file_uri = f"file://{abs_path}"
-                if line_number:
-                    # 有些编辑器支持 file://path#line 格式
-                    file_uri += f"#{line_number}"
-
-                # 使用 Rich markup 格式的超链接
-                value_str = f"[link={file_uri}]{compressed}[/link]"
-
-                # 如果有行号信息，附加显示
-                if line_number:
-                    value_str += f" [dim]:{line_number}[/dim]"
+                value_str = create_file_hyperlink(
+                    path=value_str,
+                    project_root=self.project_root,
+                    path_utils=self.path_utils,
+                    line=line_number
+                )
             # 截断其他长值
             elif len(value_str) > 60:
                 value_str = value_str[:57] + "..."
