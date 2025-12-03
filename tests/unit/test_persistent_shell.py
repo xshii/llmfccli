@@ -174,6 +174,81 @@ def test_nonexistent_initial_cwd():
         session.close()
 
 
+def test_interactive_command_detection():
+    """Test that interactive commands are detected and blocked"""
+    with PersistentShellSession() as session:
+        # Test interactive commands that should be blocked
+        interactive_cmds = ['vim', 'less README.md', 'top', 'htop', 'nano']
+        for cmd in interactive_cmds:
+            success, stdout, stderr = session.execute(cmd)
+            assert not success, f"Interactive command '{cmd}' should have been blocked"
+            assert '交互式终端' in stderr or 'interactive' in stderr.lower(), \
+                f"Error message should mention interactive terminal for '{cmd}': {stderr}"
+
+        # Test that python with script is allowed
+        success, stdout, stderr = session.execute('python3 -c "print(42)"')
+        assert success, f"python with -c should work: {stderr}"
+        assert '42' in stdout, f"python output unexpected: {stdout}"
+
+        # Test that sudo vim is also blocked
+        success, stdout, stderr = session.execute('sudo vim')
+        assert not success, "sudo vim should be blocked"
+
+        print("✓ Test interactive command detection passed")
+
+
+def test_pager_disabled():
+    """Test that pager is disabled for git commands"""
+    with PersistentShellSession() as session:
+        # git log should work without hanging (PAGER=cat)
+        success, stdout, stderr = session.execute('git log --oneline -3', timeout=5.0)
+        assert success, f"git log should work with pager disabled: {stderr}"
+        # Should have some commit output (or empty if not a git repo)
+        print(f"  git log output: {stdout[:100]}...")
+
+        # Check that PAGER environment is set
+        success, stdout, stderr = session.execute('echo $PAGER')
+        assert success, f"echo $PAGER failed: {stderr}"
+        assert 'cat' in stdout, f"PAGER should be 'cat', got: {stdout}"
+
+        print("✓ Test pager disabled passed")
+
+
+def test_command_timeout():
+    """Test that long-running commands timeout properly"""
+    with PersistentShellSession() as session:
+        # Use a short timeout (2 seconds to allow for shell overhead)
+        success, stdout, stderr = session.execute('sleep 10', timeout=2.0)
+        assert not success, "sleep 10 with 2s timeout should fail"
+        assert 'timed out' in stderr.lower() or '超时' in stderr or '中断' in stderr, \
+            f"Should report timeout: {stderr}"
+
+        # Session should still work after timeout (shell auto-restarts)
+        success, stdout, stderr = session.execute('echo "still works"')
+        assert success, f"Session should recover after timeout: {stderr}"
+        assert 'still works' in stdout
+
+        print("✓ Test command timeout passed")
+
+
+def test_large_output_handling():
+    """Test handling of commands with large output"""
+    with PersistentShellSession() as session:
+        # Generate large output (1000 lines)
+        if IS_WINDOWS:
+            cmd = 'for /L %i in (1,1,1000) do @echo Line %i'
+        else:
+            cmd = 'for i in $(seq 1 1000); do echo "Line $i"; done'
+
+        success, stdout, stderr = session.execute(cmd, timeout=10.0)
+        assert success, f"Large output command failed: {stderr}"
+
+        lines = stdout.strip().split('\n')
+        assert len(lines) >= 100, f"Should have many lines, got {len(lines)}"
+
+        print(f"✓ Test large output handling passed ({len(lines)} lines)")
+
+
 def main():
     """Run all tests"""
     print("\n=== Testing Persistent Shell Session ===")
@@ -189,6 +264,10 @@ def main():
         test_multiline_output()
         test_piped_commands()
         test_nonexistent_initial_cwd()
+        test_interactive_command_detection()
+        test_pager_disabled()
+        test_command_timeout()
+        test_large_output_handling()
 
         print("\n✅ All tests passed!\n")
         return 0

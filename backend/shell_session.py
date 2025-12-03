@@ -44,7 +44,7 @@ class PersistentShellSession:
         self.process: Optional[subprocess.Popen] = None
         self.stdout_queue: Queue = Queue()
         self.stderr_queue: Queue = Queue()
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()  # Use RLock to allow reentrant locking
 
         # Detect platform
         self.is_windows = platform.system() == 'Windows'
@@ -71,6 +71,13 @@ class PersistentShellSession:
             # Start platform-appropriate shell
             shell_cmd = self._get_shell_command()
 
+            # Prepare environment with pager disabled for non-interactive use
+            env = os.environ.copy()
+            env['PAGER'] = 'cat'           # Disable pager for general commands
+            env['GIT_PAGER'] = 'cat'       # Disable pager for git commands
+            env['LESS'] = '-FRX'           # If less is used anyway: quit if one screen, raw control chars, no init
+            env['MANPAGER'] = 'cat'        # Disable pager for man pages
+
             self.process = subprocess.Popen(
                 shell_cmd,
                 stdin=subprocess.PIPE,
@@ -81,7 +88,7 @@ class PersistentShellSession:
                 encoding='utf-8',
                 errors='replace',  # Replace decode errors with '?' instead of crashing
                 bufsize=1,  # Line buffered
-                env=os.environ.copy()
+                env=env
             )
 
             # Start output reader threads
@@ -155,17 +162,95 @@ class PersistentShellSession:
 
         return '\n'.join(stdout_lines), '\n'.join(stderr_lines)
 
-    def execute(self, command: str, timeout: float = 30.0) -> Tuple[bool, str, str]:
+    # Commands that require interactive terminal and will hang
+    INTERACTIVE_COMMANDS = {
+        'less', 'more', 'vim', 'vi', 'nano', 'emacs', 'pico',
+        'top', 'htop', 'watch', 'tmux', 'screen',
+        'ssh', 'telnet', 'ftp', 'sftp',
+        'python', 'python3', 'ipython', 'node', 'irb', 'ghci',  # REPLs without args
+        'mysql', 'psql', 'sqlite3', 'mongo', 'redis-cli',  # DB shells
+    }
+
+    def _is_interactive_command(self, command: str) -> Tuple[bool, str]:
         """
-        Execute command in persistent shell
+        Check if command is an interactive command that will hang.
+
+        Returns:
+            Tuple of (is_interactive, command_name)
+        """
+        # Get the base command (first word, ignoring env vars and sudo)
+        parts = command.strip().split()
+        if not parts:
+            return False, ''
+
+        # Skip leading env vars (VAR=value) and sudo/env
+        idx = 0
+        while idx < len(parts):
+            part = parts[idx]
+            if '=' in part and not part.startswith('-'):
+                idx += 1  # Skip env var assignment
+            elif part in ('sudo', 'env', 'nohup', 'nice', 'time'):
+                idx += 1  # Skip prefix commands
+            else:
+                break
+
+        if idx >= len(parts):
+            return False, ''
+
+        cmd = parts[idx]
+        # Handle path like /usr/bin/vim
+        cmd = os.path.basename(cmd)
+
+        # Check if it's an interactive command
+        if cmd in self.INTERACTIVE_COMMANDS:
+            # Special case: python/node with args is likely a script, not REPL
+            if cmd in ('python', 'python3', 'node', 'ipython') and len(parts) > idx + 1:
+                return False, ''
+            return True, cmd
+
+        return False, ''
+
+    # Safety limits for output
+    MAX_OUTPUT_LINES = 10000      # Maximum lines before truncation
+    MAX_OUTPUT_BYTES = 1024 * 1024  # 1MB max output
+    IDLE_TIMEOUT = 5.0            # Seconds without output before considering command stuck
+
+    def execute(
+        self,
+        command: str,
+        timeout: float = 30.0,
+        max_lines: Optional[int] = None,
+        max_bytes: Optional[int] = None,
+        idle_timeout: Optional[float] = None
+    ) -> Tuple[bool, str, str]:
+        """
+        Execute command in persistent shell with safety limits
 
         Args:
             command: Command to execute
-            timeout: Maximum time to wait for command output
+            timeout: Maximum total time to wait for command output
+            max_lines: Maximum output lines (default: MAX_OUTPUT_LINES)
+            max_bytes: Maximum output bytes (default: MAX_OUTPUT_BYTES)
+            idle_timeout: Max time without new output (default: IDLE_TIMEOUT)
 
         Returns:
             Tuple of (success, stdout, stderr)
         """
+        # Apply defaults
+        max_lines = max_lines or self.MAX_OUTPUT_LINES
+        max_bytes = max_bytes or self.MAX_OUTPUT_BYTES
+        idle_timeout = idle_timeout or self.IDLE_TIMEOUT
+
+        # Check for interactive commands that will hang
+        is_interactive, cmd_name = self._is_interactive_command(command)
+        if is_interactive:
+            return False, '', (
+                f"命令 '{cmd_name}' 需要交互式终端，无法在此环境中运行。\n"
+                f"建议：\n"
+                f"  - 使用非交互式替代命令（如 cat 替代 less）\n"
+                f"  - 对于 git 命令，已自动禁用 pager"
+            )
+
         with self.lock:
             if self.process is None or self.process.poll() is not None:
                 # Shell died, restart it
@@ -198,15 +283,21 @@ class PersistentShellSession:
             stderr_lines = []
             exit_code = 0
             found_marker = False
+            total_bytes = 0
+            truncated = False
+            truncate_reason = ''
 
             # Debug flag (set via environment variable DEBUG_SHELL_SESSION=1)
             debug_marker = os.environ.get('DEBUG_SHELL_SESSION', '0') == '1'
 
             start_time = time.time()
+            last_output_time = start_time  # Track when we last received output
+
             while time.time() - start_time < timeout:
                 try:
                     line = self.stdout_queue.get(timeout=0.1)
                     line = line.rstrip('\r\n')  # Strip both Windows (\r\n) and Unix (\n) line endings
+                    last_output_time = time.time()  # Reset idle timer
 
                     if debug_marker and self.is_windows:
                         print(f"[DEBUG] Line: {repr(line)}")
@@ -226,20 +317,51 @@ class PersistentShellSession:
                         found_marker = True
                         break
 
+                    # Safety check: max lines
+                    if len(stdout_lines) >= max_lines:
+                        truncated = True
+                        truncate_reason = f'输出超过 {max_lines} 行限制'
+                        break
+
+                    # Safety check: max bytes
+                    total_bytes += len(line) + 1
+                    if total_bytes >= max_bytes:
+                        truncated = True
+                        truncate_reason = f'输出超过 {max_bytes // 1024}KB 限制'
+                        break
+
                     stdout_lines.append(line)
                 except Empty:
-                    pass
+                    # Check idle timeout (no output for too long)
+                    if time.time() - last_output_time > idle_timeout:
+                        # Only apply idle timeout after some initial output
+                        # to avoid false positives for slow-starting commands
+                        if len(stdout_lines) > 0:
+                            truncated = True
+                            truncate_reason = f'命令 {idle_timeout} 秒无响应'
+                            break
 
                 try:
                     line = self.stderr_queue.get_nowait()
                     stderr_lines.append(line.rstrip('\r\n'))  # Strip both Windows (\r\n) and Unix (\n) line endings
+                    last_output_time = time.time()  # stderr also counts as activity
                 except Empty:
                     pass
+
+            # Handle truncation or timeout
+            if truncated:
+                # Restart shell to clean up any hanging process
+                self._start_shell()
+                stdout = '\n'.join(stdout_lines)
+                stdout += f'\n\n... [{truncate_reason}，已截断] ...'
+                return False, stdout, f'命令被中断: {truncate_reason}'
 
             if not found_marker:
                 if debug_marker and self.is_windows:
                     print(f"[DEBUG] Marker not found. Expected: {marker}")
                     print(f"[DEBUG] Stdout lines: {stdout_lines}")
+                # Restart shell after timeout to ensure clean state
+                self._start_shell()
                 return False, '\n'.join(stdout_lines), "Command timed out"
 
             # Drain any remaining output
