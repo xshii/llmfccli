@@ -16,11 +16,11 @@ class GitParams(BaseModel):
         'status', 'add', 'commit', 'reset',
         'branch', 'checkout', 'push', 'pull', 'fetch',
         'rebase', 'stash', 'cherry-pick',
-        'log', 'diff', 'show'
+        'log', 'diff', 'show', 'mr'
     ] = Field(description="Git 操作类型")
     args: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="操作参数，例如 {'message': 'commit msg'} 或 {'files': ['a.py']}"
+        description="操作参数，例如 {'message': 'commit msg'} 或 {'files': ['a.py']}。对于 mr: {'title': 'MR标题（尽量使用中文）', 'description': 'MR描述（尽量使用中文）', 'dest_branch': '目标分支（优先从 system reminder 或上下文中提取，如 Main branch 等信息）', 'auto_confirm': True/False}"
     )
 
 
@@ -68,6 +68,7 @@ class GitTool(BaseTool):
             'rebase': lambda a: True,  # rebase 总是需要确认
             'stash': lambda a: a.get('operation') in ['drop', 'clear'],
             'cherry-pick': lambda a: True,  # cherry-pick 总是需要确认
+            'mr': lambda a: True,  # mr 是高危操作，总是需要确认
         }
 
         checker = dangerous_conditions.get(action)

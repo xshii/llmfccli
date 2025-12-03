@@ -444,12 +444,13 @@ class CLI:
         self.console.print(Panel(welcome, title="欢迎", border_style="blue"))
 
     def _get_ide_context(self) -> str:
-        """获取 IDE 上下文（project root + cwd + 当前打开的文件信息）
+        """获取 IDE 上下文（project root + cwd + 当前打开的文件信息 + system reminder）
 
         Returns:
             str: 包含 <system-reminder> 标签的上下文字符串
         """
         import os
+        from backend.system_reminder import get_system_reminder
 
         context_parts = []
 
@@ -458,6 +459,11 @@ class CLI:
 
         current_cwd = os.getcwd()
         context_parts.append(f'Current working directory: {current_cwd}')
+
+        # 添加 system reminder 配置信息
+        system_reminder = get_system_reminder()
+        if system_reminder:
+            context_parts.append(system_reminder)
 
         # 检查功能开关
         if is_feature_enabled("ide_integration.inject_active_file_context"):
