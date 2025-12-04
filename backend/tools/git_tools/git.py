@@ -206,6 +206,8 @@ def _git_commit(args: Dict, project_root: str) -> Dict[str, Any]:
 
     if args.get('amend'):
         cmd.append('--amend')
+    if args.get('no_edit'):
+        cmd.append('--no-edit')
 
     cmd.extend(_parse_flags(args.get('flags', '')))
     return _run_git_command(cmd, project_root)

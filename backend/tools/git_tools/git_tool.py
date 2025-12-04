@@ -23,7 +23,7 @@ class GitParams(BaseModel):
         description="""操作参数说明（所有 action 均支持可选 flags:str 传递额外标志）:
 - status: short(bool), branch(bool). flags: --porcelain --long
 - add: files(list,条件必需), all(bool). flags: -u --update
-- commit: message(str,必需), amend(bool). flags: --allow-empty --no-verify
+- commit: message(str,必需), amend(bool), no_edit(bool). flags: --allow-empty --no-verify
 - reset: mode(str:soft/mixed/hard), commit(str), files(list). flags: --keep
 - branch: operation(str:list/create/delete/rename), name(str,条件必需), all(bool), force(bool). flags: -v -r --remote
 - checkout: branch(str,条件必需), files(list,条件必需), create(bool), force(bool). flags: --track -t
