@@ -49,6 +49,9 @@ class CLI:
         self.console = Console()
         self.project_root = project_root or str(Path.cwd())
 
+        # 切换工作目录到项目根目录
+        os.chdir(self.project_root)
+
         # 启动 RPC 客户端（后台心跳检测 VSCode extension）
         from backend.rpc.client import get_client
         get_client()  # 启动心跳线程

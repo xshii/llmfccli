@@ -426,7 +426,8 @@ def _git_log(args: Dict, project_root: str) -> Dict[str, Any]:
     """Show commit logs"""
     cmd = ['log']
 
-    count = args.get('count', 10)
+    # Support both 'n' and 'count' parameters for specifying number of commits
+    count = args.get('n') or args.get('count', 10)
     cmd.append(f'-{count}')
 
     if args.get('oneline', True):
