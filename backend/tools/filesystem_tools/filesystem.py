@@ -261,7 +261,7 @@ def _edit_with_confirmation(path: str, new_content: str,
 def _edit_direct(path: str, new_content: str, old_str: str, new_str: str) -> Dict[str, Any]:
     """直接修改文件，无交互"""
     try:
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(new_content)
 
         return {
@@ -321,7 +321,7 @@ def create_file(path: str, content: str,
     
     # Write file
     try:
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(content)
     except Exception as e:
         raise FileSystemError(f"Failed to create file {path}: {e}")
