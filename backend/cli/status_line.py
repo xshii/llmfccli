@@ -35,6 +35,11 @@ class StatusLine:
         status = f"[dim]{' | '.join(parts)}[/dim]"
         self.console.print(status)
 
+        # 显示 system reminder 信息（如果有）
+        reminder = self._format_system_reminder()
+        if reminder:
+            self.console.print(f"[dim]{reminder}[/dim]")
+
     # ========== Token 部分 ==========
 
     def _format_tokens(self) -> Optional[str]:
@@ -139,4 +144,19 @@ class StatusLine:
             if os.path.exists(path):
                 return path
 
+        return None
+
+    # ========== System Reminder 部分 ==========
+
+    def _format_system_reminder(self) -> Optional[str]:
+        """格式化 system reminder 信息"""
+        try:
+            from backend.cli.system_reminder import get_system_reminder
+            reminder = get_system_reminder()
+            if reminder:
+                # 将多行内容合并为单行显示
+                lines = [line.strip() for line in reminder.split('\n') if line.strip()]
+                return ' | '.join(lines)
+        except Exception:
+            pass
         return None
