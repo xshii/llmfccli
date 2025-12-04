@@ -317,21 +317,42 @@ class CLI:
             line_number = arguments.get('start_line')
 
         for key, value in arguments.items():
-            value_str = str(value)
-
             # 根据 schema 格式处理路径参数（使用统一的 hyperlink 模块）
             if param_formats.get(key) == 'filepath':
                 value_str = create_file_hyperlink(
-                    path=value_str,
+                    path=str(value),
                     project_root=self.project_root,
                     path_utils=self.path_utils,
                     line=line_number
                 )
-            # 截断其他长值
-            elif len(value_str) > 60:
-                value_str = value_str[:57] + "..."
-
-            args_display.append(f"  • {key}: {value_str}")
+                args_display.append(f"  • {key}: {value_str}")
+            # 嵌套 dict 展开显示
+            elif isinstance(value, dict) and value:
+                args_display.append(f"  • {key}:")
+                for sub_key, sub_value in value.items():
+                    sub_value_str = str(sub_value)
+                    if len(sub_value_str) > 50:
+                        sub_value_str = sub_value_str[:47] + "..."
+                    args_display.append(f"      - {sub_key}: {sub_value_str}")
+            # list 展开显示
+            elif isinstance(value, list) and value:
+                if len(value) <= 3:
+                    args_display.append(f"  • {key}: {value}")
+                else:
+                    args_display.append(f"  • {key}: [{len(value)} items]")
+                    for item in value[:3]:
+                        item_str = str(item)
+                        if len(item_str) > 50:
+                            item_str = item_str[:47] + "..."
+                        args_display.append(f"      - {item_str}")
+                    if len(value) > 3:
+                        args_display.append(f"      - ... ({len(value) - 3} more)")
+            else:
+                value_str = str(value)
+                # 截断其他长值
+                if len(value_str) > 60:
+                    value_str = value_str[:57] + "..."
+                args_display.append(f"  • {key}: {value_str}")
         args_text = "\n".join(args_display) if args_display else "  (无参数)"
 
         # 特殊处理 bash_run - 高亮命令
