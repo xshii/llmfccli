@@ -16,11 +16,28 @@ class GitParams(BaseModel):
         'status', 'add', 'commit', 'reset',
         'branch', 'checkout', 'push', 'pull', 'fetch',
         'rebase', 'stash', 'cherry-pick',
-        'log', 'diff', 'show', 'mr'
+        'log', 'diff', 'show', 'clean', 'mr'
     ] = Field(description="Git 操作类型")
     args: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="操作参数，例如 {'message': 'commit msg'} 或 {'files': ['a.py']}。对于 mr: {'title': 'MR标题（尽量使用中文）', 'description': 'MR描述（尽量使用中文）', 'dest_branch': '目标分支（优先从 system reminder 或上下文中提取，如 Main branch 等信息）', 'auto_confirm': True/False}"
+        description="""操作参数说明（所有 action 均支持可选 flags:str 传递额外标志）:
+- status: short(bool), branch(bool). flags: --porcelain --long
+- add: files(list,条件必需), all(bool). flags: -u --update
+- commit: message(str,必需), amend(bool). flags: --allow-empty --no-verify
+- reset: mode(str:soft/mixed/hard), commit(str), files(list). flags: --keep
+- branch: operation(str:list/create/delete/rename), name(str,条件必需), all(bool), force(bool). flags: -v -r --remote
+- checkout: branch(str,条件必需), files(list,条件必需), create(bool), force(bool). flags: --track -t
+- push: remote(str), branch(str), force(bool). flags: -u --set-upstream --tags
+- pull: remote(str), branch(str), rebase(bool). flags: --ff-only --no-ff
+- fetch: remote(str), all(bool), prune(bool). flags: --tags --depth=N
+- log: n(int,必需). flags: --oneline --graph --all --author=X --since=X
+- diff: commit(str), files(list). flags: --staged --cached --stat --name-only --name-status
+- show: commit(str). flags: --stat --name-only --format=X
+- stash: operation(str:push/pop/apply/list/drop/clear), message(str), index(int). flags: -u --include-untracked
+- rebase: operation(str:start/continue/abort/skip), branch(str,条件必需). flags: --onto=X
+- cherry-pick: operation(str:pick/continue/abort), commits(list,条件必需). flags: -n --no-commit
+- clean: flags(str,默认-fdx). flags: -f -d -x -fd -fdx
+- mr: title(str,必需), description(str,必需), dest_branch(str,必需,优先从 system reminder 提取 Main branch)"""
     )
 
 
@@ -68,6 +85,7 @@ class GitTool(BaseTool):
             'rebase': lambda a: True,  # rebase 总是需要确认
             'stash': lambda a: a.get('operation') in ['drop', 'clear'],
             'cherry-pick': lambda a: True,  # cherry-pick 总是需要确认
+            'clean': lambda a: True,  # clean 总是需要确认（会删除文件）
             'mr': lambda a: True,  # mr 是高危操作，总是需要确认
         }
 
