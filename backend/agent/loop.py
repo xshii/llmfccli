@@ -487,7 +487,7 @@ Project structure: {self.project_root}
             'next_steps': self._suggest_next_steps()
         }
         
-        with open(session_file, 'w', encoding='utf-8') as f:
+        with open(session_file, 'w', encoding='utf-8', newline='\n') as f:
             json.dump(session_data, f, indent=2, ensure_ascii=False)
     
     def _get_context_summary(self) -> str:

@@ -227,7 +227,7 @@ class EditFileTool(BaseTool):
 
         # Write file
         try:
-            with open(full_path, 'w', encoding='utf-8') as f:
+            with open(full_path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(new_content)
         except Exception as e:
             raise FileSystemError(f"Failed to write file {path}: {e}")

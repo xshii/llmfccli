@@ -140,7 +140,7 @@ class OllamaClient:
                 request_file = log_dir / f'request_{timestamp}.json'
                 with open(temp_file, 'r', encoding='utf-8') as f:
                     request_data = json.load(f)
-                with open(request_file, 'w', encoding='utf-8') as f:
+                with open(request_file, 'w', encoding='utf-8', newline='\n') as f:
                     json.dump(request_data, f, ensure_ascii=False, indent=2)
 
                 # Save path for display in UI
@@ -224,7 +224,7 @@ class OllamaClient:
                     # Combine request and response in one file
                     combined_file = log_dir / request_file.name.replace('request_', 'conversation_')
 
-                    with open(combined_file, 'w', encoding='utf-8') as f:
+                    with open(combined_file, 'w', encoding='utf-8', newline='\n') as f:
                         f.write("=" * 80 + "\n")
                         f.write("REQUEST\n")
                         f.write("=" * 80 + "\n")

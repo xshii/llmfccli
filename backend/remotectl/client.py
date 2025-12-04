@@ -194,7 +194,7 @@ class RemoteOllamaClient:
             temp_modelfile = os.path.join(temp_dir, f"Modelfile.{model_name.replace(':', '_')}")
 
             try:
-                with open(temp_modelfile, 'w', encoding='utf-8') as f:
+                with open(temp_modelfile, 'w', encoding='utf-8', newline='\n') as f:
                     f.write(modelfile_content)
             except Exception as e:
                 return False, f"Failed to write Modelfile: {e}"

@@ -91,7 +91,7 @@ class CreateFileTool(BaseTool):
 
         # Write file
         try:
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(content)
         except Exception as e:
             raise FileSystemError(f"Failed to create file {path}: {e}")
