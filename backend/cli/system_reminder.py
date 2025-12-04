@@ -27,7 +27,8 @@ class SystemReminder:
 
     def _load_config(self) -> None:
         """加载系统提示配置"""
-        config_path = Path(__file__).parent.parent / "config" / "system_reminder.yaml"
+        # 项目根目录/config/system_reminder.yaml
+        config_path = Path(__file__).parent.parent.parent / "config" / "system_reminder.yaml"
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:
                 self._config = yaml.safe_load(f) or {}
