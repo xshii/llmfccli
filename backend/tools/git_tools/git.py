@@ -14,6 +14,35 @@ class GitError(Exception):
     pass
 
 
+def _parse_flags(flags: str) -> List[str]:
+    """Parse flags string into list of arguments.
+
+    Supports formats like:
+    - "oneline graph" -> ["--oneline", "--graph"]
+    - "--oneline --graph" -> ["--oneline", "--graph"]
+    - "-fd" -> ["-fd"]
+    - "-f -d" -> ["-f", "-d"]
+    """
+    if not flags:
+        return []
+
+    result = []
+    for flag in flags.split():
+        flag = flag.strip()
+        if not flag:
+            continue
+        # Already has dash prefix
+        if flag.startswith('-'):
+            result.append(flag)
+        # Add -- prefix for long flags (more than 1 char)
+        elif len(flag) > 1 and not flag[0].isdigit():
+            result.append(f'--{flag}')
+        # Single char gets single dash
+        else:
+            result.append(f'-{flag}')
+    return result
+
+
 def git(action: str, args: Dict[str, Any] = None, project_root: str = None) -> Dict[str, Any]:
     """
     Execute git operations
@@ -54,6 +83,7 @@ def git(action: str, args: Dict[str, Any] = None, project_root: str = None) -> D
         'log': _git_log,
         'diff': _git_diff,
         'show': _git_show,
+        'clean': _git_clean,
         'mr': _git_mr,
     }
 
@@ -134,6 +164,7 @@ def _git_status(args: Dict, project_root: str) -> Dict[str, Any]:
         cmd.append('--short')
     if args.get('branch', True):
         cmd.append('--branch')
+    cmd.extend(_parse_flags(args.get('flags', '')))
     return _run_git_command(cmd, project_root)
 
 
@@ -143,8 +174,6 @@ def _git_add(args: Dict, project_root: str) -> Dict[str, Any]:
 
     if args.get('all'):
         cmd.append('-A')
-    elif args.get('update'):
-        cmd.append('-u')
     else:
         files = args.get('files', [])
         if isinstance(files, str):
@@ -153,14 +182,12 @@ def _git_add(args: Dict, project_root: str) -> Dict[str, Any]:
             return {
                 'success': False,
                 'output': '',
-                'error': 'No files specified',
+                'error': 'No files specified (use files or all)',
                 'returncode': 1
             }
         cmd.extend(files)
 
-    if args.get('patch'):
-        cmd.append('--patch')
-
+    cmd.extend(_parse_flags(args.get('flags', '')))
     return _run_git_command(cmd, project_root)
 
 
@@ -179,11 +206,10 @@ def _git_commit(args: Dict, project_root: str) -> Dict[str, Any]:
 
     if args.get('amend'):
         cmd.append('--amend')
-    if args.get('no_verify'):
-        cmd.append('--no-verify')
-    if args.get('allow_empty'):
-        cmd.append('--allow-empty')
+    if args.get('no_edit'):
+        cmd.append('--no-edit')
 
+    cmd.extend(_parse_flags(args.get('flags', '')))
     return _run_git_command(cmd, project_root)
 
 
@@ -199,18 +225,19 @@ def _git_reset(args: Dict, project_root: str) -> Dict[str, Any]:
     elif mode == 'mixed':
         cmd.append('--mixed')
 
-    target = args.get('target', 'HEAD')
+    commit = args.get('commit', 'HEAD')
 
     files = args.get('files', [])
     if files:
         # Reset specific files (unstage)
-        cmd = ['reset', target, '--']
+        cmd = ['reset', commit, '--']
         if isinstance(files, str):
             files = [files]
         cmd.extend(files)
     else:
-        cmd.append(target)
+        cmd.append(commit)
 
+    cmd.extend(_parse_flags(args.get('flags', '')))
     return _run_git_command(cmd, project_root)
 
 
@@ -222,8 +249,6 @@ def _git_branch(args: Dict, project_root: str) -> Dict[str, Any]:
     if operation == 'list':
         if args.get('all'):
             cmd.append('--all')
-        if args.get('verbose'):
-            cmd.append('-v')
 
     elif operation == 'create':
         name = args.get('name')
@@ -251,28 +276,35 @@ def _git_branch(args: Dict, project_root: str) -> Dict[str, Any]:
         else:
             cmd.append(new_name)
 
+    cmd.extend(_parse_flags(args.get('flags', '')))
     return _run_git_command(cmd, project_root)
 
 
 def _git_checkout(args: Dict, project_root: str) -> Dict[str, Any]:
     """Checkout branch or restore files"""
-    target = args.get('target')
-    if not target:
-        return {'success': False, 'output': '', 'error': 'Target required', 'returncode': 1}
+    branch = args.get('branch')
+    files = args.get('files', [])
+
+    if not branch and not files:
+        return {'success': False, 'output': '', 'error': 'branch or files required', 'returncode': 1}
 
     cmd = ['checkout']
 
-    if args.get('create'):
-        cmd.append('-b')
-    if args.get('force'):
-        cmd.append('-f')
+    if branch:
+        # Checkout branch
+        if args.get('create'):
+            cmd.append('-b')
+        if args.get('force'):
+            cmd.append('-f')
+        cmd.append(branch)
+    else:
+        # Restore files
+        if isinstance(files, str):
+            files = [files]
+        cmd.append('--')
+        cmd.extend(files)
 
-    cmd.append(target)
-
-    track = args.get('track')
-    if track:
-        cmd.extend(['--track', track])
-
+    cmd.extend(_parse_flags(args.get('flags', '')))
     return _run_git_command(cmd, project_root)
 
 
@@ -280,15 +312,13 @@ def _git_push(args: Dict, project_root: str) -> Dict[str, Any]:
     """Push to remote"""
     cmd = ['push']
 
-    remote = args.get('remote', 'origin')
-    branch = args.get('branch', '')
-
-    if args.get('set_upstream'):
-        cmd.append('-u')
     if args.get('force'):
         cmd.append('--force')
-    if args.get('tags'):
-        cmd.append('--tags')
+
+    cmd.extend(_parse_flags(args.get('flags', '')))
+
+    remote = args.get('remote', 'origin')
+    branch = args.get('branch', '')
 
     cmd.append(remote)
     if branch:
@@ -303,8 +333,8 @@ def _git_pull(args: Dict, project_root: str) -> Dict[str, Any]:
 
     if args.get('rebase'):
         cmd.append('--rebase')
-    if args.get('ff_only'):
-        cmd.append('--ff-only')
+
+    cmd.extend(_parse_flags(args.get('flags', '')))
 
     remote = args.get('remote', 'origin')
     branch = args.get('branch', '')
@@ -324,6 +354,8 @@ def _git_fetch(args: Dict, project_root: str) -> Dict[str, Any]:
         cmd.append('--all')
     if args.get('prune', True):
         cmd.append('--prune')
+
+    cmd.extend(_parse_flags(args.get('flags', '')))
 
     remote = args.get('remote', 'origin')
     if not args.get('all'):
@@ -348,13 +380,7 @@ def _git_rebase(args: Dict, project_root: str) -> Dict[str, Any]:
         if not branch:
             return {'success': False, 'output': '', 'error': 'Branch required', 'returncode': 1}
 
-        if args.get('interactive'):
-            cmd.append('-i')
-
-        onto = args.get('onto')
-        if onto:
-            cmd.extend(['--onto', onto])
-
+        cmd.extend(_parse_flags(args.get('flags', '')))
         cmd.append(branch)
 
     return _run_git_command(cmd, project_root, timeout=120)
@@ -362,16 +388,15 @@ def _git_rebase(args: Dict, project_root: str) -> Dict[str, Any]:
 
 def _git_stash(args: Dict, project_root: str) -> Dict[str, Any]:
     """Stash operations"""
-    operation = args.get('operation', 'save')
+    operation = args.get('operation', 'push')
     cmd = ['stash']
 
-    if operation == 'save':
+    if operation == 'push':
         cmd.append('push')
         message = args.get('message')
         if message:
             cmd.extend(['-m', message])
-        if args.get('include_untracked'):
-            cmd.append('-u')
+        cmd.extend(_parse_flags(args.get('flags', '')))
 
     elif operation == 'pop':
         cmd.append('pop')
@@ -416,9 +441,7 @@ def _git_cherry_pick(args: Dict, project_root: str) -> Dict[str, Any]:
         if not commits:
             return {'success': False, 'output': '', 'error': 'Commits required', 'returncode': 1}
 
-        if args.get('no_commit'):
-            cmd.append('--no-commit')
-
+        cmd.extend(_parse_flags(args.get('flags', '')))
         cmd.extend(commits)
 
     return _run_git_command(cmd, project_root)
@@ -428,29 +451,18 @@ def _git_log(args: Dict, project_root: str) -> Dict[str, Any]:
     """Show commit logs"""
     cmd = ['log']
 
-    # Support both 'n' and 'count' parameters for specifying number of commits
-    count = args.get('n') or args.get('count', 10)
-    cmd.append(f'-{count}')
+    # Number of commits (required)
+    n = args.get('n')
+    if not n:
+        return {'success': False, 'output': '', 'error': 'n (number of commits) is required', 'returncode': 1}
+    cmd.append(f'-{n}')
 
-    if args.get('oneline', True):
+    # Default to --oneline if no format specified in flags
+    flags = args.get('flags', '')
+    if not flags or ('oneline' not in flags and 'format' not in flags):
         cmd.append('--oneline')
-    if args.get('graph'):
-        cmd.append('--graph')
-    if args.get('all'):
-        cmd.append('--all')
 
-    author = args.get('author')
-    if author:
-        cmd.extend(['--author', author])
-
-    since = args.get('since')
-    if since:
-        cmd.extend(['--since', since])
-
-    file_path = args.get('file')
-    if file_path:
-        cmd.extend(['--', file_path])
-
+    cmd.extend(_parse_flags(flags))
     return _run_git_command(cmd, project_root)
 
 
@@ -458,12 +470,7 @@ def _git_diff(args: Dict, project_root: str) -> Dict[str, Any]:
     """Show changes"""
     cmd = ['diff']
 
-    if args.get('staged'):
-        cmd.append('--cached')
-    if args.get('stat'):
-        cmd.append('--stat')
-    if args.get('name_only'):
-        cmd.append('--name-only')
+    cmd.extend(_parse_flags(args.get('flags', '')))
 
     commit = args.get('commit')
     if commit:
@@ -486,9 +493,7 @@ def _git_show(args: Dict, project_root: str) -> Dict[str, Any]:
     commit = args.get('commit', 'HEAD')
     cmd.append(commit)
 
-    if args.get('stat'):
-        cmd.append('--stat')
-
+    cmd.extend(_parse_flags(args.get('flags', '')))
     return _run_git_command(cmd, project_root)
 
 
@@ -500,7 +505,6 @@ def _git_mr(args: Dict, project_root: str) -> Dict[str, Any]:
             'title': str,           # MR title (-T), prefer Chinese
             'description': str,     # MR description (-D), prefer Chinese
             'dest_branch': str,     # Destination branch (--dest), extract from context if available
-            'auto_confirm': bool    # Auto confirm flag (-y)
         }
     """
     cmd = ['mr']
@@ -533,9 +537,8 @@ def _git_mr(args: Dict, project_root: str) -> Dict[str, Any]:
             'returncode': 1
         }
 
-    # Auto confirm flag
-    if args.get('auto_confirm', False):
-        cmd.append('-y')
+    # Default flags: -y (auto confirm) -f (force)
+    cmd.extend(['-y', '-f'])
 
     # Add destination branch
     cmd.extend(['--dest', dest_branch])
@@ -547,11 +550,26 @@ def _git_mr(args: Dict, project_root: str) -> Dict[str, Any]:
     cmd.extend(['-D', description])
 
     # Setup environment to disable interactive prompts
-    import os
     env = os.environ.copy()
     env['GIT_TERMINAL_PROMPT'] = '0'  # Disable git credential prompts
     env['GIT_ASKPASS'] = 'echo'       # Disable password prompts
 
     # Execute with environment variables, timeout, and stdin redirected to prevent hanging
-    # Reduced timeout from 120 to 30 seconds for faster failure detection
     return _run_git_command(cmd, project_root, timeout=30, env=env, stdin_devnull=True)
+
+
+def _git_clean(args: Dict, project_root: str) -> Dict[str, Any]:
+    """Clean untracked files"""
+    cmd = ['clean']
+
+    # Default flags: -fdx (force, directories, ignored files)
+    flags = args.get('flags', '-fdx')
+
+    # Ensure -f is always present (git requires it)
+    parsed_flags = _parse_flags(flags)
+    has_force = any(f in ['-f', '--force'] or 'f' in f for f in parsed_flags)
+    if not has_force:
+        cmd.append('-f')
+
+    cmd.extend(parsed_flags)
+    return _run_git_command(cmd, project_root)
