@@ -27,7 +27,8 @@ class FeatureFlags:
 
     def _load_config(self) -> None:
         """加载功能开关配置"""
-        config_path = Path(__file__).parent.parent / "config" / "feature.yaml"
+        # 项目根目录/config/feature.yaml
+        config_path = Path(__file__).parent.parent.parent / "config" / "feature.yaml"
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:
                 self._config = yaml.safe_load(f) or {}
