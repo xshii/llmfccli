@@ -98,6 +98,8 @@ def _run_git_command(cmd: List[str], cwd: str, timeout: int = 30, env: dict = No
             cwd=cwd,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=timeout,
             stdin=subprocess.DEVNULL if stdin_devnull else None,
             env=env
