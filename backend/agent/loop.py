@@ -8,7 +8,7 @@ import time
 from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
 
-from ..llm.client import OllamaClient
+from ..llm import BaseLLMClient, create_client
 from .token_counter import TokenCounter
 from .tools import ToolExecutor, RegistryToolExecutor, ToolConfirmation, ConfirmAction
 
@@ -17,22 +17,24 @@ class AgentLoop:
     """Main agent loop for task execution"""
 
     def __init__(self,
-                 client: Optional[OllamaClient] = None,
+                 client: Optional[BaseLLMClient] = None,
                  tool_executor: Optional[ToolExecutor] = None,
                  project_root: Optional[str] = None,
                  confirmation_callback: Optional[Callable] = None,
-                 tool_output_callback: Optional[Callable] = None):
+                 tool_output_callback: Optional[Callable] = None,
+                 backend: Optional[str] = None):
         """
         Initialize agent loop
 
         Args:
-            client: OllamaClient instance (injected dependency)
+            client: LLM client instance (injected dependency, supports OllamaClient or OpenAIClient)
             tool_executor: ToolExecutor instance (injected dependency)
             project_root: Project root directory
             confirmation_callback: Callback function for user confirmation
             tool_output_callback: Callback function for tool output (tool_name, output, args)
+            backend: LLM backend to use ('ollama' or 'openai'), only used if client is None
         """
-        self.client = client or OllamaClient()
+        self.client = client or create_client(backend=backend, task='main_agent')
         self.project_root = project_root or str(Path.cwd())
 
         # Initialize components
