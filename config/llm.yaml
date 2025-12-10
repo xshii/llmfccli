@@ -46,6 +46,12 @@ openai:
   timeout: 300
   stream: true
 
+  # 是否支持原生 tool/function calling
+  # 如果设为 false，将使用 prompt 模拟方式
+  # 支持原生调用的模型: gpt-4*, gpt-3.5-turbo (非 instruct), claude-*
+  # 不支持的模型: gpt-3.5-turbo-instruct, 部分开源模型
+  native_tool_calling: true
+
   # 模型映射
   models:
     main: "gpt-4-turbo"             # 主 Agent 模型

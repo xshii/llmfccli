@@ -178,7 +178,11 @@ def _create_ollama_client(config: Dict, task: Optional[str] = None) -> BaseLLMCl
 
 
 def _create_openai_client(config: Dict, task: Optional[str] = None) -> BaseLLMClient:
-    """Create OpenAI client with appropriate model for task"""
+    """Create OpenAI client with appropriate model for task
+
+    If native_tool_calling is disabled in config, wraps the client
+    with PromptToolAdapter for prompt-based tool calling simulation.
+    """
     from .openai_client import OpenAIClient
 
     openai_config = config.get('openai', {})
@@ -211,7 +215,17 @@ def _create_openai_client(config: Dict, task: Optional[str] = None) -> BaseLLMCl
         })
     }
 
-    return OpenAIClient(config=client_config)
+    client = OpenAIClient(config=client_config)
+
+    # Check if native tool calling is supported
+    native_tool_calling = openai_config.get('native_tool_calling', True)
+
+    if not native_tool_calling:
+        # Wrap with prompt-based tool adapter
+        from .tool_adapter import PromptToolAdapter
+        client = PromptToolAdapter(client)
+
+    return client
 
 
 def clear_cache():

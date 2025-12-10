@@ -13,6 +13,7 @@ from .base import BaseLLMClient
 # Client implementations
 from .ollama import OllamaClient
 from .openai_client import OpenAIClient
+from .tool_adapter import PromptToolAdapter
 
 # Factory function (recommended way to create clients)
 from .factory import (
@@ -42,6 +43,7 @@ __all__ = [
     # Clients
     'OllamaClient',
     'OpenAIClient',
+    'PromptToolAdapter',
     # Factory
     'create_client',
     'load_config',
