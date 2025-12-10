@@ -15,13 +15,13 @@ from typing import List, Dict, Any, Optional
 TOOL_CALL_SYSTEM_PROMPT = """You are an AI assistant with access to tools. When you need to use a tool, output a JSON block in the following format:
 
 ```tool_call
-{
+{{
   "name": "tool_name",
-  "arguments": {
+  "arguments": {{
     "param1": "value1",
     "param2": "value2"
-  }
-}
+  }}
+}}
 ```
 
 You can call multiple tools by outputting multiple ```tool_call``` blocks.
