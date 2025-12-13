@@ -124,7 +124,15 @@ class EditFileTool(BaseTool):
 
         # Check if file exists
         if not os.path.isfile(full_path):
-            return  # File doesn't exist, skip preview
+            # Try to find similar file
+            from backend.cli.path_utils import PathUtils
+            path_utils = PathUtils(self.project_root or os.getcwd())
+            similar = path_utils.find_similar_file(path)
+            if similar:
+                full_path = os.path.join(self.project_root or os.getcwd(), similar)
+                full_path = os.path.abspath(full_path)
+            else:
+                return  # File doesn't exist, skip preview
 
         try:
             # Read file
