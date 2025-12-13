@@ -89,28 +89,24 @@ class StatusLine:
         protocol = get_feature_value("cli_output.hyperlink_protocol.protocol", "file")
         show_line = get_feature_value("cli_output.hyperlink_protocol.show_line_number", True)
 
+        # 构建显示文本
+        display = filename
+        if show_line and line_number:
+            display += f":{line_number}"
+
         if protocol == "none":
-            result = filename
-            if show_line and line_number:
-                result += f":{line_number}"
-            return result
+            return display
 
         elif protocol == "vscode":
             uri = f"vscode://file{abs_path}"
             if line_number:
                 uri += f":{line_number}"
-            result = f"[link={uri}]{filename}[/link]"
-            if show_line and line_number:
-                result += f"[dim]:{line_number}[/dim]"
-            return result
+            return f"[link={uri}]{display}[/link]"
 
         else:
             # file:// 协议
             uri = f"file://{abs_path}"
-            result = f"[link={uri}]{filename}[/link]"
-            if show_line and line_number:
-                result += f"[dim]:{line_number}[/dim]"
-            return result
+            return f"[link={uri}]{display}[/link]"
 
     def _get_ide_file_info(self) -> Optional[Tuple[str, Optional[str]]]:
         """获取 IDE 文件信息 (路径, 行号)"""
