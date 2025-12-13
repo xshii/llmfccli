@@ -55,10 +55,9 @@ class TokenCounter:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
         else:
-            # Use default config
+            # Use default config (max_tokens comes from modelfile)
             config = {
                 'token_management': {
-                    'max_tokens': 128000,
                     'budgets': {
                         'active_files': 0.25,
                         'processed_files': 0.15,
@@ -84,11 +83,11 @@ class TokenCounter:
         self.compression_config = self.config['compression']
         self.limits = self.config['limits']
 
-        # Try to get max_tokens from modelfile first (single source of truth)
+        # Get max_tokens from modelfile (single source of truth)
         self.max_tokens = self._get_max_tokens_from_modelfile()
         if self.max_tokens is None:
-            # Fallback to config
-            self.max_tokens = self.config['max_tokens']
+            # Fallback to default
+            self.max_tokens = 128000
 
         # Track token usage by category
         self.usage = {
