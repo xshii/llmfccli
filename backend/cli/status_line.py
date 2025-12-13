@@ -10,9 +10,6 @@ from typing import Optional, Tuple, TYPE_CHECKING
 
 from rich.console import Console
 
-from .hyperlink import create_file_hyperlink
-from .path_utils import PathUtils
-
 if TYPE_CHECKING:
     from ..agent.loop import AgentLoop
     from ..llm.client import OllamaClient
@@ -26,7 +23,6 @@ class StatusLine:
         self.agent = agent
         self.client = client
         self.project_root = project_root or os.getcwd()
-        self.path_utils = PathUtils(self.project_root)
 
     def show(self):
         """显示状态行"""
@@ -77,21 +73,44 @@ class StatusLine:
         return self._format_file_link(file_path, line_info)
 
     def _format_file_link(self, file_path: str, line_info: Optional[str]) -> str:
-        """格式化文件链接（使用统一的 hyperlink 模块）"""
+        """格式化文件链接（只显示文件名）"""
+        from backend.utils.feature import get_feature_value
+
         # 解析行号
         line_number = None
         if line_info:
-            # line_info 可能是 "10" 或 "10-20"
             line_number = int(line_info.split('-')[0])
 
-        # 使用统一的 hyperlink 模块，尊重协议配置
-        return create_file_hyperlink(
-            path=file_path,
-            project_root=self.project_root,
-            path_utils=self.path_utils,
-            line=line_number,
-            max_display_length=30  # 状态栏用较短的显示
-        )
+        # 获取文件名
+        filename = os.path.basename(file_path)
+        abs_path = os.path.abspath(file_path) if not os.path.isabs(file_path) else file_path
+
+        # 获取协议配置
+        protocol = get_feature_value("cli_output.hyperlink_protocol.protocol", "file")
+        show_line = get_feature_value("cli_output.hyperlink_protocol.show_line_number", True)
+
+        if protocol == "none":
+            result = filename
+            if show_line and line_number:
+                result += f":{line_number}"
+            return result
+
+        elif protocol == "vscode":
+            uri = f"vscode://file{abs_path}"
+            if line_number:
+                uri += f":{line_number}"
+            result = f"[link={uri}]{filename}[/link]"
+            if show_line and line_number:
+                result += f"[dim]:{line_number}[/dim]"
+            return result
+
+        else:
+            # file:// 协议
+            uri = f"file://{abs_path}"
+            result = f"[link={uri}]{filename}[/link]"
+            if show_line and line_number:
+                result += f"[dim]:{line_number}[/dim]"
+            return result
 
     def _get_ide_file_info(self) -> Optional[Tuple[str, Optional[str]]]:
         """获取 IDE 文件信息 (路径, 行号)"""
