@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Token counter using tiktoken for accurate token estimation
+Token counter using character-based estimation
 """
 
-import tiktoken
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import yaml
@@ -11,20 +10,20 @@ import yaml
 
 class TokenCounter:
     """Token counter for managing context window budget"""
-    
+
     def __init__(self, config_path: Optional[str] = None):
         """
         Initialize token counter with budget configuration
-        
+
         Args:
             config_path: Path to token_budget.yaml
         """
         # Load configuration
         if config_path is None:
             config_path = Path(__file__).parent.parent.parent / "config" / "token_budget.yaml"
-        
+
         config_path = Path(config_path).resolve()
-        
+
         if config_path.exists():
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
@@ -52,25 +51,13 @@ class TokenCounter:
                     }
                 }
             }
-        
+
         self.config = config['token_management']
         self.max_tokens = self.config['max_tokens']
         self.budgets = self.config['budgets']
         self.compression_config = self.config['compression']
         self.limits = self.config['limits']
-        
-        # Initialize tiktoken encoder (using cl100k_base for GPT-4 compatibility)
-        # Qwen3 uses similar tokenization
-        try:
-            import ssl
-            import certifi
-            # Try with SSL context
-            self.encoder = tiktoken.get_encoding("cl100k_base")
-        except Exception:
-            # Fallback: use simple character-based estimation (silently)
-            # This happens when tiktoken can't download vocabulary files
-            self.encoder = None
-        
+
         # Track token usage by category
         self.usage = {
             'active_files': 0,
@@ -80,24 +67,20 @@ class TokenCounter:
             'recent_messages': 0,
             'total': 0
         }
-        
+
         self.last_compression_time = 0
-    
+
     def count_tokens(self, text: str) -> int:
         """
-        Count tokens in text
-        
+        Count tokens in text using character-based estimation
+
         Args:
             text: Input text
-            
+
         Returns:
-            Token count
+            Estimated token count (~3 chars per token for mixed content)
         """
-        if self.encoder:
-            return len(self.encoder.encode(text))
-        else:
-            # Fallback: character-based estimation
-            return len(text) // 3
+        return len(text) // 3
     
     def count_messages(self, messages: List[Dict[str, str]]) -> int:
         """

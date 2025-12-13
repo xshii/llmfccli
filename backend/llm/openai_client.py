@@ -369,39 +369,18 @@ class OpenAIClient(BaseLLMClient):
 
     def estimate_tokens(self, messages: List[Dict[str, str]]) -> int:
         """
-        Estimate token count for messages
-
-        Uses tiktoken for accurate counting if available,
-        falls back to character-based estimation.
+        Estimate token count for messages using character-based estimation
 
         Args:
             messages: List of message dicts
 
         Returns:
-            Estimated token count
+            Estimated token count (~4 chars per token for English)
         """
-        try:
-            import tiktoken
-            # Use cl100k_base encoding (GPT-4, GPT-3.5-turbo)
-            encoding = tiktoken.get_encoding("cl100k_base")
-
-            total_tokens = 0
-            for msg in messages:
-                # Add message overhead
-                total_tokens += 4  # <|im_start|>{role}\n ... <|im_end|>\n
-                content = msg.get('content', '')
-                if content:
-                    total_tokens += len(encoding.encode(content))
-
-            total_tokens += 2  # Reply priming
-            return total_tokens
-
-        except ImportError:
-            # Fallback: estimate based on characters
-            total_chars = sum(len(msg.get('content', '')) for msg in messages)
-            estimated_tokens = total_chars // 4  # ~4 chars per token for English
-            estimated_tokens += len(messages) * 4  # Message overhead
-            return estimated_tokens
+        total_chars = sum(len(msg.get('content', '')) for msg in messages)
+        estimated_tokens = total_chars // 4  # ~4 chars per token for English
+        estimated_tokens += len(messages) * 4  # Message overhead
+        return estimated_tokens
 
     def set_model(self, model: str):
         """
