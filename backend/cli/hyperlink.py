@@ -96,32 +96,27 @@ def create_file_hyperlink(
     protocol = _get_hyperlink_protocol()
     show_line = _get_show_line_number()
 
+    # 构建显示文本（行号包含在内）
+    display = display_path
+    if show_line and line is not None:
+        display += f":{line}"
+
     if protocol == "none":
-        # 无协议模式：仅显示路径
-        result = display_path
-        if show_line and line is not None:
-            result += f":{line}"
-        return result
+        return display
 
     elif protocol == "vscode":
-        # VS Code 协议：支持行号和列号（URI 中总是包含行号）
+        # VS Code 协议：URI 中包含行号和列号
         uri = f"vscode://file{abs_path}"
         if line is not None:
             uri += f":{line}"
             if column is not None:
                 uri += f":{column}"
-        result = f"[link={uri}]{display_path}[/link]"
-        if show_line and line is not None:
-            result += f"[dim]:{line}[/dim]"
-        return result
+        return f"[link={uri}]{display}[/link]"
 
     else:
         # 默认 file:// 协议
         file_uri = f"file://{abs_path}"
-        result = f"[link={file_uri}]{display_path}[/link]"
-        if show_line and line is not None:
-            result += f"[dim]:{line}[/dim]"
-        return result
+        return f"[link={file_uri}]{display}[/link]"
 
 
 def create_tool_hyperlink(tool_name: str) -> str:
