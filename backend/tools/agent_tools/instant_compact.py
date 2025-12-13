@@ -28,9 +28,8 @@ class InstantCompactTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return ("Compress a previous tool result to save context space. "
-                "Use after view_file to summarize file content - avoids re-reading the same file later. "
-                "Especially useful when edit_file is denied and you need to retry with different parameters.")
+        return ("Compress a previous tool result after extracting key information. "
+                "Use when tool output was large but you've summarized the important parts.")
 
     @property
     def category(self) -> str:
