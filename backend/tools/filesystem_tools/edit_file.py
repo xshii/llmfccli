@@ -195,7 +195,16 @@ class EditFileTool(BaseTool):
 
         # Check file exists
         if not os.path.exists(full_path):
-            raise FileSystemError(f"File not found: {path}")
+            # Try to find similar file
+            from backend.cli.path_utils import PathUtils
+            path_utils = PathUtils(self.project_root or os.getcwd())
+            similar = path_utils.find_similar_file(path)
+            if similar:
+                # Use the similar file
+                full_path = os.path.join(self.project_root or os.getcwd(), similar)
+                full_path = os.path.abspath(full_path)
+            else:
+                raise FileSystemError(f"File not found: {path}")
 
         # Read file
         try:
