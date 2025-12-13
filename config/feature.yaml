@@ -27,3 +27,7 @@ cli_output:
   hyperlink_protocol:
     protocol: "file"
     description: "文件路径超链接使用的协议 (file/vscode/none)"
+
+    # 是否在路径后附加行号 (path:line 格式)
+    # 仅对 "none" 和 "file" 协议有效，vscode 协议总是在 URI 中包含行号
+    show_line_number: true

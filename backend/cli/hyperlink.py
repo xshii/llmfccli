@@ -31,6 +31,15 @@ def _get_hyperlink_protocol() -> str:
         return "file"
 
 
+def _get_show_line_number() -> bool:
+    """获取是否显示行号配置，默认 True"""
+    try:
+        from backend.utils.feature import get_feature_value
+        return get_feature_value("cli_output.hyperlink_protocol.show_line_number", True)
+    except Exception:
+        return True
+
+
 def _get_tool_registry():
     """获取全局工具注册器"""
     global _tool_registry
@@ -85,31 +94,32 @@ def create_file_hyperlink(
 
     # 获取协议配置
     protocol = _get_hyperlink_protocol()
+    show_line = _get_show_line_number()
 
     if protocol == "none":
         # 无协议模式：仅显示路径
         result = display_path
-        if line is not None:
+        if show_line and line is not None:
             result += f":{line}"
         return result
 
     elif protocol == "vscode":
-        # VS Code 协议：支持行号和列号
+        # VS Code 协议：支持行号和列号（URI 中总是包含行号）
         uri = f"vscode://file{abs_path}"
         if line is not None:
             uri += f":{line}"
             if column is not None:
                 uri += f":{column}"
         result = f"[link={uri}]{display_path}[/link]"
-        if line is not None:
+        if show_line and line is not None:
             result += f" [dim]:{line}[/dim]"
         return result
 
     else:
-        # 默认 file:// 协议（不带行号，保证跨平台兼容）
+        # 默认 file:// 协议
         file_uri = f"file://{abs_path}"
         result = f"[link={file_uri}]{display_path}[/link]"
-        if line is not None:
+        if show_line and line is not None:
             result += f" [dim]:{line}[/dim]"
         return result
 
