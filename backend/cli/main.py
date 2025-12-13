@@ -491,7 +491,7 @@ class CLI:
                     file_info = vscode.get_active_file()
                     file_path = file_info['path']
 
-                    file_msg = f'User has "{file_path}" open in IDE.'
+                    file_msg = f'User has "{file_path}" open in IDE. Use this context when the request appears related.'
                     context_parts.append(file_msg)
                 except Exception:
                     pass  # IDE 文件信息获取失败，仅使用 project root + cwd
