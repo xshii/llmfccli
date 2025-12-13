@@ -55,6 +55,27 @@ class FeatureFlags:
             return value.get("enabled", False)
         return bool(value)
 
+    def get_value(self, config_path: str, default: Any = None) -> Any:
+        """
+        获取配置值
+
+        Args:
+            config_path: 配置路径，用点分隔，如 "cli_output.hyperlink_protocol.protocol"
+            default: 默认值
+
+        Returns:
+            配置值，如果不存在则返回默认值
+        """
+        parts = config_path.split(".")
+        value = self._config
+
+        for part in parts:
+            if not isinstance(value, dict) or part not in value:
+                return default
+            value = value[part]
+
+        return value
+
     def reload(self) -> None:
         """重新加载配置"""
         self._load_config()
@@ -64,3 +85,8 @@ class FeatureFlags:
 def is_feature_enabled(feature_path: str) -> bool:
     """检查功能是否启用"""
     return FeatureFlags().is_enabled(feature_path)
+
+
+def get_feature_value(config_path: str, default: Any = None) -> Any:
+    """获取配置值"""
+    return FeatureFlags().get_value(config_path, default)

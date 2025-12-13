@@ -3,8 +3,11 @@
 超链接生成工具模块
 
 统一管理文件和工具的超链接生成逻辑：
-- 普通终端：使用 file:// 协议（不带行号，保证基本跳转）
-- VS Code 模式：使用 RPC 调用 openFile 实现精确跳转（支持行号）
+- file:// 协议：大多数终端支持
+- vscode:// 协议：VS Code 专用，支持行号跳转
+- 无协议模式：仅显示原始路径（适用于不支持超链接的环境）
+
+协议配置在 config/feature.yaml 中的 cli_output.hyperlink_protocol.protocol
 """
 
 import os
@@ -17,6 +20,24 @@ if TYPE_CHECKING:
 
 # 工具注册器缓存
 _tool_registry = None
+
+
+def _get_hyperlink_protocol() -> str:
+    """获取超链接协议配置，默认 'file'"""
+    try:
+        from backend.utils.feature import get_feature_value
+        return get_feature_value("cli_output.hyperlink_protocol.protocol", "file")
+    except Exception:
+        return "file"
+
+
+def _get_show_line_number() -> bool:
+    """获取是否显示行号配置，默认 True"""
+    try:
+        from backend.utils.feature import get_feature_value
+        return get_feature_value("cli_output.hyperlink_protocol.show_line_number", True)
+    except Exception:
+        return True
 
 
 def _get_tool_registry():
@@ -42,21 +63,21 @@ def create_file_hyperlink(
     """
     创建文件超链接
 
-    统一的文件超链接生成逻辑：
-    - 使用 file:// 协议
-    - 不带行号（保证跨平台基本跳转能用）
-    - 行号信息仅作为显示文本附加
+    根据 config/feature.yaml 中的 cli_output.hyperlink_protocol.protocol 配置：
+    - "file"   : 使用 file:// 协议（默认）
+    - "vscode" : 使用 vscode://file/ 协议（支持行号跳转）
+    - "none"   : 不使用协议，仅显示原始路径
 
     Args:
         path: 文件路径（相对或绝对）
         project_root: 项目根目录
         path_utils: PathUtils 实例（用于路径压缩，可选）
-        line: 行号（可选，仅用于显示）
-        column: 列号（可选，暂未使用）
+        line: 行号（可选）
+        column: 列号（可选）
         max_display_length: 显示路径的最大长度
 
     Returns:
-        Rich markup 格式的超链接字符串
+        Rich markup 格式的超链接字符串，或纯文本路径
     """
     # 获取绝对路径
     if not os.path.isabs(path):
@@ -71,22 +92,43 @@ def create_file_hyperlink(
         # 简单截断
         display_path = path if len(path) <= max_display_length else '...' + path[-(max_display_length - 3):]
 
-    # 构建 file:// 超链接（不带行号，保证跨平台兼容）
-    file_uri = f"file://{abs_path}"
+    # 获取协议配置
+    protocol = _get_hyperlink_protocol()
+    show_line = _get_show_line_number()
 
-    # 返回 Rich markup 格式的超链接
-    result = f"[link={file_uri}]{display_path}[/link]"
+    if protocol == "none":
+        # 无协议模式：仅显示路径
+        result = display_path
+        if show_line and line is not None:
+            result += f":{line}"
+        return result
 
-    # 行号仅作为显示文本附加
-    if line is not None:
-        result += f" [dim]:{line}[/dim]"
+    elif protocol == "vscode":
+        # VS Code 协议：支持行号和列号（URI 中总是包含行号）
+        uri = f"vscode://file{abs_path}"
+        if line is not None:
+            uri += f":{line}"
+            if column is not None:
+                uri += f":{column}"
+        result = f"[link={uri}]{display_path}[/link]"
+        if show_line and line is not None:
+            result += f" [dim]:{line}[/dim]"
+        return result
 
-    return result
+    else:
+        # 默认 file:// 协议
+        file_uri = f"file://{abs_path}"
+        result = f"[link={file_uri}]{display_path}[/link]"
+        if show_line and line is not None:
+            result += f" [dim]:{line}[/dim]"
+        return result
 
 
 def create_tool_hyperlink(tool_name: str) -> str:
     """
     创建工具名称超链接（指向工具的 py 文件）
+
+    根据 cli_output.hyperlink_protocol.protocol 配置选择协议
 
     Args:
         tool_name: 工具名称
@@ -94,6 +136,12 @@ def create_tool_hyperlink(tool_name: str) -> str:
     Returns:
         Rich markup 格式的超链接字符串
     """
+    protocol = _get_hyperlink_protocol()
+
+    # 无协议模式：直接返回工具名
+    if protocol == "none":
+        return f"[cyan bold]{tool_name}[/cyan bold]"
+
     try:
         registry = _get_tool_registry()
         # 访问内部的 dynamic_registry 获取工具元数据
@@ -115,9 +163,12 @@ def create_tool_hyperlink(tool_name: str) -> str:
 
                 if tool_file.exists():
                     abs_path = str(tool_file.resolve())
-                    # 使用 file:// 协议
-                    file_uri = f"file://{abs_path}"
-                    return f"[link={file_uri}][cyan bold]{tool_name}[/cyan bold][/link]"
+                    # 根据配置选择协议
+                    if protocol == "vscode":
+                        uri = f"vscode://file{abs_path}"
+                    else:
+                        uri = f"file://{abs_path}"
+                    return f"[link={uri}][cyan bold]{tool_name}[/cyan bold][/link]"
     except Exception:
         pass
 
