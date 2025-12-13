@@ -16,3 +16,14 @@ ide_integration:
   show_diff_before_edit:
     enabled: true
     description: "在用户确认工具调用时同步展示 diff 预览（在 VSCode 中）"
+
+# CLI 输出功能
+cli_output:
+  # 文件路径超链接协议配置
+  # 可选值:
+  #   - "file"    : 使用 file:// 协议（默认，大多数终端支持）
+  #   - "vscode"  : 使用 vscode://file/ 协议（需要 VS Code）
+  #   - "none"    : 不使用协议，仅显示原始路径（适用于不支持超链接的环境）
+  hyperlink_protocol:
+    protocol: "file"
+    description: "文件路径超链接使用的协议 (file/vscode/none)"
