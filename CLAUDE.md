@@ -213,9 +213,6 @@ pkill -f "ssh.*ollama-tunnel"
 ```bash
 # 安装所有依赖
 pip3 install -e .[dev]
-
-# 主要依赖
-pip3 install tiktoken  # Token 计数
 ```
 
 ## VS Code 调试配置
