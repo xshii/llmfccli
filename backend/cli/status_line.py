@@ -10,6 +10,9 @@ from typing import Optional, Tuple, TYPE_CHECKING
 
 from rich.console import Console
 
+from .hyperlink import create_file_hyperlink
+from .path_utils import PathUtils
+
 if TYPE_CHECKING:
     from ..agent.loop import AgentLoop
     from ..llm.client import OllamaClient
@@ -18,10 +21,12 @@ if TYPE_CHECKING:
 class StatusLine:
     """状态行显示器"""
 
-    def __init__(self, console: Console, agent: "AgentLoop", client: "OllamaClient"):
+    def __init__(self, console: Console, agent: "AgentLoop", client: "OllamaClient", project_root: str = ""):
         self.console = console
         self.agent = agent
         self.client = client
+        self.project_root = project_root or os.getcwd()
+        self.path_utils = PathUtils(self.project_root)
 
     def show(self):
         """显示状态行"""
@@ -72,17 +77,21 @@ class StatusLine:
         return self._format_file_link(file_path, line_info)
 
     def _format_file_link(self, file_path: str, line_info: Optional[str]) -> str:
-        """格式化文件链接"""
-        filename = os.path.basename(file_path)
-
+        """格式化文件链接（使用统一的 hyperlink 模块）"""
+        # 解析行号
+        line_number = None
         if line_info:
-            # 带行号的链接
-            line_anchor = line_info.split('-')[0]
-            url = f"file://{file_path}#{line_anchor}"
-            return f"[link={url}]{filename}:{line_info}[/link]"
-        else:
-            url = f"file://{file_path}"
-            return f"[link={url}]{filename}[/link]"
+            # line_info 可能是 "10" 或 "10-20"
+            line_number = int(line_info.split('-')[0])
+
+        # 使用统一的 hyperlink 模块，尊重协议配置
+        return create_file_hyperlink(
+            path=file_path,
+            project_root=self.project_root,
+            path_utils=self.path_utils,
+            line=line_number,
+            max_display_length=30  # 状态栏用较短的显示
+        )
 
     def _get_ide_file_info(self) -> Optional[Tuple[str, Optional[str]]]:
         """获取 IDE 文件信息 (路径, 行号)"""
@@ -117,13 +126,19 @@ class StatusLine:
     # ========== 对话文件部分 ==========
 
     def _format_conversation_file(self) -> str:
-        """格式化对话文件链接"""
+        """格式化对话文件链接（使用统一的 hyperlink 模块）"""
         file_path = self._get_conversation_file()
         if not file_path:
             return "[dim]暂无历史对话[/dim]"
 
-        url = f"file://{os.path.abspath(file_path)}"
-        return f"[link={url}]查看对话历史[/link]"
+        # 使用统一的 hyperlink 模块
+        link = create_file_hyperlink(
+            path=os.path.abspath(file_path),
+            project_root=self.project_root,
+            path_utils=self.path_utils,
+            max_display_length=20
+        )
+        return f"{link} [dim](对话历史)[/dim]"
 
     def _get_conversation_file(self) -> Optional[str]:
         """获取对话文件路径"""

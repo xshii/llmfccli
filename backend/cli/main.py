@@ -80,7 +80,7 @@ class CLI:
         self.output_manager = ToolOutputManager(self.console, self.path_utils, self.agent)
 
         # 初始化状态行
-        self.status_line = StatusLine(self.console, self.agent, self.client)
+        self.status_line = StatusLine(self.console, self.agent, self.client, self.project_root)
 
         # 设置 agent 的工具输出回调
         self.agent.tool_output_callback = self.output_manager.add_tool_output
