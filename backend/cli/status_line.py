@@ -126,19 +126,24 @@ class StatusLine:
     # ========== 对话文件部分 ==========
 
     def _format_conversation_file(self) -> str:
-        """格式化对话文件链接（使用统一的 hyperlink 模块）"""
+        """格式化对话文件链接"""
         file_path = self._get_conversation_file()
         if not file_path:
             return "[dim]暂无历史对话[/dim]"
 
-        # 使用统一的 hyperlink 模块
-        link = create_file_hyperlink(
-            path=os.path.abspath(file_path),
-            project_root=self.project_root,
-            path_utils=self.path_utils,
-            max_display_length=20
-        )
-        return f"{link} [dim](对话历史)[/dim]"
+        # 直接使用文件路径创建超链接，显示文字为"查看历史会话"
+        from backend.utils.feature import get_feature_value
+        protocol = get_feature_value("cli_output.hyperlink_protocol.protocol", "file")
+        abs_path = os.path.abspath(file_path)
+
+        if protocol == "none":
+            return "查看历史会话"
+        elif protocol == "vscode":
+            uri = f"vscode://file{abs_path}"
+        else:
+            uri = f"file://{abs_path}"
+
+        return f"[link={uri}]查看历史会话[/link]"
 
     def _get_conversation_file(self) -> Optional[str]:
         """获取对话文件路径"""

@@ -1,7 +1,7 @@
 token_management:
-  max_tokens: 92160
+  # max_tokens is read from modelfile's num_ctx parameter
   target_after_compress: 0.6
-  
+
   budgets:
     active_files: 0.25        # Current files + unit tests (non-compressible)
     processed_files: 0.15     # Historical file summaries
