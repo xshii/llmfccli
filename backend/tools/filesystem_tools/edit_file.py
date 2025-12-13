@@ -46,7 +46,7 @@ class EditFileTool(BaseTool):
             'en': (
                 'Performs exact string replacements in files.\n\n'
                 'Usage:\n'
-                '- You must use view_file tool at least once before editing. This tool will error if you attempt an edit without reading the file.\n'
+                '- Recommended: Use view_file first to get the exact string content, but you CAN call edit_file directly if you know the exact old_str.\n'
                 '- When editing text from view_file output, preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. '
                 'The line number prefix format is: spaces + line number + tab. Everything after that tab is the actual file content to match. '
                 'Never include any part of the line number prefix in old_str or new_str.\n'
@@ -59,7 +59,7 @@ class EditFileTool(BaseTool):
             'zh': (
                 '对文件执行精确的字符串替换。\n\n'
                 '使用说明：\n'
-                '- 在编辑前必须至少使用一次 view_file 工具。如果不先读取文件就尝试编辑，工具会报错。\n'
+                '- 建议：先用 view_file 获取准确的字符串内容，但如果你确定准确的 old_str，可以直接调用 edit_file。\n'
                 '- 编辑 view_file 输出的文本时，请保持行号前缀之后的精确缩进（制表符/空格）。'
                 '行号前缀格式为：空格 + 行号 + 制表符。制表符之后才是实际的文件内容。'
                 '绝不要在 old_str 或 new_str 中包含行号前缀的任何部分。\n'
