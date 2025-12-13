@@ -112,7 +112,7 @@ def create_file_hyperlink(
                 uri += f":{column}"
         result = f"[link={uri}]{display_path}[/link]"
         if show_line and line is not None:
-            result += f" [dim]:{line}[/dim]"
+            result += f"[dim]:{line}[/dim]"
         return result
 
     else:
@@ -120,7 +120,7 @@ def create_file_hyperlink(
         file_uri = f"file://{abs_path}"
         result = f"[link={file_uri}]{display_path}[/link]"
         if show_line and line is not None:
-            result += f" [dim]:{line}[/dim]"
+            result += f"[dim]:{line}[/dim]"
         return result
 
 
