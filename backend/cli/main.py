@@ -19,7 +19,7 @@ from rich.text import Text
 from ..agent.loop import AgentLoop
 from ..llm.client import OllamaClient
 from ..utils.precheck import PreCheck
-from ..agent.tools import ConfirmAction
+from ..agent.tools import ConfirmAction, ConfirmResult
 from ..remotectl.commands import RemoteCommands
 from .cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
 from ..utils.shell_session import PersistentShellSession
@@ -277,7 +277,7 @@ class CLI:
                 self.console.print("\n[green]✓ 环境检查通过[/green]")
                 break
 
-    def _confirm_tool_execution(self, tool_name: str, category: str, arguments: dict) -> ConfirmAction:
+    def _confirm_tool_execution(self, tool_name: str, category: str, arguments: dict) -> ConfirmResult:
         """提示用户确认工具执行
 
         Args:
@@ -286,7 +286,7 @@ class CLI:
             arguments: 工具参数
 
         Returns:
-            ConfirmAction: 用户的选择（ALLOW_ONCE, ALLOW_ALWAYS, DENY）
+            ConfirmResult: 用户的选择和可选的拒绝原因
         """
         from .hyperlink import create_file_hyperlink
 
@@ -386,7 +386,7 @@ class CLI:
 
                 if choice == '1':
                     self.console.print("[green]✓ 本次允许执行[/green]")
-                    return ConfirmAction.ALLOW_ONCE
+                    return ConfirmResult(action=ConfirmAction.ALLOW_ONCE)
                 elif choice == '2':
                     self.console.print(f"[blue]✓ 始终允许: {signature}[/blue]")
 
@@ -399,15 +399,23 @@ class CLI:
                                 f"[yellow]  ⚠️  注意：危险参数仍需确认 (如 --force, --hard)[/yellow]"
                             )
 
-                    return ConfirmAction.ALLOW_ALWAYS
+                    return ConfirmResult(action=ConfirmAction.ALLOW_ALWAYS)
                 elif choice == '3':
-                    self.console.print("[red]✗ 已拒绝，停止执行[/red]")
-                    return ConfirmAction.DENY
+                    self.console.print("[yellow]请输入拒绝原因 (直接回车跳过):[/yellow]")
+                    try:
+                        reason = input("> ").strip()
+                    except (KeyboardInterrupt, EOFError):
+                        reason = ""
+                    if reason:
+                        self.console.print(f"[red]✗ 已拒绝: {reason}[/red]")
+                    else:
+                        self.console.print("[red]✗ 已拒绝[/red]")
+                    return ConfirmResult(action=ConfirmAction.DENY, reason=reason if reason else None)
                 else:
                     self.console.print("[yellow]无效选择，请输入 1、2 或 3[/yellow]")
             except (KeyboardInterrupt, EOFError):
-                self.console.print("[red]✗ 已取消，停止执行[/red]")
-                return ConfirmAction.DENY
+                self.console.print("[red]✗ 已取消[/red]")
+                return ConfirmResult(action=ConfirmAction.DENY, reason="用户取消")
 
     def show_welcome(self):
         """显示欢迎消息"""

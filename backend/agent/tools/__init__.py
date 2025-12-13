@@ -10,7 +10,7 @@ from .registry import ToolRegistry
 from .executor import ToolExecutor, RegistryToolExecutor, MockToolExecutor
 
 # Tool confirmation
-from .confirmation import ConfirmAction, ToolConfirmation
+from .confirmation import ConfirmAction, ConfirmResult, ToolConfirmation
 
 # Backward compatible API from schemas.py
 from .schemas import (
@@ -29,6 +29,7 @@ __all__ = [
     'MockToolExecutor',
     # Confirmation
     'ConfirmAction',
+    'ConfirmResult',
     'ToolConfirmation',
     # Backward compatible API
     'registry',
