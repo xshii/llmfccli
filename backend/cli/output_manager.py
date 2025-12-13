@@ -6,7 +6,7 @@
 """
 
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from rich.console import Console
 from rich.text import Text
 from rich.panel import Panel
@@ -37,19 +37,19 @@ class ToolOutputManager:
         self.command_start_time: Optional[float] = None
         self.tool_outputs: List[Dict[str, Any]] = []
 
-    def add_tool_output(self, tool_name: str, output: str, args: Optional[Dict] = None):
+    def add_tool_output(self, tool_name: str, output: Union[Dict, str, Any], args: Optional[Dict] = None):
         """添加工具输出用于显示
 
         Args:
             tool_name: 工具名称
-            output: 输出内容
+            output: 输出内容（dict 或 str）
             args: 工具参数（可选）
         """
         # 特殊处理 assistant thinking 消息
         if tool_name == '__assistant_thinking__':
             # 显示思考消息
             thinking_line = Text()
-            thinking_line.append(output, style="dim italic")
+            thinking_line.append(str(output), style="dim italic")
             self.console.print(thinking_line)
             return  # 不添加到 tool_outputs
 
@@ -64,11 +64,74 @@ class ToolOutputManager:
 
         self.console.print(tool_line)
 
+        # 显示执行结果（最多5行）
+        self._display_result_lines(output)
+
         self.tool_outputs.append({
             'tool': tool_name,
             'output': output,
             'args': args or {}
         })
+
+    def _display_result_lines(self, output: Union[Dict, str, Any], max_lines: int = 5):
+        """显示工具执行结果（最多 max_lines 行）
+
+        Args:
+            output: 工具输出（dict 或 str）
+            max_lines: 最大显示行数
+        """
+        MAX_LINE_LEN = 120
+
+        # 提取显示文本和错误状态
+        has_error = False
+        display_text = ""
+
+        if isinstance(output, dict):
+            # 检查错误状态
+            if output.get('success') is False or 'error' in output:
+                has_error = True
+                display_text = output.get('error', str(output.get('stderr', '')))
+            elif output.get('stderr'):
+                has_error = True
+                display_text = output.get('stderr', '')
+            elif output.get('exit_code', output.get('return_code', 0)) != 0:
+                has_error = True
+                display_text = output.get('stderr', output.get('stdout', ''))
+            else:
+                # 正常输出
+                display_text = output.get('stdout', output.get('content', output.get('output', '')))
+                if not display_text and 'results' in output:
+                    results = output.get('results', [])
+                    if isinstance(results, list):
+                        display_text = f"{len(results)} results"
+        else:
+            display_text = str(output)
+            if 'error' in display_text.lower() or 'failed' in display_text.lower():
+                has_error = True
+
+        if not display_text:
+            return
+
+        # 截取前几行
+        lines = str(display_text).strip().split('\n')
+        color = "red" if has_error else "green"
+
+        for i, line in enumerate(lines[:max_lines]):
+            line = line.rstrip()
+            if len(line) > MAX_LINE_LEN:
+                line = line[:MAX_LINE_LEN - 3] + "..."
+
+            result_line = Text()
+            result_line.append("   ", style="dim")
+            result_line.append(line, style=color)
+            self.console.print(result_line)
+
+        # 如果还有更多行
+        if len(lines) > max_lines:
+            more_line = Text()
+            more_line.append("   ", style="dim")
+            more_line.append(f"... (+{len(lines) - max_lines} lines)", style="dim")
+            self.console.print(more_line)
 
     def _format_tool_call(self, tool_name: str, args: Optional[Dict] = None) -> str:
         """格式化工具调用为单行，带路径压缩
