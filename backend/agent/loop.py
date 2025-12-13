@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ..llm import BaseLLMClient, create_client
 from .token_counter import TokenCounter
-from .tools import ToolExecutor, RegistryToolExecutor, ToolConfirmation, ConfirmAction
+from .tools import ToolExecutor, RegistryToolExecutor, ToolConfirmation, ConfirmAction, ConfirmResult
 
 
 class AgentLoop:
@@ -262,9 +262,9 @@ class AgentLoop:
                             # Preview failed, continue with confirmation
                             pass
 
-                    action = self.confirmation.confirm_tool_execution(tool_name, arguments)
+                    confirm_result = self.confirmation.confirm_tool_execution(tool_name, arguments)
 
-                    if action == ConfirmAction.DENY:
+                    if confirm_result.action == ConfirmAction.DENY:
                         # Close diff preview if it was shown
                         if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
                             try:
@@ -277,10 +277,16 @@ class AgentLoop:
                                 # Failed to close diff, continue
                                 pass
 
+                        # Build error message with user's reason
+                        if confirm_result.reason:
+                            error_msg = f'User declined: {confirm_result.reason}. Adjust parameters or ask for clarification.'
+                        else:
+                            error_msg = 'User declined this call. Tool is available - adjust parameters or ask for clarification.'
+
                         # User denied - add error message and skip execution
                         result = {
                             'success': False,
-                            'error': 'User denied tool execution',
+                            'error': error_msg,
                             'denied_by_user': True
                         }
 
@@ -292,13 +298,8 @@ class AgentLoop:
                         }
                         self.conversation_history.append(tool_message)
 
-                        # Stop execution - user wants to stop
-                        final_msg = "Tool execution stopped by user."
-                        self.conversation_history.append({
-                            'role': 'assistant',
-                            'content': final_msg
-                        })
-                        return final_msg
+                        # Continue loop - let LLM retry with adjusted parameters
+                        break
 
                 # Execute tool via executor
                 result = self.tool_executor.execute_tool(tool_name, arguments)

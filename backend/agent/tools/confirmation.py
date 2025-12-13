@@ -8,8 +8,9 @@ Supports dynamic tool discovery - uses BaseTool methods for:
 - category property: Tool categorization
 """
 
-from typing import Dict, Set, Optional, Callable, TYPE_CHECKING
+from typing import Dict, Set, Optional, Callable, Union, Tuple, TYPE_CHECKING
 from enum import Enum
+from dataclasses import dataclass
 
 if TYPE_CHECKING:
     from .registry import ToolRegistry
@@ -20,6 +21,13 @@ class ConfirmAction(Enum):
     ALLOW_ONCE = "allow_once"      # 本次允许
     ALLOW_ALWAYS = "allow_always"  # 始终允许
     DENY = "deny"                   # 拒绝并停止
+
+
+@dataclass
+class ConfirmResult:
+    """Result of user confirmation with optional reason"""
+    action: ConfirmAction
+    reason: Optional[str] = None  # User's reason for denial
 
 
 class ToolConfirmation:
@@ -40,7 +48,8 @@ class ToolConfirmation:
         self._tool_registry = tool_registry
 
         # Callback for user confirmation (set by CLI)
-        self.confirm_callback: Optional[Callable[[str, str, Dict], ConfirmAction]] = None
+        # Can return ConfirmAction or ConfirmResult (with reason)
+        self.confirm_callback: Optional[Callable[[str, str, Dict], Union[ConfirmAction, ConfirmResult]]] = None
 
     def _load_confirmations(self):
         """Load confirmations from file (disabled - session-level only)"""
@@ -56,8 +65,13 @@ class ToolConfirmation:
         """Set the tool registry for dynamic lookup"""
         self._tool_registry = registry
 
-    def set_confirmation_callback(self, callback: Callable[[str, str, Dict], ConfirmAction]):
-        """Set the confirmation callback function"""
+    def set_confirmation_callback(self, callback: Callable[[str, str, Dict], Union[ConfirmAction, ConfirmResult]]):
+        """Set the confirmation callback function
+
+        Callback can return either:
+        - ConfirmAction: Simple action without reason
+        - ConfirmResult: Action with optional reason (for denial)
+        """
         self.confirm_callback = callback
 
     def _get_tool_instance(self, tool_name: str):
@@ -178,7 +192,7 @@ class ToolConfirmation:
             print(f"[DEBUG] Tool call {signature} needs confirmation (first time)")
         return True
 
-    def confirm_tool_execution(self, tool_name: str, arguments: Dict) -> ConfirmAction:
+    def confirm_tool_execution(self, tool_name: str, arguments: Dict) -> ConfirmResult:
         """
         Get user confirmation for tool execution
 
@@ -187,11 +201,11 @@ class ToolConfirmation:
             arguments: Tool arguments
 
         Returns:
-            User's confirmation action
+            ConfirmResult with action and optional reason
         """
         # If no callback set, allow by default (for testing)
         if self.confirm_callback is None:
-            return ConfirmAction.ALLOW_ONCE
+            return ConfirmResult(action=ConfirmAction.ALLOW_ONCE)
 
         # Note: Preview is shown in AgentLoop before calling this method
         # to ensure it's displayed regardless of confirmation settings
@@ -199,14 +213,21 @@ class ToolConfirmation:
         # Get tool category
         category = self.get_tool_category(tool_name)
 
-        # Ask user
-        action = self.confirm_callback(tool_name, category, arguments)
+        # Ask user - callback can return ConfirmAction or ConfirmResult
+        callback_result = self.confirm_callback(tool_name, category, arguments)
+
+        # Normalize to ConfirmResult
+        if isinstance(callback_result, ConfirmResult):
+            result = callback_result
+        else:
+            # Legacy ConfirmAction return
+            result = ConfirmResult(action=callback_result)
 
         # Update allowed/denied lists based on action
         import os
         debug = os.getenv('DEBUG_CONFIRMATION', False)
 
-        if action == ConfirmAction.ALLOW_ALWAYS:
+        if result.action == ConfirmAction.ALLOW_ALWAYS:
             # Get tool call signature and add to allowed set
             signature = self._get_tool_signature(tool_name, arguments)
             self.allowed_tool_calls.add(signature)
@@ -217,13 +238,13 @@ class ToolConfirmation:
 
             self._save_confirmations()
 
-        elif action == ConfirmAction.DENY:
+        elif result.action == ConfirmAction.DENY:
             self.denied_tools.add(tool_name)
             self._save_confirmations()
             if debug:
                 print(f"[DEBUG] Added tool '{tool_name}' to denied_tools")
 
-        return action
+        return result
 
     def reset_confirmations(self):
         """Reset all confirmations (session-level only)"""
