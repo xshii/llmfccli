@@ -39,14 +39,12 @@ class ViewFileTool(BaseTool):
         return {
             'en': (
                 'Read file contents with line numbers. Useful to see current content and line numbers before editing.\n\n'
-                'Tip: When viewing multiple files, note the target file path you intend to edit BEFORE viewing other reference files.\n\n'
                 'Examples:\n'
                 '  path="src/main.py"  # View entire file\n'
                 '  path="src/main.py", line_range=[100, 150]  # View lines 100-150 of large file'
             ),
             'zh': (
                 '读取文件内容（包含行号）。在编辑前查看当前内容和行号很有用。\n\n'
-                '提示：查看多个文件时，先记下要编辑的目标文件路径，再查看其他参考文件。\n\n'
                 '示例：\n'
                 '  path="src/main.py"  # 查看整个文件\n'
                 '  path="src/main.py", line_range=[100, 150]  # 查看大文件的第 100-150 行'
