@@ -103,7 +103,17 @@ class ViewFileTool(BaseTool):
 
         # Check file exists
         if not os.path.exists(path):
-            raise FileSystemError(f"File not found: {path}")
+            # Try to find similar file
+            from backend.cli.path_utils import PathUtils
+            path_utils = PathUtils(self.project_root or os.getcwd())
+            original_path = path
+            similar = path_utils.find_similar_file(path)
+            if similar:
+                # Use the similar file
+                path = os.path.join(self.project_root or os.getcwd(), similar)
+                path = os.path.abspath(path)
+            else:
+                raise FileSystemError(f"File not found: {original_path}")
 
         if not os.path.isfile(path):
             raise FileSystemError(f"Not a file: {path}")
