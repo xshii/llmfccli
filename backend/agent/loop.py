@@ -277,10 +277,10 @@ class AgentLoop:
                                 # Failed to close diff, continue
                                 pass
 
-                        # User denied - add informative message and continue loop
+                        # User denied - add error message and skip execution
                         result = {
                             'success': False,
-                            'error': f'User declined this {tool_name} call. The tool is still available - the parameters may not match user expectations. Adjust parameters or ask the user for clarification.',
+                            'error': 'User denied tool execution',
                             'denied_by_user': True
                         }
 
@@ -292,8 +292,13 @@ class AgentLoop:
                         }
                         self.conversation_history.append(tool_message)
 
-                        # Continue loop - let model try alternative approach
-                        break  # Break inner tool_calls loop, continue outer iteration loop
+                        # Stop execution - user wants to stop
+                        final_msg = "Tool execution stopped by user."
+                        self.conversation_history.append({
+                            'role': 'assistant',
+                            'content': final_msg
+                        })
+                        return final_msg
 
                 # Execute tool via executor
                 result = self.tool_executor.execute_tool(tool_name, arguments)
