@@ -6,7 +6,8 @@
 """
 
 import os
-from typing import Optional
+from typing import Optional, List, Tuple
+import glob as glob_module
 
 
 class PathUtils:
@@ -130,3 +131,127 @@ class PathUtils:
                 compressed = os.sep + compressed
 
         return compressed
+
+    def find_similar_file(self, path: str) -> Optional[str]:
+        """
+        当路径不存在时，查找最相似的文件
+
+        策略:
+        1. 提取文件名，搜索项目中同名文件
+        2. 单个匹配：直接返回
+        3. 多个匹配：按路径文件夹重合度排序，返回最高分
+
+        Args:
+            path: 不存在的路径
+
+        Returns:
+            最相似的文件路径（相对于项目根目录），或 None
+        """
+        # 提取文件名
+        filename = os.path.basename(path)
+        if not filename:
+            return None
+
+        # 在项目中搜索同名文件
+        pattern = os.path.join(self.project_root, "**", filename)
+        matches = glob_module.glob(pattern, recursive=True)
+
+        if not matches:
+            return None
+
+        if len(matches) == 1:
+            # 单个匹配，直接返回相对路径
+            return os.path.relpath(matches[0], self.project_root)
+
+        # 多个匹配，按路径相似度排序
+        scored_matches = []
+        path_parts = self._get_path_parts(path)
+
+        for match in matches:
+            rel_match = os.path.relpath(match, self.project_root)
+            match_parts = self._get_path_parts(rel_match)
+            score = self._calculate_path_similarity(path_parts, match_parts)
+            scored_matches.append((score, rel_match))
+
+        # 按分数降序排序
+        scored_matches.sort(key=lambda x: x[0], reverse=True)
+
+        # 返回最高分的路径
+        return scored_matches[0][1]
+
+    def find_similar_files(self, path: str) -> List[Tuple[float, str]]:
+        """
+        查找所有相似文件及其相似度分数
+
+        Args:
+            path: 不存在的路径
+
+        Returns:
+            按相似度降序排列的 (分数, 路径) 列表
+        """
+        filename = os.path.basename(path)
+        if not filename:
+            return []
+
+        pattern = os.path.join(self.project_root, "**", filename)
+        matches = glob_module.glob(pattern, recursive=True)
+
+        if not matches:
+            return []
+
+        path_parts = self._get_path_parts(path)
+        scored_matches = []
+
+        for match in matches:
+            rel_match = os.path.relpath(match, self.project_root)
+            match_parts = self._get_path_parts(rel_match)
+            score = self._calculate_path_similarity(path_parts, match_parts)
+            scored_matches.append((score, rel_match))
+
+        scored_matches.sort(key=lambda x: x[0], reverse=True)
+        return scored_matches
+
+    def _get_path_parts(self, path: str) -> List[str]:
+        """提取路径中的文件夹名（不含文件名）"""
+        # 规范化路径
+        normalized = os.path.normpath(path)
+        parts = normalized.split(os.sep)
+        # 返回除文件名外的所有部分
+        return [p for p in parts[:-1] if p and p != '.']
+
+    def _calculate_path_similarity(self, parts1: List[str], parts2: List[str]) -> float:
+        """
+        计算两个路径的文件夹重合度
+
+        Args:
+            parts1: 第一个路径的文件夹列表
+            parts2: 第二个路径的文件夹列表
+
+        Returns:
+            相似度分数 (0.0 - 1.0)
+        """
+        if not parts1 and not parts2:
+            return 1.0
+        if not parts1 or not parts2:
+            return 0.0
+
+        # 计算重合的文件夹数量
+        set1 = set(parts1)
+        set2 = set(parts2)
+        intersection = set1 & set2
+        union = set1 | set2
+
+        # Jaccard 相似度
+        base_score = len(intersection) / len(union) if union else 0.0
+
+        # 额外加分：连续匹配的文件夹（从后向前）
+        # 例如 src/utils/helper.cpp 和 lib/utils/helper.cpp 应该比 utils/src/helper.cpp 分数更高
+        consecutive_bonus = 0.0
+        min_len = min(len(parts1), len(parts2))
+        for i in range(1, min_len + 1):
+            if parts1[-i] == parts2[-i]:
+                consecutive_bonus += 0.1 * i  # 越靠近文件名的匹配权重越高
+            else:
+                break
+
+        return min(1.0, base_score + consecutive_bonus)
