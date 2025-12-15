@@ -88,12 +88,12 @@ def test_two_layer_confirmation_after_allow_always():
         confirmation.set_confirmation_callback(mock_callback_allow_always)
 
         # First execution: user allows always
-        action = confirmation.confirm_tool_execution('edit_file', {
+        result = confirmation.confirm_tool_execution('edit_file', {
             'path': str(test_file),
             'line_range': [2, 2],
             'new_content': 'line TWO'
         })
-        assert action == ConfirmAction.ALLOW_ALWAYS
+        assert result.action == ConfirmAction.ALLOW_ALWAYS
         print(f"✓ User set 'always allow' for edit_file")
 
         # Verify edit_file is now in allowed_tool_calls
