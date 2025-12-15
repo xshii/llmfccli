@@ -10,7 +10,7 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
-from backend.agent.tools.confirmation import ToolConfirmation, ConfirmAction
+from backend.agent.tools.confirmation import ToolConfirmation, ConfirmAction, ConfirmResult
 from backend.agent.tools.registry import ToolRegistry
 
 
@@ -34,9 +34,9 @@ def test_confirmation_basic():
         return ConfirmAction.ALLOW_ALWAYS
 
     confirmation.set_confirmation_callback(mock_callback_allow_always)
-    action = confirmation.confirm_tool_execution('view_file', {'path': '/test/file.cpp'})
-    print(f"✓ User chose: {action}")
-    assert action == ConfirmAction.ALLOW_ALWAYS
+    result = confirmation.confirm_tool_execution('view_file', {'path': '/test/file.cpp'})
+    print(f"✓ User chose: {result.action}")
+    assert result.action == ConfirmAction.ALLOW_ALWAYS
 
     # Test 3: Second time should not need confirmation
     needs_confirm = confirmation.needs_confirmation('view_file', {'path': '/test/other.cpp'})
@@ -72,8 +72,8 @@ def test_bash_run_confirmation():
         return ConfirmAction.ALLOW_ALWAYS
 
     confirmation.set_confirmation_callback(mock_callback_allow_always)
-    action = confirmation.confirm_tool_execution('bash_run', {'command': 'ls -la'})
-    print(f"✓ User chose: {action}")
+    result = confirmation.confirm_tool_execution('bash_run', {'command': 'ls -la'})
+    print(f"✓ User chose: {result.action}")
 
     # Test 3: 'ls' with different args should not need confirmation
     # (bash_run uses base command for signature, so bash_run:ls is allowed)
