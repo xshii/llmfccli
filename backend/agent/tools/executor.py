@@ -81,6 +81,10 @@ class RegistryToolExecutor(ToolExecutor):
         # Initialize new ToolRegistry with auto-discovery
         self.registry = ToolRegistry(project_root=project_root, agent=agent)
 
+        # Set registry on confirmation manager for tool instance lookup
+        if self.confirmation:
+            self.confirmation.set_tool_registry(self.registry)
+
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
         """Get all registered tool schemas"""
         return self.registry.get_openai_schemas()
@@ -170,6 +174,10 @@ class RegistryToolExecutor(ToolExecutor):
         # Recreate registry with new project root
         agent = self.registry.dependencies.get('agent')
         self.registry = ToolRegistry(project_root=project_root, agent=agent)
+
+        # Update registry on confirmation manager
+        if self.confirmation:
+            self.confirmation.set_tool_registry(self.registry)
 
 
 class MockToolExecutor(ToolExecutor):

@@ -318,7 +318,7 @@ class AgentLoop:
                 # Call tool output callback if provided
                 if self.tool_output_callback:
                     try:
-                        self.tool_output_callback(tool_name, str(result), arguments)
+                        self.tool_output_callback(tool_name, result, arguments)
                     except Exception as e:
                         # Don't let callback errors break execution
                         import os
