@@ -3,8 +3,9 @@
 GitTool - Git 版本控制工具类
 """
 
-from typing import Dict, Any, Optional, List, Literal
-from pydantic import BaseModel, Field
+import json
+from typing import Dict, Any, Optional, List, Literal, Union
+from pydantic import BaseModel, Field, field_validator
 
 from backend.tools.base import BaseTool
 from .git import git, GitError
@@ -39,6 +40,24 @@ class GitParams(BaseModel):
 - clean: flags(str,默认-fdx). flags: -f -d -x -fd -fdx
 - mr: title(str,必需), description(str,必需), dest_branch(str,必需,优先从 system reminder 提取 Main branch)"""
     )
+
+    @field_validator('args', mode='before')
+    @classmethod
+    def parse_args_json(cls, v: Union[str, Dict, None]) -> Optional[Dict[str, Any]]:
+        """Parse args from JSON string if needed (LLM sometimes sends stringified JSON)"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, dict):
+                    return parsed
+                # If parsed result is not a dict, return as-is for Pydantic to validate
+                return v
+            except json.JSONDecodeError:
+                # Not valid JSON, return as-is for Pydantic to validate
+                return v
+        return v
 
 
 class GitTool(BaseTool):
