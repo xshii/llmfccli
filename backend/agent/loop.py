@@ -264,6 +264,11 @@ class AgentLoop:
 
                     confirm_result = self.confirmation.confirm_tool_execution(tool_name, arguments)
 
+                    # DEBUG: Log confirmation result
+                    import os
+                    if os.getenv('DEBUG_AGENT') or os.getenv('DEBUG_CONFIRMATION'):
+                        print(f"[DEBUG] Confirmation result for {tool_name}: {confirm_result.action}")
+
                     if confirm_result.action == ConfirmAction.DENY:
                         # Close diff preview if it was shown
                         if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
@@ -303,6 +308,13 @@ class AgentLoop:
 
                 # Execute tool via executor
                 result = self.tool_executor.execute_tool(tool_name, arguments)
+
+                # DEBUG: Log tool execution result
+                import os
+                if os.getenv('DEBUG_AGENT') or os.getenv('DEBUG_CONFIRMATION'):
+                    success = result.get('success') if isinstance(result, dict) else 'N/A'
+                    msg = str(result)[:100] if result else 'None'
+                    print(f"[DEBUG] Tool {tool_name} executed: success={success}, result={msg}")
 
                 # Close diff preview after execution to ensure clean state
                 if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
