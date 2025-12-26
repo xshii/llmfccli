@@ -133,6 +133,23 @@ claude-qwen/
 - [ ] CLI 交互界面
 - [ ] VSCode 插件
 
+## 更新日志
+
+### v0.2.0 (2025-12-26)
+
+**新功能**
+- 工具执行结果摘要显示（最多5行，绿色成功/红色错误）
+- `find_similar_file` 智能路径纠错，自动建议相似文件名
+
+**Bug 修复**
+- 修复 git 工具参数被 validator 校验掉的问题（LLM 发送 JSON 字符串时）
+- 修复 "总是允许" 功能对 view_file 等工具未生效的问题
+- 修复确认系统测试用例的 API 不匹配问题
+
+**重构**
+- 重写 `test_edit_file_confirmation.py` 适配新的 edit_file API（old_str/new_str）
+- 更新确认测试以使用 `ConfirmResult` 返回类型
+
 ## 如何反馈
 
 我们欢迎任何形式的反馈和贡献！
