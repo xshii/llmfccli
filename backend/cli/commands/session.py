@@ -10,14 +10,15 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from datetime import datetime
 
-from .base import BaseCommand
+from .base import Command
 
 
-class SessionCommand(BaseCommand):
+class SessionCommand(Command):
     """会话管理命令"""
 
     def __init__(self, console: Console, **dependencies):
-        super().__init__(console, **dependencies)
+        super().__init__(console)
+        self.dependencies = dependencies
         self.agent = dependencies.get('agent')
 
     @property
