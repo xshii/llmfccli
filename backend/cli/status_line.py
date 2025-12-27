@@ -26,6 +26,11 @@ class StatusLine:
 
     def show(self):
         """显示状态行"""
+        # 先显示 todo 进度（如果有）
+        todo_line = self._format_todo_progress()
+        if todo_line:
+            self.console.print(todo_line)
+
         parts = [
             self._format_role(),
             self._format_tokens(),
@@ -36,6 +41,36 @@ class StatusLine:
         parts = [p for p in parts if p]
         status = f"[dim]{' | '.join(parts)}[/dim]"
         self.console.print(status)
+
+    # ========== Todo 部分 ==========
+
+    def _format_todo_progress(self) -> Optional[str]:
+        """格式化 todo 进度显示"""
+        try:
+            from backend.todo import get_todo_manager
+            manager = get_todo_manager()
+
+            if manager.total_count == 0:
+                return None
+
+            # 进度条
+            progress = manager.progress_percent
+            bar_width = 20
+            filled = int(bar_width * progress / 100)
+            bar = "█" * filled + "░" * (bar_width - filled)
+
+            # 当前任务
+            current = manager.current_task
+            current_text = ""
+            if current:
+                active = current.active_form or current.content
+                if len(active) > 40:
+                    active = active[:37] + "..."
+                current_text = f" ▸ [cyan]{active}[/cyan]"
+
+            return f"[dim][{bar}] {progress}% ({manager.completed_count}/{manager.total_count})[/dim]{current_text}"
+        except Exception:
+            return None
 
     # ========== 角色部分 ==========
 

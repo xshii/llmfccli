@@ -738,9 +738,12 @@ class CLI:
         elif cmd == 'clear':
             self.agent.conversation_history.clear()
             self.agent.tool_calls.clear()
+            # 清除 todo 列表
+            from backend.todo import get_todo_manager
+            get_todo_manager().clear()
             # 开始新的日志会话
             self.client.start_new_session()
-            self.console.print("[green]已清除对话历史[/green]")
+            self.console.print("[green]已清除对话历史和任务列表[/green]")
 
         elif self.command_registry.has(cmd):
             command = self.command_registry.get(cmd)
