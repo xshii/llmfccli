@@ -88,15 +88,18 @@ class ToolOutputManager:
 
         if isinstance(output, dict):
             # 检查错误状态
-            if output.get('success') is False or 'error' in output:
+            # 注意：必须检查 error 值是否非空，而不只是键是否存在
+            error_value = output.get('error') or output.get('stderr') or ''
+            if output.get('success') is False:
                 has_error = True
-                display_text = output.get('error', str(output.get('stderr', '')))
-            elif output.get('stderr'):
+                display_text = error_value or str(output)
+            elif output.get('exit_code', output.get('return_code', output.get('returncode', 0))) != 0:
                 has_error = True
-                display_text = output.get('stderr', '')
-            elif output.get('exit_code', output.get('return_code', 0)) != 0:
+                display_text = error_value or output.get('stdout', output.get('output', ''))
+            elif error_value:
+                # 有错误内容（即使 success=True，也可能有警告）
                 has_error = True
-                display_text = output.get('stderr', output.get('stdout', ''))
+                display_text = error_value
             else:
                 # 正常输出
                 display_text = output.get('stdout', output.get('content', output.get('output', '')))
