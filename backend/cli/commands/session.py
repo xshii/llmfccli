@@ -95,8 +95,8 @@ class SessionCommand(BaseCommand):
 
         table = Table(title="最近会话", show_header=True, header_style="bold cyan")
         table.add_column("#", style="dim", width=3)
-        table.add_column("会话 ID", style="cyan", width=22)
-        table.add_column("时间", width=16)
+        table.add_column("ID", style="cyan", width=12)
+        table.add_column("时间", width=12)
         table.add_column("消息", width=5)
         table.add_column("摘要", max_width=50)
 

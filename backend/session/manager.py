@@ -62,9 +62,9 @@ class SessionManager:
         return self._sessions_dir / f'{session_id}.json'
 
     def _generate_session_id(self) -> str:
-        """生成会话 ID"""
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        return f'session_{timestamp}'
+        """生成会话 ID (简短格式: MMDD_HHMMSS)"""
+        timestamp = datetime.now().strftime('%m%d_%H%M%S')
+        return timestamp
 
     def _generate_summary(self, history: List[Dict[str, Any]], max_length: int = 80) -> str:
         """从对话历史生成摘要"""
@@ -151,7 +151,7 @@ class SessionManager:
         """
         sessions = []
 
-        for session_file in self._sessions_dir.glob('session_*.json'):
+        for session_file in self._sessions_dir.glob('*.json'):
             try:
                 with open(session_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
