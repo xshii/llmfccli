@@ -38,7 +38,7 @@ class SessionCommand(BaseCommand):
 
     @property
     def usage(self) -> str:
-        return "/session [list|resume [id]|save|delete <id>]"
+        return "/session [list|resume [#]|save|delete <#>]"
 
     def execute(self, args: List[str]) -> bool:
         """
@@ -46,9 +46,9 @@ class SessionCommand(BaseCommand):
 
         子命令:
         - /session 或 /session list - 列出最近的会话
-        - /session resume [id] - 恢复会话（无 id 则显示选择菜单）
+        - /session resume [#] - 恢复会话（无序号则显示选择菜单）
         - /session save - 手动保存当前会话
-        - /session delete <id> - 删除指定会话
+        - /session delete <#> - 删除指定会话
         """
         from backend.session import get_session_manager
 
@@ -76,7 +76,7 @@ class SessionCommand(BaseCommand):
             if len(args) > 1:
                 self._delete_session(session_manager, args[1])
             else:
-                self.console.print("[yellow]用法: /session delete <session_id>[/yellow]")
+                self.console.print("[yellow]用法: /session delete <#>[/yellow]")
 
         else:
             # 尝试作为会话 ID 进行恢复
@@ -94,8 +94,7 @@ class SessionCommand(BaseCommand):
             return
 
         table = Table(title="最近会话", show_header=True, header_style="bold cyan")
-        table.add_column("#", style="dim", width=3)
-        table.add_column("ID", style="cyan", width=12)
+        table.add_column("#", style="bold cyan", width=3)
         table.add_column("时间", width=12)
         table.add_column("消息", width=5)
         table.add_column("摘要", max_width=50)
@@ -113,14 +112,13 @@ class SessionCommand(BaseCommand):
 
             table.add_row(
                 str(i),
-                session.id,
                 time_str,
                 str(session.message_count),
                 summary
             )
 
         self.console.print(table)
-        self.console.print("\n[dim]使用 /session resume <id> 或 /session resume <#> 恢复会话[/dim]")
+        self.console.print("\n[dim]使用 /session resume <#> 恢复会话，如 /session resume 1[/dim]")
 
     def _get_session_summary(self, session) -> str:
         """获取会话摘要：最后一条用户提问 + 简短回答"""
