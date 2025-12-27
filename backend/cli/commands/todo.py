@@ -7,14 +7,15 @@ from typing import List
 from rich.console import Console
 from rich.table import Table
 
-from .base import BaseCommand
+from .base import Command
 
 
-class TodoCommand(BaseCommand):
+class TodoCommand(Command):
     """查看和管理任务列表"""
 
     def __init__(self, console: Console, **dependencies):
-        super().__init__(console, **dependencies)
+        super().__init__(console)
+        self.dependencies = dependencies
 
     @property
     def name(self) -> str:
