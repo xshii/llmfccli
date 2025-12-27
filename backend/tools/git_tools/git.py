@@ -170,13 +170,14 @@ def _git_status(args: Dict, project_root: str) -> Dict[str, Any]:
 
 def _git_add(args: Dict, project_root: str) -> Dict[str, Any]:
     """Add files to staging area"""
+    import sys
     cmd = ['add']
 
-    # DEBUG: Log incoming args
+    # DEBUG: Log incoming args (use stderr to avoid capture)
     if os.getenv('DEBUG_GIT'):
-        print(f"[DEBUG git add] args: {args}")
-        print(f"[DEBUG git add] files type: {type(args.get('files'))}")
-        print(f"[DEBUG git add] files value: {args.get('files')}")
+        print(f"[DEBUG git add] args: {args}", file=sys.stderr, flush=True)
+        print(f"[DEBUG git add] files type: {type(args.get('files'))}", file=sys.stderr, flush=True)
+        print(f"[DEBUG git add] files value: {args.get('files')}", file=sys.stderr, flush=True)
 
     if args.get('all'):
         cmd.append('-A')
@@ -197,7 +198,7 @@ def _git_add(args: Dict, project_root: str) -> Dict[str, Any]:
 
     # DEBUG: Log final command
     if os.getenv('DEBUG_GIT'):
-        print(f"[DEBUG git add] final cmd: {cmd}")
+        print(f"[DEBUG git add] final cmd: {cmd}", file=sys.stderr, flush=True)
 
     return _run_git_command(cmd, project_root)
 
