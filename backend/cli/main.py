@@ -627,6 +627,8 @@ class CLI:
         elif cmd == 'clear':
             self.agent.conversation_history.clear()
             self.agent.tool_calls.clear()
+            # 开始新的日志会话
+            self.client.start_new_session()
             self.console.print("[green]已清除对话历史[/green]")
 
         elif self.command_registry.has(cmd):
