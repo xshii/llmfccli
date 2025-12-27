@@ -83,20 +83,6 @@ class AgentLoop:
         """Set maximum retry count"""
         self.max_retries = max_retries
 
-    def _get_role_system_prompt(self) -> Optional[str]:
-        """
-        获取当前角色的系统提示
-
-        Returns:
-            系统提示字符串，如果无角色则返回 None
-        """
-        try:
-            from backend.roles import get_role_manager
-            role_manager = get_role_manager()
-            prompt = role_manager.get_system_prompt()
-            return prompt if prompt and prompt.strip() else None
-        except Exception:
-            return None
 
     def _clean_system_reminders(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """
@@ -153,15 +139,9 @@ class AgentLoop:
             self.token_counter.count_messages(self.conversation_history)
         )
 
-        # 获取角色的系统提示（如果有）
-        role_system_prompt = self._get_role_system_prompt()
-
         # 清理历史消息中的 system-reminder，只保留最新的
+        # 注意：角色系统提示现在通过 Modelfile 内置于 Ollama 模型中，无需动态注入
         messages = self._clean_system_reminders(list(self.conversation_history))
-
-        # 如果有角色系统提示，添加到消息开头
-        if role_system_prompt:
-            messages = [{'role': 'system', 'content': role_system_prompt}] + messages
 
         iteration = 0
         
@@ -185,8 +165,6 @@ class AgentLoop:
 
                 # 更新 messages 以包含建议
                 messages = self._clean_system_reminders(list(self.conversation_history))
-                if role_system_prompt:
-                    messages = [{'role': 'system', 'content': role_system_prompt}] + messages
 
                 # 继续循环，让 LLM 看到建议并重新规划
                 continue
@@ -384,9 +362,6 @@ class AgentLoop:
 
             # Update messages for next iteration
             messages = self._clean_system_reminders(list(self.conversation_history))
-            # 重新添加角色系统提示
-            if role_system_prompt:
-                messages = [{'role': 'system', 'content': role_system_prompt}] + messages
 
             # Check if should compress
             if self.token_counter.should_compress(time.time()):

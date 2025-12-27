@@ -5,14 +5,15 @@
 提供以下功能：
 1. 加载角色配置
 2. 切换当前角色
-3. 获取角色的系统提示
+3. 获取角色的模型配置
 4. 过滤角色可用的工具
-5. 获取角色的模型配置
+5. 创建和管理角色专用模型
 """
 
 import os
+import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 import yaml
 
@@ -25,9 +26,10 @@ class Role:
     name_en: str                     # 角色名称（英文）
     description: str                 # 角色描述
     icon: str                        # 角色图标（emoji）
-    model: str                       # 使用的模型
-    system_prompt: str               # 系统提示
+    model: str                       # 使用的模型（角色专用模型名称）
     tool_categories: List[str]       # 启用的工具类别
+    base_model: str = "qwen3:latest"  # 基础模型
+    modelfile: str = ""               # Modelfile 路径
     included_tools: List[str] = field(default_factory=list)  # 额外包含的工具（跨类别复用）
     excluded_tools: List[str] = field(default_factory=list)  # 排除的工具
 
@@ -58,6 +60,7 @@ class RoleManager:
         self._roles: Dict[str, Role] = {}
         self._current_role_id: str = "programmer"  # 默认角色
         self._callbacks: List[callable] = []  # 角色切换回调
+        self._project_root = str(Path(__file__).parent.parent.parent)
 
         # 加载配置
         self._load_config()
@@ -105,7 +108,8 @@ class RoleManager:
                 description='C/C++ 编程助手',
                 icon='💻',
                 model='claude-qwen:latest',
-                system_prompt='你是一个专业的 C/C++ 编程助手。',
+                base_model='qwen3:latest',
+                modelfile='config/modelfiles/programmer.modelfile',
                 tool_categories=['filesystem', 'executor', 'git', 'agent'],
                 excluded_tools=[]
             )
@@ -125,7 +129,8 @@ class RoleManager:
                     description=role_data.get('description', ''),
                     icon=role_data.get('icon', '🤖'),
                     model=role_data.get('model', 'qwen3:latest'),
-                    system_prompt=role_data.get('system_prompt', ''),
+                    base_model=role_data.get('base_model', 'qwen3:latest'),
+                    modelfile=role_data.get('modelfile', ''),
                     tool_categories=role_data.get('tool_categories', []),
                     included_tools=role_data.get('included_tools', []),
                     excluded_tools=role_data.get('excluded_tools', [])
@@ -191,21 +196,6 @@ class RoleManager:
         """获取指定角色"""
         return self._roles.get(role_id)
 
-    def get_system_prompt(self, role_id: Optional[str] = None) -> str:
-        """
-        获取角色的系统提示
-
-        Args:
-            role_id: 角色 ID（默认使用当前角色）
-
-        Returns:
-            系统提示字符串
-        """
-        role = self._roles.get(role_id or self._current_role_id)
-        if role:
-            return role.system_prompt
-        return ""
-
     def get_model(self, role_id: Optional[str] = None) -> str:
         """
         获取角色使用的模型
@@ -220,6 +210,101 @@ class RoleManager:
         if role:
             return role.model
         return "qwen3:latest"
+
+    def get_modelfile_path(self, role_id: Optional[str] = None) -> Optional[str]:
+        """
+        获取角色的 Modelfile 绝对路径
+
+        Args:
+            role_id: 角色 ID（默认使用当前角色）
+
+        Returns:
+            Modelfile 绝对路径，如果不存在返回 None
+        """
+        role = self._roles.get(role_id or self._current_role_id)
+        if not role or not role.modelfile:
+            return None
+
+        # 构建绝对路径
+        modelfile_path = os.path.join(self._project_root, role.modelfile)
+        if os.path.exists(modelfile_path):
+            return modelfile_path
+        return None
+
+    def check_role_model_exists(self, role_id: Optional[str] = None) -> bool:
+        """
+        检查角色模型是否已创建
+
+        Args:
+            role_id: 角色 ID（默认使用当前角色）
+
+        Returns:
+            True 如果模型存在
+        """
+        role = self._roles.get(role_id or self._current_role_id)
+        if not role:
+            return False
+
+        try:
+            result = subprocess.run(
+                ['ollama', 'list'],
+                capture_output=True, text=True, timeout=10
+            )
+            return role.model in result.stdout
+        except Exception:
+            return False
+
+    def create_role_model(self, role_id: Optional[str] = None) -> Tuple[bool, str]:
+        """
+        为角色创建 Ollama 模型
+
+        Args:
+            role_id: 角色 ID（默认使用当前角色）
+
+        Returns:
+            (success, message) 元组
+        """
+        role = self._roles.get(role_id or self._current_role_id)
+        if not role:
+            return False, f"角色不存在: {role_id}"
+
+        modelfile_path = self.get_modelfile_path(role_id)
+        if not modelfile_path:
+            return False, f"Modelfile 不存在: {role.modelfile}"
+
+        try:
+            # 使用 ollama create 创建模型
+            result = subprocess.run(
+                ['ollama', 'create', role.model, '-f', modelfile_path],
+                capture_output=True, text=True, timeout=300
+            )
+
+            if result.returncode == 0:
+                return True, f"模型 {role.model} 创建成功"
+            else:
+                return False, f"创建失败: {result.stderr}"
+
+        except subprocess.TimeoutExpired:
+            return False, "创建超时（>5分钟）"
+        except FileNotFoundError:
+            return False, "ollama 命令未找到"
+        except Exception as e:
+            return False, str(e)
+
+    def create_all_role_models(self) -> Dict[str, Tuple[bool, str]]:
+        """
+        为所有角色创建模型
+
+        Returns:
+            {role_id: (success, message)} 字典
+        """
+        results = {}
+        for role_id in self._roles:
+            if not self.check_role_model_exists(role_id):
+                results[role_id] = self.create_role_model(role_id)
+            else:
+                results[role_id] = (True, "模型已存在")
+        return results
 
     def filter_tools(self, tools: List[Dict[str, Any]], role_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """

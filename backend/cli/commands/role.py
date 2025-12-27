@@ -49,7 +49,7 @@ class RoleCommand(Command):
 
     @property
     def usage(self) -> str:
-        return "/role [list|switch <role_id>|info]"
+        return "/role [list|switch <role_id>|info|create [role_id|all]]"
 
     def execute(self, args: List[str]) -> bool:
         """
@@ -89,6 +89,11 @@ class RoleCommand(Command):
             role_manager.reload_config()
             self.console.print("[green]✓ 角色配置已重新加载[/green]")
 
+        elif subcmd == 'create':
+            # 创建角色模型
+            target = args[1] if len(args) > 1 else None
+            self._create_role_model(role_manager, target)
+
         else:
             # 尝试作为角色 ID 进行快速切换
             if role_manager.get_role(subcmd):
@@ -109,6 +114,7 @@ class RoleCommand(Command):
         table.add_column("图标")
         table.add_column("名称")
         table.add_column("描述")
+        table.add_column("模型")
         table.add_column("状态")
 
         for role in roles:
@@ -116,16 +122,21 @@ class RoleCommand(Command):
             status = "[green]● 当前[/green]" if is_current else ""
             name_style = "bold" if is_current else ""
 
+            # 检查模型是否存在
+            model_exists = role_manager.check_role_model_exists(role.id)
+            model_status = "[green]✓[/green]" if model_exists else "[yellow]✗[/yellow]"
+
             table.add_row(
                 role.id,
                 role.icon,
                 f"[{name_style}]{role.name}[/{name_style}]" if name_style else role.name,
-                role.description[:40] + "..." if len(role.description) > 40 else role.description,
+                role.description[:30] + "..." if len(role.description) > 30 else role.description,
+                model_status,
                 status
             )
 
         self.console.print(table)
-        self.console.print("\n[dim]使用 /role <id> 切换角色，如: /role knowledge_curator[/dim]")
+        self.console.print("\n[dim]使用 /role <id> 切换角色，/role create all 创建所有模型[/dim]")
 
     def _switch_role(self, role_manager, role_id: str):
         """切换角色"""
@@ -157,23 +168,26 @@ class RoleCommand(Command):
         """显示当前角色详细信息"""
         role = role_manager.current_role
 
+        # 检查模型状态
+        model_exists = role_manager.check_role_model_exists(role.id)
+        model_status = "✓ 已创建" if model_exists else "✗ 未创建（使用 /role create 创建）"
+
         info_text = f"""
 {role.icon} **{role.name}** ({role.name_en})
 
 **描述**: {role.description}
 
-**模型**: `{role.model}`
+**模型**: `{role.model}` - {model_status}
+
+**基础模型**: `{role.base_model}`
+
+**Modelfile**: `{role.modelfile or '无'}`
 
 **工具类别**: {', '.join(role.tool_categories) or '无限制'}
 
 **额外包含工具**: {', '.join(role.included_tools) or '无'}
 
 **排除工具**: {', '.join(role.excluded_tools) or '无'}
-
-**系统提示**:
-```
-{role.system_prompt[:500]}{'...' if len(role.system_prompt) > 500 else ''}
-```
 """
         from rich.markdown import Markdown
         self.console.print(Panel(
@@ -181,3 +195,65 @@ class RoleCommand(Command):
             title=f"角色详情: {role.id}",
             border_style="blue"
         ))
+
+    def _create_role_model(self, role_manager, target: str = None):
+        """创建角色模型"""
+        from rich.progress import Progress, SpinnerColumn, TextColumn
+
+        if target == 'all':
+            # 创建所有角色模型
+            self.console.print("[cyan]正在创建所有角色模型...[/cyan]\n")
+            results = role_manager.create_all_role_models()
+
+            for role_id, (success, message) in results.items():
+                role = role_manager.get_role(role_id)
+                icon = role.icon if role else "🤖"
+                if success:
+                    self.console.print(f"  {icon} [green]✓[/green] {role_id}: {message}")
+                else:
+                    self.console.print(f"  {icon} [red]✗[/red] {role_id}: {message}")
+
+            success_count = sum(1 for s, _ in results.values() if s)
+            self.console.print(f"\n[dim]完成: {success_count}/{len(results)} 个模型[/dim]")
+
+        elif target:
+            # 创建指定角色模型
+            role = role_manager.get_role(target)
+            if not role:
+                self.console.print(f"[red]错误: 未知角色 '{target}'[/red]")
+                return
+
+            self.console.print(f"[cyan]正在创建模型 {role.model}...[/cyan]")
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=self.console,
+                transient=True
+            ) as progress:
+                progress.add_task(f"创建 {role.model}...", total=None)
+                success, message = role_manager.create_role_model(target)
+
+            if success:
+                self.console.print(f"[green]✓ {message}[/green]")
+            else:
+                self.console.print(f"[red]✗ {message}[/red]")
+
+        else:
+            # 默认创建当前角色模型
+            role = role_manager.current_role
+            self.console.print(f"[cyan]正在创建当前角色模型 {role.model}...[/cyan]")
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=self.console,
+                transient=True
+            ) as progress:
+                progress.add_task(f"创建 {role.model}...", total=None)
+                success, message = role_manager.create_role_model()
+
+            if success:
+                self.console.print(f"[green]✓ {message}[/green]")
+            else:
+                self.console.print(f"[red]✗ {message}[/red]")
