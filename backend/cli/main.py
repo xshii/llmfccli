@@ -526,6 +526,10 @@ class CLI:
     def run(self):
         """运行交互循环"""
         self.show_welcome()
+
+        # 检查是否有可恢复的会话
+        self._check_resume_session()
+
         first_prompt = True
 
         while True:
@@ -608,7 +612,104 @@ class CLI:
             except EOFError:
                 break
 
+        # 退出时自动保存会话
+        self._auto_save_session()
         self.console.print("\n[blue]再见![/blue]")
+
+    def _auto_save_session(self):
+        """退出时自动保存会话"""
+        if not self.agent.conversation_history:
+            return
+
+        try:
+            from backend.session import get_session_manager
+            session_manager = get_session_manager(self.project_root)
+
+            # 获取当前角色
+            role_id = "programmer"
+            try:
+                from backend.roles import get_role_manager
+                role_manager = get_role_manager()
+                role_id = role_manager.current_role_id
+            except Exception:
+                pass
+
+            session_id = session_manager.save_session(
+                conversation_history=self.agent.conversation_history,
+                tool_calls=self.agent.tool_calls,
+                active_files=self.agent.active_files,
+                role_id=role_id
+            )
+
+            if session_id:
+                self.console.print(f"[dim]会话已保存: {session_id}[/dim]")
+
+            # 清理旧会话
+            session_manager.clear_old_sessions(keep_count=20)
+        except Exception as e:
+            # 静默失败
+            pass
+
+    def _check_resume_session(self) -> bool:
+        """
+        检查是否有可恢复的会话
+
+        Returns:
+            True 如果成功恢复会话
+        """
+        try:
+            from backend.session import get_session_manager
+            session_manager = get_session_manager(self.project_root)
+
+            latest = session_manager.get_latest_session()
+            if not latest:
+                return False
+
+            # 检查是否是最近 24 小时内的会话
+            from datetime import datetime, timedelta
+            try:
+                updated = datetime.fromisoformat(latest.updated_at)
+                if datetime.now() - updated > timedelta(hours=24):
+                    return False
+            except:
+                return False
+
+            # 提示用户是否恢复
+            import re
+            summary = latest.summary or "无摘要"
+            if len(summary) > 50:
+                summary = summary[:47] + "..."
+
+            self.console.print(f"\n[cyan]发现最近会话[/cyan]: {summary}")
+            self.console.print(f"[dim]  会话 ID: {latest.id} | 消息数: {latest.message_count}[/dim]")
+
+            try:
+                from rich.prompt import Confirm
+                if Confirm.ask("是否恢复该会话?", default=False, console=self.console):
+                    # 恢复会话
+                    session = session_manager.load_session(latest.id)
+                    if session:
+                        self.agent.conversation_history = session.conversation_history.copy()
+                        self.agent.tool_calls = session.tool_calls.copy()
+                        self.agent.active_files = session.active_files.copy()
+
+                        # 恢复角色
+                        try:
+                            from backend.roles import get_role_manager
+                            role_manager = get_role_manager()
+                            if session.role_id and role_manager.get_role(session.role_id):
+                                role_manager.switch_role(session.role_id)
+                        except Exception:
+                            pass
+
+                        self.console.print(f"[green]✓ 已恢复会话[/green]")
+                        return True
+            except KeyboardInterrupt:
+                pass
+
+            return False
+        except Exception:
+            return False
 
     def handle_command(self, command: str) -> bool:
         """
