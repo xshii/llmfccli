@@ -27,6 +27,7 @@ class StatusLine:
     def show(self):
         """显示状态行"""
         parts = [
+            self._format_role(),
             self._format_tokens(),
             self._format_ide_file(),
             self._format_conversation_file(),
@@ -35,6 +36,18 @@ class StatusLine:
         parts = [p for p in parts if p]
         status = f"[dim]{' | '.join(parts)}[/dim]"
         self.console.print(status)
+
+    # ========== 角色部分 ==========
+
+    def _format_role(self) -> Optional[str]:
+        """格式化当前角色"""
+        try:
+            from backend.roles import get_role_manager
+            role_manager = get_role_manager()
+            role = role_manager.current_role
+            return f"{role.icon} {role.name}"
+        except Exception:
+            return None
 
     # ========== Token 部分 ==========
 
