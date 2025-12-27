@@ -79,12 +79,43 @@ class OllamaClient(BaseLLMClient):
         })
         self.stream_enabled = self.config.get('stream', False)
 
-        # Track last request/conversation file for debugging
+        # Session-based logging
+        self._session_request_file: Optional[Path] = None
+        self._session_conversation_file: Optional[Path] = None
+        self._request_count = 0
+
+        # Initialize log directory
+        self._log_dir = Path(__file__).parent.parent.parent / 'logs'
+        self._log_dir.mkdir(exist_ok=True)
+
+        # Start new session
+        self.start_new_session()
+
+        # Track last request/conversation file for debugging (deprecated, use session files)
         self.last_request_file = None
         self.last_conversation_file = None
 
         # Warm up model on initialization
         self._warmup()
+
+    def start_new_session(self):
+        """
+        开始新的日志会话
+
+        创建新的 request 和 conversation 日志文件。
+        在 CLI 启动和 /clear 命令后调用。
+        """
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self._session_request_file = self._log_dir / f'session_{timestamp}_requests.jsonl'
+        self._session_conversation_file = self._log_dir / f'session_{timestamp}_conversations.log'
+        self._request_count = 0
+
+        # 写入会话头
+        with open(self._session_conversation_file, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(f"# Session started at {datetime.now().isoformat()}\n")
+            f.write("=" * 80 + "\n\n")
 
     def _get_current_model(self) -> str:
         """
@@ -164,27 +195,30 @@ class OllamaClient(BaseLLMClient):
                 curl_cmd = ['curl', '-s', '-N', '--noproxy', 'localhost',
                            f'{self.base_url}/api/chat', '-d', f'@{temp_file}']
 
-                # Save request to logs
+                # Save request to session log (append mode)
                 import os
                 from datetime import datetime
-                import pathlib
 
-                project_root = pathlib.Path(__file__).parent.parent.parent
-                log_dir = project_root / 'logs'
-                log_dir.mkdir(exist_ok=True)
+                self._request_count += 1
+                request_timestamp = datetime.now().isoformat()
 
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-                request_file = log_dir / f'request_{timestamp}.json'
                 with open(temp_file, 'r', encoding='utf-8') as f:
                     request_data = json.load(f)
-                with open(request_file, 'w', encoding='utf-8', newline='\n') as f:
-                    json.dump(request_data, f, ensure_ascii=False, indent=2)
 
-                self.last_request_file = str(request_file)
+                # Append to session request file (JSONL format)
+                if self._session_request_file:
+                    with open(self._session_request_file, 'a', encoding='utf-8', newline='\n') as f:
+                        log_entry = {
+                            'request_id': self._request_count,
+                            'timestamp': request_timestamp,
+                            'data': request_data
+                        }
+                        f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+                    self.last_request_file = str(self._session_request_file)
 
                 if os.getenv('DEBUG_AGENT'):
-                    print(f"\n=== CURL REQUEST ===")
-                    print(f"Saved to: {request_file}")
+                    print(f"\n=== CURL REQUEST #{self._request_count} ===")
+                    print(f"Session log: {self._session_request_file}")
                     print(f"=== END CURL REQUEST ===\n")
 
                 if os.getenv('DEBUG_AGENT') or os.getenv('DEBUG_LLM'):
@@ -239,41 +273,34 @@ class OllamaClient(BaseLLMClient):
 
                 process.wait()
 
-                # Save conversation log
-                if log_dir and request_file:
-                    combined_file = log_dir / request_file.name.replace('request_', 'conversation_')
+                # Append to session conversation log
+                if self._session_conversation_file:
+                    with open(self._session_conversation_file, 'a', encoding='utf-8', newline='\n') as f:
+                        f.write(f"\n{'='*80}\n")
+                        f.write(f"REQUEST #{self._request_count} @ {request_timestamp}\n")
+                        f.write(f"{'='*80}\n")
+                        f.write(json.dumps(request_data, ensure_ascii=False, indent=2))
 
-                    with open(combined_file, 'w', encoding='utf-8', newline='\n') as f:
-                        f.write("=" * 80 + "\n")
-                        f.write("REQUEST\n")
-                        f.write("=" * 80 + "\n")
-                        with open(request_file, 'r', encoding='utf-8') as req:
-                            f.write(req.read())
-
-                        f.write("\n\n" + "=" * 80 + "\n")
+                        f.write(f"\n\n{'-'*40}\n")
                         f.write("RESPONSE\n")
-                        f.write("=" * 80 + "\n")
+                        f.write(f"{'-'*40}\n")
                         raw_response = ''.join(raw_lines)
                         try:
                             response_json = json.loads(raw_response)
                             f.write(json.dumps(response_json, indent=2, ensure_ascii=False))
                         except:
-                            f.write(raw_response)
+                            f.write(raw_response if raw_response else full_response)
 
                         stderr_output = process.stderr.read() if process.stderr else ''
                         if stderr_output:
-                            f.write("\n\n" + "=" * 80 + "\n")
+                            f.write(f"\n\n{'-'*40}\n")
                             f.write("STDERR\n")
-                            f.write("=" * 80 + "\n")
+                            f.write(f"{'-'*40}\n")
                             f.write(stderr_output)
 
-                    self.last_conversation_file = str(combined_file)
-                    self.last_request_file = None
+                        f.write("\n\n")
 
-                    try:
-                        request_file.unlink()
-                    except:
-                        pass
+                    self.last_conversation_file = str(self._session_conversation_file)
 
                 if os.getenv('DEBUG_AGENT'):
                     print(f"\n=== RAW CURL OUTPUT ({len(raw_lines)} lines) ===")
@@ -447,6 +474,8 @@ class OllamaClient(BaseLLMClient):
         try:
             print(f"正在预热模型 {self.model}...")
             self.chat([{'role': 'user', 'content': 'hi'}], temperature=0.1)
+            # 预热后重新开始会话，清除预热请求的日志
+            self.start_new_session()
             self.last_conversation_file = None
             self.last_request_file = None
             print(f"✓ 模型 {self.model} 预热就绪")

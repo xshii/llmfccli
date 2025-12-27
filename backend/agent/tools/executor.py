@@ -4,7 +4,7 @@ Tool executor interface for decoupling AgentLoop from tool implementations
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 
 
 class ToolExecutor(ABC):
@@ -84,6 +84,30 @@ class RegistryToolExecutor(ToolExecutor):
         # Set registry on confirmation manager for tool instance lookup
         if self.confirmation:
             self.confirmation.set_tool_registry(self.registry)
+
+        # Streaming output callbacks
+        self._stdout_callback: Optional[Callable[[str], None]] = None
+        self._stderr_callback: Optional[Callable[[str], None]] = None
+
+    def set_streaming_callbacks(
+        self,
+        on_stdout: Optional[Callable[[str], None]] = None,
+        on_stderr: Optional[Callable[[str], None]] = None
+    ):
+        """
+        设置流式输出回调
+
+        Args:
+            on_stdout: stdout 行回调
+            on_stderr: stderr 行回调
+        """
+        self._stdout_callback = on_stdout
+        self._stderr_callback = on_stderr
+
+        # 为 bash_run 工具设置回调
+        bash_tool = self.registry.get('bash_run')
+        if bash_tool and hasattr(bash_tool, 'set_output_callbacks'):
+            bash_tool.set_output_callbacks(on_stdout, on_stderr)
 
     def get_tool_schemas(self, filter_by_role: bool = True) -> List[Dict[str, Any]]:
         """

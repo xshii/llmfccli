@@ -17,6 +17,18 @@ ide_integration:
     enabled: true
     description: "在用户确认工具调用时同步展示 diff 预览（在 VSCode 中）"
 
+# 工具执行功能
+tool_execution:
+  # 命令执行时实时流式输出到 CLI
+  streaming_output:
+    enabled: true
+    description: "命令执行时实时打印输出到 CLI（而非等待完成后显示）"
+
+  # 工具返回原始输出而非 JSON 结构
+  raw_output_mode:
+    enabled: false
+    description: "工具返回原始 stdout/stderr 而非 JSON 结构（简化 LLM 响应）"
+
 # CLI 输出功能
 cli_output:
   # 文件路径超链接协议配置
