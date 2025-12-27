@@ -5,11 +5,12 @@ BashRun Tool - 执行 bash/shell 命令
 
 import platform
 import shlex
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable, Union
 from pathlib import Path
 from pydantic import BaseModel, Field
 
 from backend.tools.base import BaseTool
+from backend.utils.feature import is_feature_enabled
 from .bash_session import BashSession
 from .exceptions import ExecutorError
 
@@ -87,6 +88,26 @@ class BashRunParams(BaseModel):
 class BashRunTool(BaseTool):
     """执行 shell 命令工具（跨平台）"""
 
+    def __init__(self, project_root: Optional[str] = None, **dependencies):
+        super().__init__(project_root, **dependencies)
+        # 流式输出回调（由外部设置）
+        self._stdout_callback: Optional[Callable[[str], None]] = None
+        self._stderr_callback: Optional[Callable[[str], None]] = None
+
+    def set_output_callbacks(
+        self,
+        on_stdout: Optional[Callable[[str], None]] = None,
+        on_stderr: Optional[Callable[[str], None]] = None
+    ):
+        """设置流式输出回调
+
+        Args:
+            on_stdout: stdout 行回调
+            on_stderr: stderr 行回调
+        """
+        self._stdout_callback = on_stdout
+        self._stderr_callback = on_stderr
+
     @property
     def name(self) -> str:
         return "bash_run"
@@ -115,11 +136,39 @@ class BashRunTool(BaseTool):
     def parameters_model(self):
         return BashRunParams
 
-    def execute(self, command: str, timeout: int = 60) -> Dict[str, Any]:
-        """执行 bash 命令"""
+    def execute(self, command: str, timeout: int = 60) -> Union[Dict[str, Any], str]:
+        """执行 bash 命令
+
+        Returns:
+            如果 raw_output_mode 开启，返回原始 stdout 字符串
+            否则返回包含 stdout, stderr, success 等字段的 dict
+        """
         session = BashSession(self.project_root, timeout=timeout)
+
+        # 检查是否启用流式输出
+        streaming_enabled = is_feature_enabled("tool_execution.streaming_output")
+        raw_output_mode = is_feature_enabled("tool_execution.raw_output_mode")
+
         try:
-            return session.execute(command, timeout=timeout)
+            if streaming_enabled and self._stdout_callback:
+                result = session.execute(
+                    command,
+                    timeout=timeout,
+                    on_stdout=self._stdout_callback,
+                    on_stderr=self._stderr_callback
+                )
+            else:
+                result = session.execute(command, timeout=timeout)
+
+            # 如果启用 raw_output_mode，只返回原始输出
+            if raw_output_mode:
+                if result.get('success'):
+                    return result.get('stdout', '')
+                else:
+                    # 失败时返回 stderr 或错误信息
+                    return result.get('stderr', '') or result.get('error', 'Command failed')
+
+            return result
         finally:
             session.close()
 

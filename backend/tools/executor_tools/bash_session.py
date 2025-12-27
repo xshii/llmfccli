@@ -7,7 +7,7 @@ between CLI /cmd and Agent bash_run tool.
 """
 
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
 from pathlib import Path
 
 from backend.utils.shell_session import PersistentShellSession
@@ -37,13 +37,21 @@ class BashSession:
         # Fallback: create session if none shared (e.g., when used outside CLI)
         return get_shared_session(str(self.project_root))
 
-    def execute(self, command: str, timeout: Optional[int] = None) -> Dict[str, Any]:
+    def execute(
+        self,
+        command: str,
+        timeout: Optional[int] = None,
+        on_stdout: Optional[Callable[[str], None]] = None,
+        on_stderr: Optional[Callable[[str], None]] = None
+    ) -> Dict[str, Any]:
         """
         Execute command using persistent shell
 
         Args:
             command: Command to execute
             timeout: Timeout in seconds (overrides default)
+            on_stdout: Optional callback for streaming stdout lines
+            on_stderr: Optional callback for streaming stderr lines
 
         Returns:
             Dict with stdout, stderr, return_code, duration, success
@@ -53,19 +61,54 @@ class BashSession:
 
         try:
             shell = self._get_shell()
-            success, stdout, stderr = shell.execute(command, timeout=float(timeout))
-            duration = time.time() - start_time
 
-            result = {
-                'stdout': stdout,
-                'stderr': stderr,
-                'return_code': 0 if success else 1,
-                'duration': duration,
-                'success': success,
-            }
+            # Use streaming mode if callbacks provided
+            if on_stdout is not None:
+                stdout_lines = []
+                stderr_lines = []
+
+                def collect_stdout(line: str):
+                    stdout_lines.append(line)
+                    on_stdout(line)
+
+                def collect_stderr(line: str):
+                    stderr_lines.append(line)
+                    if on_stderr:
+                        on_stderr(line)
+
+                success, error = shell.execute_streaming(
+                    command,
+                    on_stdout=collect_stdout,
+                    on_stderr=collect_stderr if on_stderr else None,
+                    timeout=float(timeout)
+                )
+                duration = time.time() - start_time
+
+                stdout = '\n'.join(stdout_lines)
+                stderr = '\n'.join(stderr_lines) if stderr_lines else error
+
+                result = {
+                    'stdout': stdout,
+                    'stderr': stderr,
+                    'return_code': 0 if success else 1,
+                    'duration': duration,
+                    'success': success,
+                }
+            else:
+                # Non-streaming mode
+                success, stdout, stderr = shell.execute(command, timeout=float(timeout))
+                duration = time.time() - start_time
+
+                result = {
+                    'stdout': stdout,
+                    'stderr': stderr,
+                    'return_code': 0 if success else 1,
+                    'duration': duration,
+                    'success': success,
+                }
 
             # Add error field for timeout detection
-            if 'timed out' in stderr.lower():
+            if 'timed out' in result.get('stderr', '').lower():
                 result['error'] = 'timeout'
 
             return result

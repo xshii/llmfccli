@@ -85,6 +85,9 @@ class CLI:
         # 设置 agent 的工具输出回调
         self.agent.tool_output_callback = self.output_manager.add_tool_output
 
+        # 设置流式输出回调（实时打印命令输出）
+        self._setup_streaming_callbacks()
+
         # 设置 prompt session，包含 tab 补全
         history_file = Path.home() / '.claude_qwen_history'
 
@@ -126,6 +129,23 @@ class CLI:
             shell_session=self.shell_session,
             project_root=self.project_root,
         )
+
+    def _setup_streaming_callbacks(self):
+        """设置命令执行的流式输出回调"""
+        if not is_feature_enabled("tool_execution.streaming_output"):
+            return
+
+        def on_stdout(line: str):
+            """实时打印 stdout"""
+            self.console.print(f"   [green]{line}[/green]")
+
+        def on_stderr(line: str):
+            """实时打印 stderr"""
+            self.console.print(f"   [red]{line}[/red]")
+
+        # 设置 agent tool executor 的流式回调
+        if hasattr(self.agent, 'tool_executor') and hasattr(self.agent.tool_executor, 'set_streaming_callbacks'):
+            self.agent.tool_executor.set_streaming_callbacks(on_stdout, on_stderr)
 
     def _run_precheck(self):
         """运行环境预检查"""
