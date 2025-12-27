@@ -86,6 +86,28 @@ class OllamaClient(BaseLLMClient):
         # Warm up model on initialization
         self._warmup()
 
+    def _get_current_model(self) -> str:
+        """
+        获取当前应使用的模型
+
+        优先使用角色管理器的模型，回退到配置文件中的默认模型
+
+        Returns:
+            模型名称
+        """
+        try:
+            from backend.roles import get_role_manager
+            role_manager = get_role_manager()
+            role_model = role_manager.get_model()
+            # 检查角色模型是否存在，如果不存在则回退到默认模型
+            if role_manager.check_role_model_exists():
+                return role_model
+            # 角色模型不存在，使用默认模型
+            return self.model
+        except Exception:
+            # 角色管理器不可用时，使用默认模型
+            return self.model
+
     def chat(
         self,
         messages: List[Dict[str, str]],
@@ -110,9 +132,12 @@ class OllamaClient(BaseLLMClient):
         # Merge generation params with kwargs
         params = {**self.generation_params, **kwargs}
 
+        # 获取当前角色的模型
+        current_model = self._get_current_model()
+
         # Prepare request
         data = {
-            'model': self.model,
+            'model': current_model,
             'messages': messages,
             'stream': stream,
         }

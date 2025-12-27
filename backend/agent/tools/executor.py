@@ -85,9 +85,28 @@ class RegistryToolExecutor(ToolExecutor):
         if self.confirmation:
             self.confirmation.set_tool_registry(self.registry)
 
-    def get_tool_schemas(self) -> List[Dict[str, Any]]:
-        """Get all registered tool schemas"""
-        return self.registry.get_openai_schemas()
+    def get_tool_schemas(self, filter_by_role: bool = True) -> List[Dict[str, Any]]:
+        """
+        Get all registered tool schemas, optionally filtered by current role
+
+        Args:
+            filter_by_role: Whether to filter tools by current role (default: True)
+
+        Returns:
+            List of tool schemas
+        """
+        schemas = self.registry.get_openai_schemas()
+
+        if filter_by_role:
+            try:
+                from backend.roles import get_role_manager
+                role_manager = get_role_manager()
+                schemas = role_manager.filter_tools(schemas)
+            except Exception:
+                # 角色管理器不可用时，返回所有工具
+                pass
+
+        return schemas
 
     def _tool_supports_confirmation(self, tool_name: str) -> bool:
         """

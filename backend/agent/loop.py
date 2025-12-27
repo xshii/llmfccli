@@ -83,6 +83,7 @@ class AgentLoop:
         """Set maximum retry count"""
         self.max_retries = max_retries
 
+
     def _clean_system_reminders(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
         """
         清理历史消息中的 <system-reminder> 标签，只保留最后一条用户消息中的。
@@ -138,9 +139,8 @@ class AgentLoop:
             self.token_counter.count_messages(self.conversation_history)
         )
 
-        # System prompt is now in Modelfile (claude-qwen:latest)
-        # No need to pass it dynamically
         # 清理历史消息中的 system-reminder，只保留最新的
+        # 注意：角色系统提示现在通过 Modelfile 内置于 Ollama 模型中，无需动态注入
         messages = self._clean_system_reminders(list(self.conversation_history))
 
         iteration = 0
@@ -361,7 +361,6 @@ class AgentLoop:
                 self.conversation_history.append(tool_message)
 
             # Update messages for next iteration
-            # System prompt is in Modelfile, no need to pass it
             messages = self._clean_system_reminders(list(self.conversation_history))
 
             # Check if should compress
