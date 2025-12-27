@@ -400,6 +400,11 @@ class CLI:
         self.console.print(f"  [blue]2[/blue] - 始终允许 [cyan]{signature}[/cyan]")
         self.console.print("  [red]3[/red] - 拒绝并停止")
 
+        # 检查 stdin 是否可用（VSCode rerun 时可能不可用）
+        if not sys.stdin.isatty():
+            self.console.print("[yellow]⚠ 非交互模式，自动拒绝工具执行[/yellow]")
+            return ConfirmResult(action=ConfirmAction.DENY, reason="非交互模式")
+
         while True:
             try:
                 choice = input("> ").strip()
@@ -682,6 +687,11 @@ class CLI:
 
             self.console.print(f"\n[cyan]发现最近会话[/cyan]: {summary}")
             self.console.print(f"[dim]  会话 ID: {latest.id} | 消息数: {latest.message_count}[/dim]")
+
+            # 检查 stdin 是否可用（VSCode rerun 时可能不可用）
+            if not sys.stdin.isatty():
+                self.console.print("[dim]非交互模式，跳过会话恢复提示[/dim]")
+                return False
 
             try:
                 from rich.prompt import Confirm
