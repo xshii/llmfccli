@@ -8,7 +8,7 @@ TodoWrite Tool - 任务列表管理工具
 from typing import Dict, Any, List, Literal
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool
+from backend.tools.base import BaseTool, ToolResult
 from backend.todo import get_todo_manager
 
 
@@ -104,7 +104,7 @@ class TodoWriteTool(BaseTool):
             }
         }
 
-    def execute(self, todos: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def execute(self, todos: List[Dict[str, Any]]) -> ToolResult:
         """
         执行任务列表更新
 
@@ -129,9 +129,10 @@ class TodoWriteTool(BaseTool):
         result = manager.set_todos(todo_list)
 
         if result['success']:
-            # 添加显示信息
             current = manager.current_task
-            result['current_task'] = current.content if current else None
-            result['message'] = f"任务列表已更新: {result['completed']}/{result['total']} 完成"
-
-        return result
+            current_text = f", 当前: {current.content}" if current else ""
+            return ToolResult.success(
+                f"任务列表已更新: {result['completed']}/{result['total']} 完成{current_text}"
+            )
+        else:
+            return ToolResult.fail(result.get('error', '更新失败'))

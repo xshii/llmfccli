@@ -67,17 +67,19 @@ def test_bash_run_timeout():
     """Test command timeout"""
     print("\nTesting command timeout...")
 
-    # Command that takes longer than timeout (using find with large directory)
-    # Using a whitelisted command (find) that will take time
+    # Use sleep command which reliably takes 5 seconds
     result = bash_run(
-        "find / -name nonexistent 2>/dev/null",  # Search entire filesystem
+        "bash -c 'sleep 5'",
         project_root=".",
         timeout=1,
-        whitelist=['find']
+        whitelist=['bash']
     )
 
     assert not result['success'], "Long command should timeout"
-    assert 'timeout' in result.get('error', '').lower() or 'timeout' in result.get('stderr', '').lower()
+    # Check for timeout indication in stderr
+    stderr_lower = result.get('stderr', '').lower()
+    assert 'timeout' in stderr_lower or 'timed out' in stderr_lower, \
+        f"Expected timeout message in stderr, got: {result.get('stderr', '')}"
 
     print("✓ Timeout mechanism works")
 
