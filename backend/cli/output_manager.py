@@ -87,10 +87,8 @@ class ToolOutputManager:
         display_text = ""
 
         if isinstance(output, dict):
-            # 统一格式：通过 exit_code 或 success 判断
-            exit_code = output.get('exit_code', 0)
-            success = output.get('success', exit_code == 0)
-            has_error = not success
+            # 统一格式：通过 success/ok 判断
+            has_error = not output.get('success', output.get('ok', True))
 
             # 统一使用 output 字段
             display_text = output.get('output', '')

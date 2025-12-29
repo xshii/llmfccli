@@ -16,45 +16,45 @@ class ToolResult:
     """统一的工具返回结果格式
 
     设计原则：
-    - output: 成功时是结果，失败时是错误信息
-    - exit_code: 退出码，0 表示成功，非 0 表示失败
+    - ok: 业务层面是否成功
+    - output: 成功时是结果，失败时是错误原因
     """
+    ok: bool = True
     output: str = ""
-    exit_code: int = 0
-
-    @property
-    def success(self) -> bool:
-        """是否成功（exit_code == 0）"""
-        return self.exit_code == 0
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为 dict（包含 success 用于向后兼容）"""
-        return {'success': self.success, 'output': self.output, 'exit_code': self.exit_code}
+        """转换为 dict（包含 success 别名用于向后兼容）"""
+        return {'success': self.ok, 'output': self.output}
 
     @classmethod
-    def ok(cls, output: str = "") -> "ToolResult":
+    def success(cls, output: str = "") -> "ToolResult":
         """快捷创建成功结果"""
-        return cls(output=output, exit_code=0)
+        return cls(ok=True, output=output)
 
     @classmethod
-    def fail(cls, error: str, exit_code: int = 1) -> "ToolResult":
+    def fail(cls, error: str) -> "ToolResult":
         """快捷创建失败结果"""
-        return cls(output=error, exit_code=exit_code)
+        return cls(ok=False, output=error)
+
+    # 别名，保持兼容
+    ok_ = success
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "ToolResult":
         """从旧格式 dict 转换（兼容层）"""
         # 判断成功/失败
-        success = d.get('success', True)
-        exit_code = d.get('exit_code', d.get('return_code', d.get('returncode', 0 if success else 1)))
+        ok = d.get('success', d.get('ok', True))
+        exit_code = d.get('exit_code', d.get('return_code', d.get('returncode', 0)))
+        if exit_code != 0:
+            ok = False
 
         # 提取输出
-        if exit_code == 0:
+        if ok:
             output = d.get('output', d.get('stdout', d.get('content', '')))
         else:
             output = d.get('error', d.get('stderr', d.get('output', '')))
 
-        return cls(output=output, exit_code=exit_code)
+        return cls(ok=ok, output=output)
 
 
 class BaseTool(ABC):

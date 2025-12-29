@@ -128,14 +128,14 @@ def _run_git_command(cmd: List[str], cwd: str, timeout: int = 30, env: dict = No
         )
 
         if result.returncode == 0:
-            return ToolResult.ok(result.stdout)
+            return ToolResult.success(result.stdout)
         else:
             # 失败时，优先显示 stderr，如果没有则显示 stdout
             error_msg = result.stderr.strip() or result.stdout.strip()
-            return ToolResult.fail(error_msg, result.returncode)
+            return ToolResult.fail(error_msg)
 
     except subprocess.TimeoutExpired:
-        return ToolResult.fail(f'Command timed out after {timeout} seconds', 124)
+        return ToolResult.fail(f'Command timed out after {timeout} seconds')
     except Exception as e:
         return ToolResult.fail(str(e))
 
