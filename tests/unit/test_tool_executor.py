@@ -82,10 +82,10 @@ def test_registry_executor():
 
     # Check result format - may fail if ripgrep not installed
     if result.get('success'):
-        assert 'matches' in result
+        assert 'output' in result  # ToolResult format
     else:
         # ripgrep not installed - skip this assertion
-        print(f"   (grep_search skipped: {result.get('error', 'unknown error')})")
+        print(f"   (grep_search skipped: {result.get('output', 'unknown error')})")
 
     print("✓ RegistryToolExecutor tests passed")
 

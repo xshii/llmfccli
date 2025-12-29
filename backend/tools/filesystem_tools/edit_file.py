@@ -7,7 +7,7 @@ import os
 from typing import Dict, Any
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool
+from backend.tools.base import BaseTool, ToolResult
 
 
 class FileSystemError(Exception):
@@ -251,7 +251,4 @@ class EditFileTool(BaseTool):
         except Exception as e:
             raise FileSystemError(f"Failed to write file {path}: {e}")
 
-        return {
-            'success': True,
-            'message': f"Successfully {op_msg} in {os.path.basename(full_path)}"
-        }
+        return ToolResult.success(f"Successfully {op_msg} in {os.path.basename(full_path)}")

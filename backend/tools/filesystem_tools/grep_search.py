@@ -9,7 +9,7 @@ import subprocess
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool
+from backend.tools.base import BaseTool, ToolResult
 
 
 class FileSystemError(Exception):
@@ -147,13 +147,15 @@ class GrepSearchTool(BaseTool):
                     except json.JSONDecodeError:
                         pass
 
-            return {
-                'success': True,
-                'pattern': pattern,
-                'scope': scope_path,
-                'matches': matches[:50],  # Limit results
-                'total': len(matches)
-            }
+            # Format results as text
+            if not matches:
+                return ToolResult.success(f"No matches found for '{pattern}'")
+
+            lines = [f"{m['file']}:{m['line']}: {m['content']}" for m in matches[:50]]
+            if len(matches) > 50:
+                lines.append(f"... ({len(matches) - 50} more matches)")
+
+            return ToolResult.success('\n'.join(lines))
 
         except subprocess.TimeoutExpired:
             raise FileSystemError("Search timeout (>30s)")

@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List, Callable, Union
 from pathlib import Path
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool
+from backend.tools.base import BaseTool, ToolResult
 from backend.utils.feature import is_feature_enabled
 from .bash_session import BashSession
 from .exceptions import ExecutorError
