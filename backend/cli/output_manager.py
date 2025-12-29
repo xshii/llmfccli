@@ -87,26 +87,26 @@ class ToolOutputManager:
         display_text = ""
 
         if isinstance(output, dict):
-            # 检查错误状态
-            # 注意：必须检查 error 值是否非空，而不只是键是否存在
-            error_value = output.get('error') or output.get('stderr') or ''
-            if output.get('success') is False:
-                has_error = True
-                display_text = error_value or str(output)
-            elif output.get('exit_code', output.get('return_code', output.get('returncode', 0))) != 0:
-                has_error = True
-                display_text = error_value or output.get('stdout', output.get('output', ''))
-            elif error_value:
-                # 有错误内容（即使 success=True，也可能有警告）
-                has_error = True
-                display_text = error_value
-            else:
-                # 正常输出
-                display_text = output.get('stdout', output.get('content', output.get('output', '')))
-                if not display_text and 'results' in output:
-                    results = output.get('results', [])
-                    if isinstance(results, list):
-                        display_text = f"{len(results)} results"
+            # 统一格式：通过 exit_code 或 success 判断
+            exit_code = output.get('exit_code', 0)
+            success = output.get('success', exit_code == 0)
+            has_error = not success
+
+            # 统一使用 output 字段
+            display_text = output.get('output', '')
+
+            # 向后兼容：尝试其他可能的字段名
+            if not display_text:
+                if has_error:
+                    display_text = output.get('error', output.get('stderr', ''))
+                else:
+                    display_text = output.get('stdout', output.get('content', ''))
+
+            # 特殊处理 results 列表
+            if not display_text and 'results' in output:
+                results = output.get('results', [])
+                if isinstance(results, list):
+                    display_text = f"{len(results)} results"
         else:
             display_text = str(output)
             if 'error' in display_text.lower() or 'failed' in display_text.lower():

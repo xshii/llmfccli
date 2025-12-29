@@ -7,7 +7,7 @@ import json
 from typing import Dict, Any, Optional, List, Literal, Union
 from pydantic import BaseModel, Field, field_validator
 
-from backend.tools.base import BaseTool
+from backend.tools.base import BaseTool, ToolResult
 from .git import git, GitError
 
 
@@ -83,7 +83,7 @@ class GitTool(BaseTool):
     def parameters_model(self):
         return GitParams
 
-    def execute(self, action: str, args: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def execute(self, action: str, args: Optional[Dict[str, Any]] = None) -> ToolResult:
         """执行 Git 操作"""
         return git(action, args or {}, self.project_root)
 
