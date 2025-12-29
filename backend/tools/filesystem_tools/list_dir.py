@@ -7,7 +7,7 @@ import os
 from typing import Dict, Any
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool
+from backend.tools.base import BaseTool, ToolResult
 
 
 class FileSystemError(Exception):
@@ -115,9 +115,10 @@ class ListDirTool(BaseTool):
 
         tree = list_recursive(dir_path, 0)
 
-        return {
-            'success': True,
-            'path': dir_path,
-            'items': tree[:500],  # Limit results
-            'total': len(tree)
-        }
+        # Format as text
+        items = tree[:500]
+        output = '\n'.join(items)
+        if len(tree) > 500:
+            output += f"\n... ({len(tree) - 500} more items)"
+
+        return ToolResult.success(output)

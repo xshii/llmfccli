@@ -8,6 +8,8 @@ import os
 from typing import Dict, Any, List, Union
 from pathlib import Path
 
+from backend.tools.base import ToolResult
+
 
 class GitError(Exception):
     """Base exception for git operations"""
@@ -43,7 +45,7 @@ def _parse_flags(flags: str) -> List[str]:
     return result
 
 
-def git(action: str, args: Dict[str, Any] = None, project_root: str = None) -> Dict[str, Any]:
+def git(action: str, args: Dict[str, Any] = None, project_root: str = None) -> ToolResult:
     """
     Execute git operations
 
@@ -53,7 +55,7 @@ def git(action: str, args: Dict[str, Any] = None, project_root: str = None) -> D
         project_root: Project root directory
 
     Returns:
-        Dict with 'success', 'output', 'error', 'returncode'
+        ToolResult with success and output
     """
     if args is None:
         args = {}
@@ -89,26 +91,16 @@ def git(action: str, args: Dict[str, Any] = None, project_root: str = None) -> D
 
     handler = handlers.get(action)
     if not handler:
-        return {
-            'success': False,
-            'output': '',
-            'error': f'Unknown git action: {action}',
-            'returncode': 1
-        }
+        return ToolResult.fail(f'Unknown git action: {action}')
 
     try:
         return handler(args, project_root)
     except Exception as e:
-        return {
-            'success': False,
-            'output': '',
-            'error': str(e),
-            'returncode': 1
-        }
+        return ToolResult.fail(str(e))
 
 
 def _run_git_command(cmd: List[str], cwd: str, timeout: int = 30, env: dict = None,
-                     stdin_devnull: bool = False) -> Dict[str, Any]:
+                     stdin_devnull: bool = False) -> ToolResult:
     """
     Execute git command
 
@@ -120,7 +112,7 @@ def _run_git_command(cmd: List[str], cwd: str, timeout: int = 30, env: dict = No
         stdin_devnull: If True, redirect stdin to /dev/null to prevent waiting for input
 
     Returns:
-        Dict with execution results
+        ToolResult with execution results
     """
     try:
         result = subprocess.run(
@@ -135,29 +127,20 @@ def _run_git_command(cmd: List[str], cwd: str, timeout: int = 30, env: dict = No
             env=env
         )
 
-        return {
-            'success': result.returncode == 0,
-            'output': result.stdout,
-            'error': result.stderr,
-            'returncode': result.returncode
-        }
+        if result.returncode == 0:
+            return ToolResult.success(result.stdout)
+        else:
+            # 失败时，优先显示 stderr，如果没有则显示 stdout
+            error_msg = result.stderr.strip() or result.stdout.strip()
+            return ToolResult.fail(error_msg)
+
     except subprocess.TimeoutExpired:
-        return {
-            'success': False,
-            'output': '',
-            'error': f'Command timed out after {timeout} seconds',
-            'returncode': 124
-        }
+        return ToolResult.fail(f'Command timed out after {timeout} seconds')
     except Exception as e:
-        return {
-            'success': False,
-            'output': '',
-            'error': str(e),
-            'returncode': 1
-        }
+        return ToolResult.fail(str(e))
 
 
-def _git_status(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_status(args: Dict, project_root: str) -> ToolResult:
     """Get git status"""
     cmd = ['status']
     if args.get('short', True):
@@ -168,7 +151,7 @@ def _git_status(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_add(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_add(args: Dict, project_root: str) -> ToolResult:
     """Add files to staging area"""
     cmd = ['add']
 
@@ -179,28 +162,18 @@ def _git_add(args: Dict, project_root: str) -> Dict[str, Any]:
         if isinstance(files, str):
             files = [files]
         if not files:
-            return {
-                'success': False,
-                'output': '',
-                'error': 'No files specified (use files or all)',
-                'returncode': 1
-            }
+            return ToolResult.fail('No files specified (use files or all)')
         cmd.extend(files)
 
     cmd.extend(_parse_flags(args.get('flags', '')))
     return _run_git_command(cmd, project_root)
 
 
-def _git_commit(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_commit(args: Dict, project_root: str) -> ToolResult:
     """Create a commit"""
     message = args.get('message')
     if not message:
-        return {
-            'success': False,
-            'output': '',
-            'error': 'Commit message is required',
-            'returncode': 1
-        }
+        return ToolResult.fail('Commit message is required')
 
     cmd = ['commit', '-m', message]
 
@@ -213,7 +186,7 @@ def _git_commit(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_reset(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_reset(args: Dict, project_root: str) -> ToolResult:
     """Reset current HEAD"""
     cmd = ['reset']
 
@@ -241,7 +214,7 @@ def _git_reset(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_branch(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_branch(args: Dict, project_root: str) -> ToolResult:
     """Branch operations"""
     operation = args.get('operation', 'list')
     cmd = ['branch']
@@ -253,7 +226,7 @@ def _git_branch(args: Dict, project_root: str) -> Dict[str, Any]:
     elif operation == 'create':
         name = args.get('name')
         if not name:
-            return {'success': False, 'output': '', 'error': 'Branch name required', 'returncode': 1}
+            return ToolResult.fail('Branch name required')
         cmd.append(name)
         if args.get('force'):
             cmd.insert(1, '-f')
@@ -261,7 +234,7 @@ def _git_branch(args: Dict, project_root: str) -> Dict[str, Any]:
     elif operation == 'delete':
         name = args.get('name')
         if not name:
-            return {'success': False, 'output': '', 'error': 'Branch name required', 'returncode': 1}
+            return ToolResult.fail('Branch name required')
         cmd.append('-d' if not args.get('force') else '-D')
         cmd.append(name)
 
@@ -269,7 +242,7 @@ def _git_branch(args: Dict, project_root: str) -> Dict[str, Any]:
         old_name = args.get('name')
         new_name = args.get('new_name')
         if not new_name:
-            return {'success': False, 'output': '', 'error': 'New branch name required', 'returncode': 1}
+            return ToolResult.fail('New branch name required')
         cmd.append('-m')
         if old_name:
             cmd.extend([old_name, new_name])
@@ -280,13 +253,13 @@ def _git_branch(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_checkout(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_checkout(args: Dict, project_root: str) -> ToolResult:
     """Checkout branch or restore files"""
     branch = args.get('branch')
     files = args.get('files', [])
 
     if not branch and not files:
-        return {'success': False, 'output': '', 'error': 'branch or files required', 'returncode': 1}
+        return ToolResult.fail('branch or files required')
 
     cmd = ['checkout']
 
@@ -308,7 +281,7 @@ def _git_checkout(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_push(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_push(args: Dict, project_root: str) -> ToolResult:
     """Push to remote"""
     cmd = ['push']
 
@@ -327,7 +300,7 @@ def _git_push(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root, timeout=60)
 
 
-def _git_pull(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_pull(args: Dict, project_root: str) -> ToolResult:
     """Pull from remote"""
     cmd = ['pull']
 
@@ -346,7 +319,7 @@ def _git_pull(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root, timeout=60)
 
 
-def _git_fetch(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_fetch(args: Dict, project_root: str) -> ToolResult:
     """Fetch from remote"""
     cmd = ['fetch']
 
@@ -364,7 +337,7 @@ def _git_fetch(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root, timeout=60)
 
 
-def _git_rebase(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_rebase(args: Dict, project_root: str) -> ToolResult:
     """Rebase operations"""
     operation = args.get('operation', 'start')
     cmd = ['rebase']
@@ -378,7 +351,7 @@ def _git_rebase(args: Dict, project_root: str) -> Dict[str, Any]:
     elif operation == 'start':
         branch = args.get('branch')
         if not branch:
-            return {'success': False, 'output': '', 'error': 'Branch required', 'returncode': 1}
+            return ToolResult.fail('Branch required')
 
         cmd.extend(_parse_flags(args.get('flags', '')))
         cmd.append(branch)
@@ -386,7 +359,7 @@ def _git_rebase(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root, timeout=120)
 
 
-def _git_stash(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_stash(args: Dict, project_root: str) -> ToolResult:
     """Stash operations"""
     operation = args.get('operation', 'push')
     cmd = ['stash']
@@ -425,7 +398,7 @@ def _git_stash(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_cherry_pick(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_cherry_pick(args: Dict, project_root: str) -> ToolResult:
     """Cherry-pick commits"""
     operation = args.get('operation', 'pick')
     cmd = ['cherry-pick']
@@ -439,7 +412,7 @@ def _git_cherry_pick(args: Dict, project_root: str) -> Dict[str, Any]:
         if isinstance(commits, str):
             commits = [commits]
         if not commits:
-            return {'success': False, 'output': '', 'error': 'Commits required', 'returncode': 1}
+            return ToolResult.fail('Commits required')
 
         cmd.extend(_parse_flags(args.get('flags', '')))
         cmd.extend(commits)
@@ -447,14 +420,14 @@ def _git_cherry_pick(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_log(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_log(args: Dict, project_root: str) -> ToolResult:
     """Show commit logs"""
     cmd = ['log']
 
     # Number of commits (required)
     n = args.get('n')
     if not n:
-        return {'success': False, 'output': '', 'error': 'n (number of commits) is required', 'returncode': 1}
+        return ToolResult.fail('n (number of commits) is required')
     cmd.append(f'-{n}')
 
     # Default to --oneline if no format specified in flags
@@ -466,7 +439,7 @@ def _git_log(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_diff(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_diff(args: Dict, project_root: str) -> ToolResult:
     """Show changes"""
     cmd = ['diff']
 
@@ -486,7 +459,7 @@ def _git_diff(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_show(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_show(args: Dict, project_root: str) -> ToolResult:
     """Show commit details"""
     cmd = ['show']
 
@@ -497,7 +470,7 @@ def _git_show(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root)
 
 
-def _git_mr(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_mr(args: Dict, project_root: str) -> ToolResult:
     """Create merge request (custom operation)
 
     Args:
@@ -512,30 +485,15 @@ def _git_mr(args: Dict, project_root: str) -> Dict[str, Any]:
     # Validate required parameters
     title = args.get('title')
     if not title:
-        return {
-            'success': False,
-            'output': '',
-            'error': 'Title is required for merge request (-T)',
-            'returncode': 1
-        }
+        return ToolResult.fail('Title is required for merge request (-T)')
 
     dest_branch = args.get('dest_branch')
     if not dest_branch:
-        return {
-            'success': False,
-            'output': '',
-            'error': 'Destination branch is required (--dest)',
-            'returncode': 1
-        }
+        return ToolResult.fail('Destination branch is required (--dest)')
 
     description = args.get('description')
     if not description:
-        return {
-            'success': False,
-            'output': '',
-            'error': 'Description is required (-D)',
-            'returncode': 1
-        }
+        return ToolResult.fail('Description is required (-D)')
 
     # Default flags: -y (auto confirm) -f (force)
     cmd.extend(['-y', '-f'])
@@ -558,7 +516,7 @@ def _git_mr(args: Dict, project_root: str) -> Dict[str, Any]:
     return _run_git_command(cmd, project_root, timeout=30, env=env, stdin_devnull=True)
 
 
-def _git_clean(args: Dict, project_root: str) -> Dict[str, Any]:
+def _git_clean(args: Dict, project_root: str) -> ToolResult:
     """Clean untracked files"""
     cmd = ['clean']
 

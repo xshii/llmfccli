@@ -7,7 +7,7 @@ import os
 from typing import Dict, Any
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool
+from backend.tools.base import BaseTool, ToolResult
 
 
 class FileSystemError(Exception):
@@ -96,8 +96,4 @@ class CreateFileTool(BaseTool):
         except Exception as e:
             raise FileSystemError(f"Failed to create file {path}: {e}")
 
-        return {
-            'success': True,
-            'path': path,
-            'size': len(content)
-        }
+        return ToolResult.success(f"Created {path} ({len(content)} bytes)")

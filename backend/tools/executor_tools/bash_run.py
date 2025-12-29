@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List, Callable, Union
 from pathlib import Path
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool
+from backend.tools.base import BaseTool, ToolResult
 from backend.utils.feature import is_feature_enabled
 from .bash_session import BashSession
 from .exceptions import ExecutorError
@@ -136,18 +136,16 @@ class BashRunTool(BaseTool):
     def parameters_model(self):
         return BashRunParams
 
-    def execute(self, command: str, timeout: int = 60) -> Union[Dict[str, Any], str]:
+    def execute(self, command: str, timeout: int = 60) -> ToolResult:
         """执行 bash 命令
 
         Returns:
-            如果 raw_output_mode 开启，返回原始 stdout 字符串
-            否则返回包含 stdout, stderr, success 等字段的 dict
+            ToolResult with stdout on success, stderr on failure
         """
         session = BashSession(self.project_root, timeout=timeout)
 
         # 检查是否启用流式输出
         streaming_enabled = is_feature_enabled("tool_execution.streaming_output")
-        raw_output_mode = is_feature_enabled("tool_execution.raw_output_mode")
 
         try:
             if streaming_enabled and self._stdout_callback:
@@ -160,15 +158,12 @@ class BashRunTool(BaseTool):
             else:
                 result = session.execute(command, timeout=timeout)
 
-            # 如果启用 raw_output_mode，只返回原始输出
-            if raw_output_mode:
-                if result.get('success'):
-                    return result.get('stdout', '')
-                else:
-                    # 失败时返回 stderr 或错误信息
-                    return result.get('stderr', '') or result.get('error', 'Command failed')
-
-            return result
+            # 转换为 ToolResult
+            if result.get('success'):
+                return ToolResult.success(result.get('stdout', ''))
+            else:
+                error_msg = result.get('stderr', '') or result.get('error', 'Command failed')
+                return ToolResult.fail(error_msg)
         finally:
             session.close()
 
@@ -253,12 +248,23 @@ def bash_run(command: str,
         print(f"[TODO] 超时设置: {timeout}秒")
 
     # Execute using BashRunTool
-    tool = BashRunTool(project_root=project_root)
-    result = tool.execute(command=command, timeout=timeout)
+    import time
+    start_time = time.time()
 
-    # Add extra fields for compatibility
-    result['command'] = command
-    result['project_root'] = str(project_root)
+    tool = BashRunTool(project_root=project_root)
+    tool_result = tool.execute(command=command, timeout=timeout)
+    duration = time.time() - start_time
+
+    # Convert ToolResult to legacy dict format
+    result = {
+        'success': tool_result.ok,
+        'stdout': tool_result.output if tool_result.ok else '',
+        'stderr': tool_result.output if not tool_result.ok else '',
+        'return_code': 0 if tool_result.ok else 1,
+        'duration': duration,
+        'command': command,
+        'project_root': str(project_root),
+    }
 
     # Print result
     if verbose:

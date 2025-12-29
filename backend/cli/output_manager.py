@@ -87,23 +87,24 @@ class ToolOutputManager:
         display_text = ""
 
         if isinstance(output, dict):
-            # 检查错误状态
-            if output.get('success') is False or 'error' in output:
-                has_error = True
-                display_text = output.get('error', str(output.get('stderr', '')))
-            elif output.get('stderr'):
-                has_error = True
-                display_text = output.get('stderr', '')
-            elif output.get('exit_code', output.get('return_code', 0)) != 0:
-                has_error = True
-                display_text = output.get('stderr', output.get('stdout', ''))
-            else:
-                # 正常输出
-                display_text = output.get('stdout', output.get('content', output.get('output', '')))
-                if not display_text and 'results' in output:
-                    results = output.get('results', [])
-                    if isinstance(results, list):
-                        display_text = f"{len(results)} results"
+            # 统一格式：通过 success/ok 判断
+            has_error = not output.get('success', output.get('ok', True))
+
+            # 统一使用 output 字段
+            display_text = output.get('output', '')
+
+            # 向后兼容：尝试其他可能的字段名
+            if not display_text:
+                if has_error:
+                    display_text = output.get('error', output.get('stderr', ''))
+                else:
+                    display_text = output.get('stdout', output.get('content', ''))
+
+            # 特殊处理 results 列表
+            if not display_text and 'results' in output:
+                results = output.get('results', [])
+                if isinstance(results, list):
+                    display_text = f"{len(results)} results"
         else:
             display_text = str(output)
             if 'error' in display_text.lower() or 'failed' in display_text.lower():

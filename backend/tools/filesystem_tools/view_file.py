@@ -7,7 +7,7 @@ import os
 from typing import Dict, Any, Optional, Tuple
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool
+from backend.tools.base import BaseTool, ToolResult
 
 
 class FileSystemError(Exception):
@@ -149,9 +149,9 @@ class ViewFileTool(BaseTool):
             content = ''.join(lines)
             actual_range = (1, total_lines)
 
-        return {
-            'content': content,
-            'path': path,
-            'total_lines': total_lines,
-            'line_range': actual_range,
-        }
+        # Format with line numbers
+        lines = content.split('\n')
+        start_line = actual_range[0]
+        numbered_lines = [f"{start_line + i:4d}\t{line}" for i, line in enumerate(lines)]
+
+        return ToolResult.success('\n'.join(numbered_lines))

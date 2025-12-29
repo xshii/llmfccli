@@ -4,10 +4,57 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Type
+from dataclasses import dataclass, asdict
+from typing import Dict, Any, Optional, Type, List, Union
 from pydantic import BaseModel
 
 from backend.utils.i18n import t
+
+
+@dataclass
+class ToolResult:
+    """统一的工具返回结果格式
+
+    设计原则：
+    - ok: 业务层面是否成功
+    - output: 成功时是结果，失败时是错误原因
+    """
+    ok: bool = True
+    output: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为 dict（包含 success 别名用于向后兼容）"""
+        return {'success': self.ok, 'output': self.output}
+
+    @classmethod
+    def success(cls, output: str = "") -> "ToolResult":
+        """快捷创建成功结果"""
+        return cls(ok=True, output=output)
+
+    @classmethod
+    def fail(cls, error: str) -> "ToolResult":
+        """快捷创建失败结果"""
+        return cls(ok=False, output=error)
+
+    # 别名，保持兼容
+    ok_ = success
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ToolResult":
+        """从旧格式 dict 转换（兼容层）"""
+        # 判断成功/失败
+        ok = d.get('success', d.get('ok', True))
+        exit_code = d.get('exit_code', d.get('return_code', d.get('returncode', 0)))
+        if exit_code != 0:
+            ok = False
+
+        # 提取输出
+        if ok:
+            output = d.get('output', d.get('stdout', d.get('content', '')))
+        else:
+            output = d.get('error', d.get('stderr', d.get('output', '')))
+
+        return cls(ok=ok, output=output)
 
 
 class BaseTool(ABC):
@@ -111,7 +158,7 @@ class BaseTool(ABC):
         return BaseModel
 
     @abstractmethod
-    def execute(self, **kwargs) -> Dict[str, Any]:
+    def execute(self, **kwargs) -> Union[ToolResult, Dict[str, Any]]:
         """
         执行工具
 
@@ -119,7 +166,7 @@ class BaseTool(ABC):
             **kwargs: 参数（与 parameters_model 定义的字段对应）
 
         Returns:
-            Dict 包含执行结果
+            ToolResult 或 Dict（向后兼容）
         """
         pass
 
@@ -179,15 +226,15 @@ class BaseTool(ABC):
                 validated_args = arguments
 
             # 执行工具
-            return self.execute(**validated_args)
+            result = self.execute(**validated_args)
+
+            # 统一转换为 dict
+            if isinstance(result, ToolResult):
+                return result.to_dict()
+            return result
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'tool': self.name,
-                'arguments': arguments
-            }
+            return ToolResult.fail(str(e)).to_dict()
 
     def get_confirmation_signature(self, _arguments: Dict[str, Any]) -> str:
         """
