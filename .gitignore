@@ -69,3 +69,6 @@ tests/fixtures/**/*.cpp
 tests/fixtures/**/*.h
 tests/fixtures/**/*.hpp
 tests/fixtures/**/CMakeLists.txt
+
+# E2E test cases (generated fixtures)
+tests/fixtures/e2e-cases/
