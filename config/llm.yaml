@@ -85,6 +85,11 @@ task_backends:
 ssh:
   enabled: true
   host: "ciserver"
+  # 远程执行命令时的额外 PATH 路径
+  # 非交互式 SSH 不会加载 shell 配置文件，需要手动指定
+  extra_paths:
+    - "/opt/homebrew/bin"
+    - "/usr/local/bin"
 
 # ============================================================
 # 模型管理配置（仅 Ollama）

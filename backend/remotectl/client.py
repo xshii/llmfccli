@@ -18,10 +18,13 @@ class RemoteOllamaClient:
         Initialize remote Ollama client
 
         Args:
-            config_path: Path to ollama.yaml config file
+            config_path: Path to config file (ollama.yaml or llm.yaml)
         """
         if config_path is None:
-            config_path = str(Path(__file__).parent.parent.parent / "config" / "ollama.yaml")
+            # Try llm.yaml first (new), fallback to ollama.yaml (legacy)
+            llm_config = Path(__file__).parent.parent.parent / "config" / "llm.yaml"
+            ollama_config = Path(__file__).parent.parent.parent / "config" / "ollama.yaml"
+            config_path = str(llm_config if llm_config.exists() else ollama_config)
 
         self.config_path = config_path
         self.config = self._load_config()
@@ -30,6 +33,7 @@ class RemoteOllamaClient:
         self.ssh_enabled = self.config.get('ssh', {}).get('enabled', False)
         self.ssh_host = self.config.get('ssh', {}).get('host', 'ollama-tunnel')
         self.ssh_user = self.config.get('ssh', {}).get('user')
+        self.extra_paths = self.config.get('ssh', {}).get('extra_paths', [])
 
     def _load_config(self) -> Dict:
         """Load configuration from YAML file"""
@@ -63,9 +67,12 @@ class RemoteOllamaClient:
 
         # Use -o ClearAllForwardings=yes to prevent port forwarding conflicts
         # when SSH config has LocalForward defined (e.g., for SSH tunnel)
-        # Wrap command with login shell to ensure PATH is properly set
-        # (non-interactive SSH doesn't load .bashrc/.zshrc)
-        wrapped_command = f'bash -l -c "{command}"'
+        # Prepend extra_paths to PATH since non-interactive SSH doesn't load shell config
+        if self.extra_paths:
+            extra_path_str = ":".join(self.extra_paths)
+            wrapped_command = f'export PATH="{extra_path_str}:$PATH" && {command}'
+        else:
+            wrapped_command = command
         ssh_cmd = ['ssh', '-o', 'ClearAllForwardings=yes', ssh_target, wrapped_command]
 
         try:

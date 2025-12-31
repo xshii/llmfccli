@@ -148,6 +148,18 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        },
+        {
+            "name": "E2E: Run All Cases",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/e2e/test_e2e_cases.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ],
     "inputs": [

@@ -172,26 +172,36 @@ class CLI:
                 self.console.print("\n[yellow]⚠ 环境检查失败[/yellow]")
                 self.console.print("\n[yellow]建议操作:[/yellow]")
 
-                # 加载 SSH 主机配置
+                # 加载 SSH 配置（优先 llm.yaml，回退 ollama.yaml）
                 ssh_host = "ollama-tunnel"
+                extra_paths = []
                 try:
-                    config_path = Path(__file__).parent.parent.parent / "config" / "ollama.yaml"
+                    import yaml
+                    llm_config = Path(__file__).parent.parent.parent / "config" / "llm.yaml"
+                    ollama_config = Path(__file__).parent.parent.parent / "config" / "ollama.yaml"
+                    config_path = llm_config if llm_config.exists() else ollama_config
                     with open(config_path, 'r', encoding='utf-8') as f:
-                        import yaml
                         config = yaml.safe_load(f)
                         ssh_host = config.get('ssh', {}).get('host', 'ollama-tunnel')
+                        extra_paths = config.get('ssh', {}).get('extra_paths', [])
                 except Exception:
                     pass
+
+                # 构建远程命令的 PATH 前缀
+                if extra_paths:
+                    path_prefix = f"export PATH=\"{':'.join(extra_paths)}:$PATH\" && "
+                else:
+                    path_prefix = ""
 
                 for result in results:
                     if not result.success:
                         if "SSH Tunnel" in result.name:
                             if "远程 Ollama 服务未运行" in result.message:
-                                self.console.print(f"  • 在远程服务器启动 Ollama: [cyan]ssh {ssh_host} 'ollama serve &'[/cyan]")
+                                self.console.print(f"  • 在远程服务器启动 Ollama: [cyan]ssh {ssh_host} '{path_prefix}ollama serve &'[/cyan]")
                             else:
                                 self.console.print(f"  • 启动 SSH 隧道: [cyan]ssh -fN {ssh_host}[/cyan]")
                         elif "Ollama Connection" in result.name:
-                            self.console.print(f"  • 在远程服务器启动 Ollama: [cyan]ssh {ssh_host} 'nohup ollama serve > /dev/null 2>&1 &'[/cyan]")
+                            self.console.print(f"  • 在远程服务器启动 Ollama: [cyan]ssh {ssh_host} '{path_prefix}nohup ollama serve > /dev/null 2>&1 &'[/cyan]")
                         elif "Ollama Model" in result.name:
                             model = result.details.get('model', 'qwen3:latest')
                             self.console.print(f"  • 拉取模型: [cyan]ollama pull {model}[/cyan]")
@@ -282,6 +292,29 @@ class CLI:
                             self.console.print(f"[red]✗ SSH 启动失败: {e}[/red]")
                         except FileNotFoundError:
                             self.console.print("[red]✗ 未找到 ssh 命令[/red]")
+
+                        # 检查并启动远程 Ollama 服务
+                        import time
+                        time.sleep(1)  # 等待隧道建立
+                        try:
+                            # 检查 Ollama 是否响应
+                            check_result = subprocess.run(
+                                ['curl', '-s', '--connect-timeout', '2', 'http://localhost:11434/api/tags'],
+                                capture_output=True, text=True, timeout=5
+                            )
+                            if check_result.returncode != 0 or not check_result.stdout.strip():
+                                # Ollama 未运行，尝试启动
+                                self.console.print(f"[cyan]启动远程 Ollama 服务...[/cyan]")
+                                ollama_cmd = f"{path_prefix}nohup ollama serve > /dev/null 2>&1 &"
+                                subprocess.run(
+                                    ['ssh', '-o', 'ClearAllForwardings=yes', ssh_host, ollama_cmd],
+                                    capture_output=True, timeout=10
+                                )
+                                time.sleep(2)  # 等待 Ollama 启动
+                                self.console.print("[green]✓ 远程 Ollama 启动命令已发送[/green]")
+                        except Exception as e:
+                            self.console.print(f"[dim]启动远程 Ollama 失败: {e}[/dim]")
+
                         continue
                     elif response == 'n':
                         # 退出
