@@ -83,10 +83,28 @@ class E2ETestRunner:
         """Run AI agent on project with given prompt"""
         try:
             agent = AgentLoop(project_root=str(project_dir))
+
+            # Hook to print tool calls if verbose
+            if self.verbose and hasattr(agent, 'tool_executor'):
+                original_execute = agent.tool_executor.execute_tool
+                def verbose_execute(tool_name, arguments):
+                    print(f"\n    [TOOL] {tool_name}")
+                    if "file" in str(arguments):
+                        file_path = arguments.get('file_path') or arguments.get('path', '')
+                        if file_path:
+                            print(f"           file: {Path(file_path).name}")
+                    result = original_execute(tool_name, arguments)
+                    if hasattr(result, 'success'):
+                        status = "✓" if result.success else "✗"
+                        print(f"           {status}")
+                    return result
+                agent.tool_executor.execute_tool = verbose_execute
+
             response = agent.run(prompt)
             return True, response
         except Exception as e:
-            return False, f"Agent error: {e}"
+            import traceback
+            return False, f"Agent error: {e}\n{traceback.format_exc()}"
 
     def setup_temp_project(self, case_dir: Path) -> Path:
         """Copy case to temp directory for testing"""
@@ -268,13 +286,27 @@ class E2ETestRunner:
         finally:
             self.cleanup_temp(temp_project)
 
-    def run_all(self) -> dict:
-        """Run all test cases"""
-        results = {
-            "case1": self.test_case1_implement_function(),
-            "case2": self.test_case2_fix_compile_error(),
-            "case3": self.test_case3_tdd_write_tests(),
+    def run_all(self, filter_ids: Optional[list] = None) -> dict:
+        """Run all test cases
+
+        Args:
+            filter_ids: List of case IDs to run (e.g., [1, 3]). None means all.
+        """
+        all_cases = {
+            1: ("case1", self.test_case1_implement_function),
+            2: ("case2", self.test_case2_fix_compile_error),
+            3: ("case3", self.test_case3_tdd_write_tests),
         }
+
+        # Filter cases if specified
+        if filter_ids:
+            cases_to_run = {k: v for k, v in all_cases.items() if k in filter_ids}
+        else:
+            cases_to_run = all_cases
+
+        results = {}
+        for case_id, (name, test_func) in cases_to_run.items():
+            results[name] = test_func()
 
         print("\n" + "=" * 60)
         print("Summary")
@@ -285,7 +317,7 @@ class E2ETestRunner:
 
         passed_count = sum(1 for v in results.values() if v)
         total_count = len(results)
-        print(f"\nTotal: {passed_count}/{total_count} passed")
+        print(f"\nTotal: {passed_count}/{total_count} passed ({passed_count/total_count*100:.0f}%)")
 
         return results
 
@@ -293,11 +325,10 @@ class E2ETestRunner:
 def main():
     parser = argparse.ArgumentParser(description="Run E2E test cases")
     parser.add_argument(
-        "case",
-        nargs="?",
-        default="all",
-        choices=["case1", "case2", "case3", "all"],
-        help="Which case to run (default: all)"
+        "-f", "--filter",
+        type=str,
+        default=None,
+        help="Filter cases by ID (e.g., '1,3' or '2')"
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -308,17 +339,14 @@ def main():
 
     runner = E2ETestRunner(verbose=args.verbose)
 
-    if args.case == "all":
-        results = runner.run_all()
-        sys.exit(0 if all(results.values()) else 1)
-    elif args.case == "case1":
-        success = runner.test_case1_implement_function()
-    elif args.case == "case2":
-        success = runner.test_case2_fix_compile_error()
-    elif args.case == "case3":
-        success = runner.test_case3_tdd_write_tests()
+    # Parse filter IDs
+    filter_ids = None
+    if args.filter:
+        filter_ids = [int(x.strip()) for x in args.filter.split(",")]
 
-    sys.exit(0 if success else 1)
+    results = runner.run_all(filter_ids=filter_ids)
+    sys.exit(0 if all(results.values()) else 1)
+
 
 
 if __name__ == "__main__":
