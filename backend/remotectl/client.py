@@ -28,7 +28,7 @@ class RemoteOllamaClient:
 
         # SSH configuration
         self.ssh_enabled = self.config.get('ssh', {}).get('enabled', False)
-        self.ssh_host = self.config.get('ssh', {}).get('host', 'ollama-tunnel')
+        self.ssh_host = self.config.get('ssh', {}).get('host', 'ciserver')
         self.ssh_user = self.config.get('ssh', {}).get('user')
         self.extra_paths = self.config.get('ssh', {}).get('extra_paths', [])
 

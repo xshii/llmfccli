@@ -33,7 +33,7 @@ class PrecheckRunner:
             console: Rich Console 实例，用于输出
         """
         self.console = console or Console()
-        self._ssh_host = "ollama-tunnel"
+        self._ssh_host = "ciserver"
         self._extra_paths: List[str] = []
         self._load_ssh_config()
 
@@ -44,7 +44,7 @@ class PrecheckRunner:
             config_path = Path(__file__).parent.parent.parent / "config" / "llm.yaml"
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
-                self._ssh_host = config.get('ssh', {}).get('host', 'ollama-tunnel')
+                self._ssh_host = config.get('ssh', {}).get('host', 'ciserver')
                 self._extra_paths = config.get('ssh', {}).get('extra_paths', [])
         except Exception:
             pass

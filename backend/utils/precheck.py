@@ -109,14 +109,8 @@ class PreCheck:
             print(f"❌ {len(failed)} check(s) failed")
             print("\nRecommended actions:")
             # Load SSH host from config
-            ssh_host = "ollama-tunnel"
-            try:
-                config_path = Path(__file__).parent.parent.parent / "config" / "llm.yaml"
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = yaml.safe_load(f)
-                    ssh_host = config.get('ssh', {}).get('host', 'ollama-tunnel')
-            except Exception:
-                pass
+            from backend.llm.config import get_ssh_host
+            ssh_host = get_ssh_host() or "ciserver"
             for result in failed:
                 if "SSH Tunnel" in result.name:
                     print(f"  • Start SSH tunnel: ssh -fN {ssh_host}")
