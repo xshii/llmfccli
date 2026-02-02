@@ -356,24 +356,29 @@ class AgentLoop:
 
     def _handle_no_tool_calls(self, content: str, iteration: int) -> Optional[str]:
         """处理无工具调用的情况"""
-        continue_keywords = [
-            "I'll", "I will", "Let me", "Now I", "Next I", "let's", "Let's",
-            "I need to", "I should", "I'm going to", "need to check",
-            "First", "Then", "After", "Before", "Step", "start by",
-            "需要", "现在", "接下来", "让我", "我来", "查看", "检查",
-            "首先", "然后", "接着", "第一", "第二", "步骤"
-        ]
-        # 检查是否以冒号结尾（可能是列表开头）或任务未完成的迹象
-        ends_with_list_intro = content.rstrip().endswith(':')
-        seems_incomplete = any(kw in content for kw in continue_keywords) or ends_with_list_intro
+        # 检查是否启用自动 continue 功能
+        from backend.utils.feature import is_feature_enabled
+        auto_continue_enabled = is_feature_enabled("agent_behavior.auto_continue_on_incomplete")
 
-        if seems_incomplete and iteration < self.max_iterations - 1:
-            self.conversation_history.append({'role': 'assistant', 'content': content})
-            self.conversation_history.append({
-                'role': 'user',
-                'content': 'Continue. Use tools to complete the task.'
-            })
-            return None  # 继续循环
+        if auto_continue_enabled:
+            continue_keywords = [
+                "I'll", "I will", "Let me", "Now I", "Next I", "let's", "Let's",
+                "I need to", "I should", "I'm going to", "need to check",
+                "First", "Then", "After", "Before", "Step", "start by",
+                "需要", "现在", "接下来", "让我", "我来", "查看", "检查",
+                "首先", "然后", "接着", "第一", "第二", "步骤"
+            ]
+            # 检查是否以冒号结尾（可能是列表开头）或任务未完成的迹象
+            ends_with_list_intro = content.rstrip().endswith(':')
+            seems_incomplete = any(kw in content for kw in continue_keywords) or ends_with_list_intro
+
+            if seems_incomplete and iteration < self.max_iterations - 1:
+                self.conversation_history.append({'role': 'assistant', 'content': content})
+                self.conversation_history.append({
+                    'role': 'user',
+                    'content': 'Continue. Use tools to complete the task.'
+                })
+                return None  # 继续循环
 
         # 任务完成
         self.conversation_history.append({'role': 'assistant', 'content': content})
