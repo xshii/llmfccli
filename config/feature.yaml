@@ -36,6 +36,11 @@ agent_behavior:
     enabled: true
     description: "当模型回复包含'让我'、'接下来'等关键词但未调用工具时，自动提示模型继续使用工具"
 
+  # 是否在用户消息中注入 system reminder（来自 config/system_reminder.yaml）
+  inject_system_reminder:
+    enabled: true
+    description: "在用户消息中注入 system reminder 配置信息"
+
 # CLI 输出功能
 cli_output:
   # 文件路径超链接协议配置

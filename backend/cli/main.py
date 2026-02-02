@@ -222,10 +222,11 @@ class CLI:
         current_cwd = os.getcwd()
         context_parts.append(f'Current working directory: {current_cwd}')
 
-        # 添加 system reminder 配置信息
-        system_reminder = get_system_reminder()
-        if system_reminder:
-            context_parts.append(system_reminder)
+        # 添加 system reminder 配置信息（检查功能开关）
+        if is_feature_enabled("agent_behavior.inject_system_reminder"):
+            system_reminder = get_system_reminder()
+            if system_reminder:
+                context_parts.append(system_reminder)
 
         # 检查功能开关
         if is_feature_enabled("ide_integration.inject_active_file_context"):
