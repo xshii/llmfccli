@@ -33,6 +33,7 @@ class AgentEvent(Enum):
     TOOL_EXECUTING = "tool_executing"
     TOOL_EXECUTED = "tool_executed"
     TOOL_ERROR = "tool_error"
+    NO_TOOL_CALLS = "no_tool_calls"  # 模型未使用工具
 
     # 上下文事件
     TOKEN_LIMIT_WARNING = "token_limit_warning"

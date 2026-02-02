@@ -369,10 +369,19 @@ class AgentLoop:
                 "首先", "然后", "接着", "第一", "第二", "步骤"
             ]
             # 检查是否以冒号结尾（可能是列表开头）或任务未完成的迹象
-            ends_with_list_intro = content.rstrip().endswith(':')
-            seems_incomplete = any(kw in content for kw in continue_keywords) or ends_with_list_intro
+            ends_with_list_intro = content.rstrip().endswith(':') if content else False
+            seems_incomplete = any(kw in content for kw in continue_keywords) if content else False
+            seems_incomplete = seems_incomplete or ends_with_list_intro
 
             if seems_incomplete and iteration < self.max_iterations - 1:
+                # 通知用户模型没有使用工具，正在自动继续
+                self.events.emit(AgentEvent.NO_TOOL_CALLS, content=content, auto_continue=True)
+                if self.tool_output_callback:
+                    self.tool_output_callback(
+                        '__no_tool_calls__',
+                        '⚠️ 模型未使用工具，自动提示继续...',
+                        {}
+                    )
                 self.conversation_history.append({'role': 'assistant', 'content': content})
                 self.conversation_history.append({
                     'role': 'user',
@@ -380,9 +389,18 @@ class AgentLoop:
                 })
                 return None  # 继续循环
 
+        # 通知用户模型没有使用工具
+        self.events.emit(AgentEvent.NO_TOOL_CALLS, content=content, auto_continue=False)
+        if self.tool_output_callback and not content:
+            self.tool_output_callback(
+                '__no_tool_calls__',
+                '⚠️ 模型未使用工具且无响应内容',
+                {}
+            )
+
         # 任务完成
-        self.conversation_history.append({'role': 'assistant', 'content': content})
-        return content
+        self.conversation_history.append({'role': 'assistant', 'content': content or ''})
+        return content or ''
 
     def _emit_assistant_thinking(self, content: str):
         """发送助手思考事件"""

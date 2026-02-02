@@ -332,7 +332,12 @@ class CLI:
                     # 无需摘要显示
 
                 except Exception as e:
+                    import traceback
                     self.console.print(f"[red]错误: {e}[/red]")
+                    # 打印调用栈便于调试
+                    self.console.print("[dim]调用栈:[/dim]")
+                    for line in traceback.format_exc().strip().split('\n'):
+                        self.console.print(f"[dim]  {line}[/dim]")
 
             except KeyboardInterrupt:
                 self.console.print("\n[yellow]已取消[/yellow]")
