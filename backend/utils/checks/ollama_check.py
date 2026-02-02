@@ -45,6 +45,28 @@ def get_ollama_config() -> Tuple[str, str]:
     return model, base_url
 
 
+def get_ssh_host() -> Optional[str]:
+    """
+    Get SSH host from llm.yaml config
+
+    Returns:
+        SSH host name or None if not configured
+    """
+    config_path = Path(__file__).parent.parent.parent.parent / "config" / "llm.yaml"
+    if not config_path.exists():
+        return None
+
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        ssh_config = config.get('ssh', {})
+        if ssh_config.get('enabled'):
+            return ssh_config.get('host')
+    except Exception:
+        pass
+    return None
+
+
 def check_ollama_connection(base_url: str = "http://localhost:11434") -> PreCheckResult:
     """
     Check Ollama service connection
@@ -83,10 +105,15 @@ def check_ollama_connection(base_url: str = "http://localhost:11434") -> PreChec
                     {"url": base_url}
                 )
         else:
+            ssh_host = get_ssh_host()
+            if ssh_host:
+                msg = f"无法连接 Ollama: {base_url}（检查 SSH 隧道 {ssh_host} 是否已启动）"
+            else:
+                msg = f"无法连接 Ollama: {base_url}（服务可能未启动）"
             return PreCheckResult(
                 "Ollama Connection",
                 False,
-                f"无法连接 Ollama: {base_url}（检查 SSH 隧道 ciserver 是否已启动）",
+                msg,
                 {"url": base_url, "stderr": result.stderr}
             )
     except subprocess.TimeoutExpired:
