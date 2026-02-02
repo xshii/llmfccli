@@ -210,7 +210,7 @@ def example_5_confirmation_signatures():
     print("\n各个 Git 操作的签名:")
     for action, args in operations:
         arguments = {'action': action, 'args': args}
-        signature = confirmation._get_tool_signature('git', arguments)
+        signature = confirmation._get_signature('git', arguments)
         print(f"  • {action:12s} → 签名: {signature}")
 
     print("\n" + "-"*60)
