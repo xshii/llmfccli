@@ -13,6 +13,7 @@ from typing import Optional, Tuple
 import yaml
 
 from .result import PreCheckResult
+from backend.llm.config import get_ssh_host
 
 
 def get_ollama_config() -> Tuple[str, str]:
@@ -43,28 +44,6 @@ def get_ollama_config() -> Tuple[str, str]:
         raise ValueError("配置缺少 ollama.base_url")
 
     return model, base_url
-
-
-def get_ssh_host() -> Optional[str]:
-    """
-    Get SSH host from llm.yaml config
-
-    Returns:
-        SSH host name or None if not configured
-    """
-    config_path = Path(__file__).parent.parent.parent.parent / "config" / "llm.yaml"
-    if not config_path.exists():
-        return None
-
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        ssh_config = config.get('ssh', {})
-        if ssh_config.get('enabled'):
-            return ssh_config.get('host')
-    except Exception:
-        pass
-    return None
 
 
 def check_ollama_connection(base_url: str = "http://localhost:11434") -> PreCheckResult:

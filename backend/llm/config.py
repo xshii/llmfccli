@@ -97,6 +97,23 @@ def resolve_env_var(value: Optional[str]) -> str:
     return value
 
 
+def get_ssh_host() -> Optional[str]:
+    """
+    获取 SSH 隧道主机名
+
+    Returns:
+        SSH 主机名，未配置则返回 None
+    """
+    try:
+        config = load_yaml_config()
+        ssh_config = config.get('ssh', {})
+        if ssh_config.get('enabled'):
+            return ssh_config.get('host')
+    except Exception:
+        pass
+    return None
+
+
 def get_default_retry_config() -> Dict[str, Any]:
     """获取默认重试配置"""
     return {
