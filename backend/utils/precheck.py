@@ -110,10 +110,13 @@ class PreCheck:
             print("\nRecommended actions:")
             # Load SSH host from config
             from backend.llm.config import get_ssh_host
-            ssh_host = get_ssh_host() or "ciserver"
+            ssh_host = get_ssh_host()
             for result in failed:
                 if "SSH Tunnel" in result.name:
-                    print(f"  • Start SSH tunnel: ssh -fN {ssh_host}")
+                    if ssh_host:
+                        print(f"  • Start SSH tunnel: ssh -fN {ssh_host}")
+                    else:
+                        print("  • Configure ssh.host in config/llm.yaml")
                 elif "Ollama Connection" in result.name:
                     print("  • Verify Ollama service is running on remote server")
                 elif "Ollama Model" in result.name:

@@ -33,7 +33,7 @@ class PrecheckRunner:
             console: Rich Console 实例，用于输出
         """
         self.console = console or Console()
-        self._ssh_host = "ciserver"
+        self._ssh_host: Optional[str] = None
         self._extra_paths: List[str] = []
         self._load_ssh_config()
 
@@ -44,7 +44,7 @@ class PrecheckRunner:
             config_path = Path(__file__).parent.parent.parent / "config" / "llm.yaml"
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
-                self._ssh_host = config.get('ssh', {}).get('host', 'ciserver')
+                self._ssh_host = config.get('ssh', {}).get('host')
                 self._extra_paths = config.get('ssh', {}).get('extra_paths', [])
         except Exception:
             pass
@@ -117,7 +117,11 @@ class PrecheckRunner:
         for result in results:
             if not result.success:
                 if "SSH Tunnel" in result.name:
-                    if "远程 Ollama 服务未运行" in result.message:
+                    if not self._ssh_host:
+                        self.console.print(
+                            "  • 配置 SSH host: [cyan]config/llm.yaml -> ssh.host[/cyan]"
+                        )
+                    elif "远程 Ollama 服务未运行" in result.message:
                         self.console.print(
                             f"  • 在远程服务器启动 Ollama: "
                             f"[cyan]ssh {self._ssh_host} '{path_prefix}ollama serve &'[/cyan]"
@@ -127,10 +131,13 @@ class PrecheckRunner:
                             f"  • 启动 SSH 隧道: [cyan]ssh -fN {self._ssh_host}[/cyan]"
                         )
                 elif "Ollama Connection" in result.name:
-                    self.console.print(
-                        f"  • 在远程服务器启动 Ollama: "
-                        f"[cyan]ssh {self._ssh_host} '{path_prefix}nohup ollama serve > /dev/null 2>&1 &'[/cyan]"
-                    )
+                    if self._ssh_host:
+                        self.console.print(
+                            f"  • 在远程服务器启动 Ollama: "
+                            f"[cyan]ssh {self._ssh_host} '{path_prefix}nohup ollama serve > /dev/null 2>&1 &'[/cyan]"
+                        )
+                    else:
+                        self.console.print("  • 启动本地 Ollama: [cyan]ollama serve[/cyan]")
                 elif "Ollama Model" in result.name:
                     model = result.details.get('model', '(see config/llm.yaml)')
                     self.console.print(f"  • 拉取模型: [cyan]ollama pull {model}[/cyan]")
@@ -193,6 +200,10 @@ class PrecheckRunner:
 
     def _start_ssh_and_ollama(self) -> None:
         """启动 SSH 隧道和远程 Ollama"""
+        if not self._ssh_host:
+            self.console.print("[red]✗ SSH host 未配置，请在 config/llm.yaml 中设置 ssh.host[/red]")
+            return
+
         # 清理占用端口的进程
         self._kill_port_process(11434)
 
@@ -255,6 +266,8 @@ class PrecheckRunner:
 
     def _start_remote_ollama(self) -> None:
         """启动远程 Ollama 服务"""
+        if not self._ssh_host:
+            return
         try:
             # 检查 Ollama 是否响应
             check_result = subprocess.run(
