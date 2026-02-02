@@ -66,7 +66,7 @@ class ToolConfirmationUI:
         self._show_confirmation_panel(tool_name, category, arguments, args_text)
 
         # 获取工具签名用于显示
-        signature = self.confirmation._get_tool_signature(tool_name, arguments)
+        signature = self.confirmation._get_signature(tool_name, arguments)
 
         # 提示操作选项
         self._show_options(signature)
