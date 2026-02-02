@@ -54,6 +54,13 @@ class ToolOutputManager:
             self.console.print(thinking_line)
             return  # 不添加到 tool_outputs
 
+        # 特殊处理模型未使用工具的提示
+        if tool_name == '__no_tool_calls__':
+            warning_line = Text()
+            warning_line.append(str(output), style="yellow")
+            self.console.print(warning_line)
+            return  # 不添加到 tool_outputs
+
         # 显示工具调用（持久化行，保留在屏幕上）
         tool_line = Text()
         tool_line.append("🔧 ", style="yellow")
