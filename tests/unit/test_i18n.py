@@ -73,7 +73,7 @@ def test_tool_i18n():
     print(f"   [中文] 工具描述: {edit_file_schema['function']['description']}")
     print(f"   [中文] old_str 参数: {edit_file_schema['function']['parameters']['properties']['old_str']['description']}")
 
-    assert '编辑文件' in edit_file_schema['function']['description'], "edit_file 描述应该是中文"
+    assert '替换' in edit_file_schema['function']['description'], "edit_file 描述应该是中文"
     assert '替换' in edit_file_schema['function']['parameters']['properties']['old_str']['description'], "old_str 参数应该是中文"
 
     # 英文
@@ -85,7 +85,7 @@ def test_tool_i18n():
     print(f"   [英文] 工具描述: {edit_file_schema['function']['description']}")
     print(f"   [英文] old_str 参数: {edit_file_schema['function']['parameters']['properties']['old_str']['description']}")
 
-    assert 'Edit file' in edit_file_schema['function']['description'], "edit_file 描述应该是英文"
+    assert 'Replace' in edit_file_schema['function']['description'], "edit_file 描述应该是英文"
     assert 'replace' in edit_file_schema['function']['parameters']['properties']['old_str']['description'].lower(), "old_str 参数应该是英文"
 
     print("   ✓ edit_file 多语言支持正确")
@@ -138,7 +138,8 @@ def test_tool_i18n():
     I18n.initialize()
 
     print(f"   清除环境变量后的语言: {I18n.get_language()}")
-    assert I18n.get_language() == 'zh', "默认应该是中文"
+    # Default is 'en' as specified in config/language.yaml
+    assert I18n.get_language() == 'en', "默认应该是英文（config 中配置）"
 
     print("   ✓ 环境变量配置正确")
 

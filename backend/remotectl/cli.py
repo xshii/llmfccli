@@ -10,8 +10,9 @@ Usage:
     python -m backend.remotectl.cli show <model_name>
 """
 
-import sys
 import argparse
+import sys
+
 from rich.console import Console
 
 from .commands import RemoteCommands

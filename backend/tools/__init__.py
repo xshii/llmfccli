@@ -10,23 +10,20 @@ Tool implementations are organized in subdirectories:
 - agent_tools/       - Agent-specific tools (compact)
 """
 
-from .filesystem_tools import (
-    view_file,
-    edit_file,
-    create_file,
-    grep_search,
-    list_dir,
-)
-
+from . import vscode_tools as vscode
 from .executor_tools import (
     bash_run,
     cmake_build,
     run_tests,
 )
-
+from .filesystem_tools import (
+    create_file,
+    edit_file,
+    grep_search,
+    list_dir,
+    view_file,
+)
 from .git_tools import git
-
-from . import vscode_tools as vscode
 
 __all__ = [
     # Filesystem

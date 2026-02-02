@@ -3,7 +3,8 @@
 ProposeOptions Tool - 向用户提出方案选择
 """
 
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 from pydantic import BaseModel, Field
 
 from backend.tools.base import BaseTool
@@ -58,6 +59,11 @@ class ProposeOptionsTool(BaseTool):
     @property
     def priority(self) -> int:
         return 20
+
+    @property
+    def skip_confirmation(self) -> bool:
+        # 交互工具，本身就需要用户输入，无需额外确认
+        return True
 
     @property
     def parameters_model(self):

@@ -34,7 +34,7 @@ def test_confirmation_basic():
         return ConfirmAction.ALLOW_ALWAYS
 
     confirmation.set_confirmation_callback(mock_callback_allow_always)
-    result = confirmation.confirm_tool_execution('view_file', {'path': '/test/file.cpp'})
+    result = confirmation.confirm('view_file', {'path': '/test/file.cpp'})
     print(f"✓ User chose: {result.action}")
     assert result.action == ConfirmAction.ALLOW_ALWAYS
 
@@ -44,7 +44,7 @@ def test_confirmation_basic():
     assert needs_confirm is False, "Should not need confirmation after ALLOW_ALWAYS"
 
     # Test 4: Reset confirmations
-    confirmation.reset_confirmations()
+    confirmation.reset()
     needs_confirm = confirmation.needs_confirmation('view_file', {'path': '/test/file.cpp'})
     print(f"✓ After reset, needs confirmation: {needs_confirm}")
     assert needs_confirm is True, "Should need confirmation after reset"
@@ -72,7 +72,7 @@ def test_bash_run_confirmation():
         return ConfirmAction.ALLOW_ALWAYS
 
     confirmation.set_confirmation_callback(mock_callback_allow_always)
-    result = confirmation.confirm_tool_execution('bash_run', {'command': 'ls -la'})
+    result = confirmation.confirm('bash_run', {'command': 'ls -la'})
     print(f"✓ User chose: {result.action}")
 
     # Test 3: 'ls' with different args should not need confirmation
@@ -107,12 +107,12 @@ def test_tool_categories():
     }
 
     for tool_name, expected_category in expected_categories.items():
-        category = confirmation.get_tool_category(tool_name)
+        category = confirmation._get_category(tool_name)
         print(f"✓ {tool_name:15} -> {category}")
         assert category == expected_category, f"Expected {expected_category}, got {category}"
 
     # Unknown tool should return 'unknown'
-    category = confirmation.get_tool_category('nonexistent_tool')
+    category = confirmation._get_category('nonexistent_tool')
     print(f"✓ {'nonexistent_tool':15} -> {category}")
     assert category == 'unknown', f"Expected 'unknown', got {category}"
 
@@ -139,7 +139,7 @@ def test_dangerous_operations():
     ]
 
     for tool_name, args, expected_dangerous, description in dangerous_cases:
-        is_dangerous = confirmation.is_dangerous_operation(tool_name, args)
+        is_dangerous = confirmation._is_dangerous(tool_name, args)
         status = "✓" if is_dangerous == expected_dangerous else "✗"
         print(f"{status} {description}: is_dangerous={is_dangerous} (expected {expected_dangerous})")
         assert is_dangerous == expected_dangerous, f"Expected {expected_dangerous} for {description}"
@@ -161,7 +161,7 @@ def test_session_level_only():
         return ConfirmAction.ALLOW_ALWAYS
 
     confirmation1.set_confirmation_callback(mock_callback_allow_always)
-    confirmation1.confirm_tool_execution('view_file', {'path': '/test/file.cpp'})
+    confirmation1.confirm('view_file', {'path': '/test/file.cpp'})
     print(f"✓ Confirmed 'view_file' with ALLOW_ALWAYS in session 1")
 
     # Session 1 should not need confirmation

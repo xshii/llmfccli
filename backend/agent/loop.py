@@ -1,16 +1,45 @@
 # -*- coding: utf-8 -*-
 """
 Agent main loop for executing tasks with LLM and tools
+
+使用设计模式:
+- Pipeline: 消息处理
+- Chain of Responsibility: 工具执行
+- Command: 工具调用记录
+- Observer: 事件通知
 """
 
-import re
+import os
 import time
-from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 from ..llm import BaseLLMClient, create_client
 from .token_counter import TokenCounter
-from .tools import ToolExecutor, RegistryToolExecutor, ToolConfirmation, ConfirmAction, ConfirmResult
+from .tools import (
+    ConfirmAction,
+    RegistryToolExecutor,
+    ToolConfirmation,
+    ToolExecutor,
+)
+from .patterns import (
+    # Pipeline
+    MessagePipeline,
+    # Chain
+    ExecutionContext,
+    ToolExecutionChain,
+    PreviewHandler,
+    ConfirmationHandler,
+    ExecutionHandlerImpl,
+    CallbackHandler,
+    CleanupHandler,
+    # Command
+    CommandHistory,
+    CommandFactory,
+    # Observer
+    AgentEvent,
+    get_event_bus,
+)
 
 
 class AgentLoop:
@@ -27,12 +56,12 @@ class AgentLoop:
         Initialize agent loop
 
         Args:
-            client: LLM client instance (injected dependency, supports OllamaClient or OpenAIClient)
-            tool_executor: ToolExecutor instance (injected dependency)
+            client: LLM client instance
+            tool_executor: ToolExecutor instance
             project_root: Project root directory
             confirmation_callback: Callback function for user confirmation
-            tool_output_callback: Callback function for tool output (tool_name, output, args)
-            backend: LLM backend to use ('ollama' or 'openai'), only used if client is None
+            tool_output_callback: Callback function for tool output
+            backend: LLM backend to use ('ollama' or 'openai')
         """
         self.client = client or create_client(backend=backend, task='main_agent')
         self.project_root = project_root or str(Path.cwd())
@@ -40,13 +69,12 @@ class AgentLoop:
         # Initialize components
         self.token_counter = TokenCounter()
 
-        # Initialize tool confirmation first (needed by tool executor)
+        # Initialize tool confirmation
         self.confirmation = ToolConfirmation()
         if confirmation_callback:
             self.confirmation.set_confirmation_callback(confirmation_callback)
 
-        # Initialize tool executor (with confirmation manager for smart handling)
-        # Pass self (agent) for agent-specific tools like compact_last
+        # Initialize tool executor
         self.tool_executor = tool_executor or RegistryToolExecutor(
             self.project_root,
             confirmation_manager=self.confirmation,
@@ -58,7 +86,6 @@ class AgentLoop:
 
         # State
         self.conversation_history: List[Dict[str, str]] = []
-        self.tool_calls: List[Dict[str, Any]] = []
         self.active_files: List[str] = []
 
         # Configuration
@@ -68,51 +95,111 @@ class AgentLoop:
 
         # Active file (for VSCode integration)
         self.active_file: Optional[str] = None
-    
+
+        # === 设计模式组件 ===
+
+        # 消息处理管道
+        self.message_pipeline = MessagePipeline.default()
+
+        # 命令历史
+        self.command_history = CommandHistory()
+
+        # 事件总线
+        self.events = get_event_bus()
+
+        # 工具执行链（延迟初始化，需要 cleanup 函数）
+        self._execution_chain: Optional[ToolExecutionChain] = None
+
+    @property
+    def execution_chain(self) -> ToolExecutionChain:
+        """获取工具执行链（延迟初始化）"""
+        if self._execution_chain is None:
+            self._execution_chain = self._create_execution_chain()
+        return self._execution_chain
+
+    def _create_execution_chain(self) -> ToolExecutionChain:
+        """创建工具执行链"""
+        chain = ToolExecutionChain()
+
+        # 1. 预览处理器
+        chain.add(PreviewHandler(
+            should_preview=lambda name: self._should_show_preview(name)
+        ))
+
+        # 2. 确认处理器
+        chain.add(ConfirmationHandler(
+            self.confirmation,
+            on_deny=self._on_tool_denied
+        ))
+
+        # 3. 执行处理器
+        chain.add(ExecutionHandlerImpl(self.tool_executor))
+
+        # 4. 回调处理器
+        if self.tool_output_callback:
+            chain.add(CallbackHandler(self.tool_output_callback))
+
+        # 5. 清理处理器
+        chain.add(CleanupHandler(self._cleanup_after_tool))
+
+        return chain
+
+    def _should_show_preview(self, tool_name: str) -> bool:
+        """判断是否应该显示预览"""
+        try:
+            from backend.rpc.client import is_vscode_mode
+            from backend.utils.feature import is_feature_enabled
+            return (is_vscode_mode() and
+                    is_feature_enabled("ide_integration.show_diff_before_edit"))
+        except Exception:
+            return False
+
+    def _on_tool_denied(self, ctx: ExecutionContext, reason: str):
+        """工具被拒绝时的回调"""
+        self.events.emit(AgentEvent.TOOL_DENIED,
+                        tool_name=ctx.tool_name,
+                        reason=reason)
+        self._cleanup_after_tool(ctx)
+
+    def _cleanup_after_tool(self, ctx: ExecutionContext):
+        """工具执行后清理"""
+        if ctx.metadata.get('preview_shown'):
+            try:
+                from backend.rpc.client import is_vscode_mode
+                if is_vscode_mode():
+                    from backend.tools.vscode_tools import vscode
+                    vscode.close_diff()
+            except Exception:
+                pass
+
     def set_project_root(self, root: str):
         """Set project root and reinitialize tools"""
         self.project_root = root
         if isinstance(self.tool_executor, RegistryToolExecutor):
             self.tool_executor.reinitialize(self.project_root)
-    
+
     def set_active_file(self, file_path: str):
         """Set active file (from VSCode)"""
         self.active_file = file_path
-    
+
     def set_max_retries(self, max_retries: int):
         """Set maximum retry count"""
         self.max_retries = max_retries
 
-
-    def _clean_system_reminders(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
-        """
-        清理历史消息中的 <system-reminder> 标签，只保留最后一条用户消息中的。
-
-        这样可以避免多轮对话中旧的 IDE 文件信息误导模型。
-        """
-        if not messages:
-            return messages
-
-        pattern = re.compile(r'<system-reminder>.*?</system-reminder>\s*', re.DOTALL)
-        cleaned = []
-
-        for i, msg in enumerate(messages):
-            is_last_user_msg = (
-                msg.get('role') == 'user' and
-                i == len(messages) - 1
-            )
-
-            if is_last_user_msg:
-                # 保留最后一条用户消息的 system-reminder
-                cleaned.append(msg)
-            elif msg.get('role') == 'user' and pattern.search(msg.get('content', '')):
-                # 清理历史用户消息中的 system-reminder
-                new_content = pattern.sub('', msg.get('content', '')).strip()
-                cleaned.append({**msg, 'content': new_content})
-            else:
-                cleaned.append(msg)
-
-        return cleaned
+    # 向后兼容：保留 tool_calls 属性
+    @property
+    def tool_calls(self) -> List[Dict[str, Any]]:
+        """获取工具调用历史（向后兼容）"""
+        return [
+            {
+                'function': {
+                    'name': cmd.tool_name,
+                    'arguments': cmd.arguments
+                },
+                'id': cmd.tool_call_id
+            }
+            for cmd in self.command_history.commands
+        ]
 
     def run(self, user_input: str, stream: bool = False, on_chunk=None) -> str:
         """
@@ -120,414 +207,294 @@ class AgentLoop:
 
         Args:
             user_input: User's request
-            stream: Enable streaming output (default: False)
-            on_chunk: Optional callback function for streaming chunks
+            stream: Enable streaming output
+            on_chunk: Callback for streaming chunks
 
         Returns:
             Agent's final response
         """
-        # Store stream mode for later use
         self._stream_mode = stream
 
-        # Add user message
+        # 发送循环开始事件
+        self.events.emit(AgentEvent.LOOP_STARTED, user_input=user_input)
+
+        # 添加用户消息
         user_message = {'role': 'user', 'content': user_input}
         self.conversation_history.append(user_message)
 
-        # Update token count
+        # 更新 token 计数
         self.token_counter.update_usage(
             'recent_messages',
             self.token_counter.count_messages(self.conversation_history)
         )
 
-        # 清理历史消息中的 system-reminder，只保留最新的
-        # 注意：角色系统提示现在通过 Modelfile 内置于 Ollama 模型中，无需动态注入
-        messages = self._clean_system_reminders(list(self.conversation_history))
+        # 使用管道处理消息
+        messages = self.message_pipeline.process(list(self.conversation_history))
 
         iteration = 0
-        
+
         while iteration < self.max_iterations:
             iteration += 1
+            self.events.emit(AgentEvent.ITERATION_STARTED, iteration=iteration)
 
-            # Get tool schemas from executor
-            tools = self.tool_executor.get_tool_schemas()
-
-            # Check if context would exceed token limit
+            # 检查 Token 限制
             current_tokens = self.token_counter.count_messages(messages)
             max_tokens = self.token_counter.max_tokens
 
-            if current_tokens > max_tokens * 0.95:  # 超过 95%
-                # 不调用 LLM，而是给出建议
-                suggestion_msg = self._create_token_limit_suggestion(current_tokens, max_tokens)
-                self.conversation_history.append({
-                    'role': 'system',
-                    'content': suggestion_msg
-                })
-
-                # 更新 messages 以包含建议
-                messages = self._clean_system_reminders(list(self.conversation_history))
-
-                # 继续循环，让 LLM 看到建议并重新规划
+            if current_tokens > max_tokens * 0.95:
+                self.events.emit(AgentEvent.TOKEN_LIMIT_WARNING,
+                               current=current_tokens, max=max_tokens)
+                suggestion = self._create_token_limit_suggestion(current_tokens, max_tokens)
+                self.conversation_history.append({'role': 'system', 'content': suggestion})
+                messages = self.message_pipeline.process(list(self.conversation_history))
                 continue
 
-            # DEBUG: Log request
-            import os
-            if os.getenv('DEBUG_AGENT'):
-                print(f"\n=== LLM REQUEST (iteration {iteration}) ===")
-                import json
-                print(f"Messages count: {len(messages)}")
-                print(f"Last message: {messages[-1] if messages else 'none'}")
-                print(f"Tools count: {len(tools)}")
-                if tools:
-                    print(f"First tool: {tools[0]['function']['name']}")
-                print("=== END REQUEST ===\n")
+            # 获取工具 schemas
+            tools = self.tool_executor.get_tool_schemas()
 
-            # Call LLM
+            # 调用 LLM
             try:
-                response = self.client.chat_with_tools(messages, tools, stream=stream, on_chunk=on_chunk)
+                self.events.emit(AgentEvent.LLM_REQUEST,
+                               message_count=len(messages), tool_count=len(tools))
 
-                # DEBUG: Log raw response
-                if os.getenv('DEBUG_AGENT'):
-                    print(f"\n=== RAW LLM RESPONSE (iteration {iteration}) ===")
-                    import json
-                    print(json.dumps(response, indent=2, ensure_ascii=False))
-                    print("=== END RAW RESPONSE ===\n")
+                response = self.client.chat_with_tools(
+                    messages, tools, stream=stream, on_chunk=on_chunk
+                )
+
+                self.events.emit(AgentEvent.LLM_RESPONSE, response=response)
 
             except Exception as e:
                 error_msg = f"LLM call failed: {e}"
-                self.conversation_history.append({
-                    'role': 'assistant',
-                    'content': error_msg
-                })
+                self.events.emit(AgentEvent.LLM_ERROR, error=str(e))
+                self.conversation_history.append({'role': 'assistant', 'content': error_msg})
                 return error_msg
 
-            # Extract message
+            # 解析响应
             assistant_message = response.get('message', {})
             content = assistant_message.get('content', '')
-
-            # Parse tool calls
             tool_calls = self.client.parse_tool_calls(response)
-            
-            # No tool calls - conversation complete
-            if not tool_calls:
-                self.conversation_history.append({
-                    'role': 'assistant',
-                    'content': content
-                })
-                return content
-            
-            # Execute tool calls
-            self.tool_calls.extend(tool_calls)
 
-            # Add assistant message with tool calls
+            # 无工具调用
+            if not tool_calls:
+                result = self._handle_no_tool_calls(content, iteration)
+                if result is not None:
+                    self.events.emit(AgentEvent.LOOP_ENDED, response=result)
+                    return result
+                messages = self.message_pipeline.process(list(self.conversation_history))
+                continue
+
+            # 有工具调用
             self.conversation_history.append({
                 'role': 'assistant',
                 'content': content,
                 'tool_calls': tool_calls
             })
 
-            # Display assistant's thinking before executing tools
-            # 在流式模式下，内容已经被实时打印了，不需要再次显示
-            if self.tool_output_callback and not self._stream_mode:
-                try:
-                    # Show assistant's content or a witty message
-                    if content and content.strip():
-                        self.tool_output_callback('__assistant_thinking__', content, {})
-                    else:
-                        self.tool_output_callback('__assistant_thinking__',
-                                                 '💭 AI正在指挥做事，没功夫说话...', {})
-                except Exception:
-                    pass
+            # 显示助手思考（非流式模式）
+            self._emit_assistant_thinking(content)
 
-            # Execute each tool
+            # 使用命令模式和责任链执行工具
             for tool_call in tool_calls:
-                tool_name = tool_call['function']['name']
+                command = CommandFactory.from_tool_call(tool_call)
 
-                # Parse arguments
-                try:
-                    arguments = tool_call['function']['arguments']
-                    if isinstance(arguments, str):
-                        import json
-                        arguments = json.loads(arguments)
-                except Exception as e:
-                    arguments = {}
+                # 创建执行上下文
+                ctx = ExecutionContext(
+                    tool_name=command.tool_name,
+                    arguments=command.arguments,
+                    tool_call_id=command.tool_call_id,
+                    tool_instance=self.tool_executor.registry.get(command.tool_name)
+                )
 
-                # Check if confirmation is needed
-                tool_instance = self.tool_executor.registry.get(tool_name)
-                if self.confirmation.needs_confirmation(tool_name, arguments):
-                    # Show preview before asking user to confirm (only when confirmation needed)
-                    if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
-                        try:
-                            tool_instance.get_diff_preview(**arguments)
-                        except Exception:
-                            # Preview failed, continue with confirmation
-                            pass
+                # 通过责任链执行
+                self.events.emit(AgentEvent.TOOL_EXECUTING,
+                               tool_name=command.tool_name, arguments=command.arguments)
 
-                    confirm_result = self.confirmation.confirm_tool_execution(tool_name, arguments)
+                ctx = self.execution_chain.execute(ctx)
 
-                    # DEBUG: Log confirmation result
-                    import os
-                    if os.getenv('DEBUG_AGENT') or os.getenv('DEBUG_CONFIRMATION'):
-                        print(f"[DEBUG] Confirmation result for {tool_name}: {confirm_result.action}")
+                # 记录命令
+                command.result = ctx.result
+                command.executed = True
+                command.success = ctx.error is None
+                command.error = ctx.error
+                self.command_history.add(command)
 
-                    if confirm_result.action == ConfirmAction.DENY:
-                        # Close diff preview if it was shown
-                        if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
-                            try:
-                                from backend.rpc.client import is_vscode_mode
-                                from backend.utils.feature import is_feature_enabled
-                                if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
-                                    from backend.tools.vscode_tools import vscode
-                                    vscode.close_diff()
-                            except Exception:
-                                # Failed to close diff, continue
-                                pass
+                self.events.emit(AgentEvent.TOOL_EXECUTED,
+                               tool_name=command.tool_name, result=ctx.result)
 
-                        # Build error message with user's reason
-                        if confirm_result.reason:
-                            error_msg = f'User declined: {confirm_result.reason}. Adjust parameters or ask for clarification.'
-                        else:
-                            error_msg = 'User declined this call. Tool is available - adjust parameters or ask for clarification.'
-
-                        # User denied - add error message and skip execution
-                        result = {
-                            'success': False,
-                            'error': error_msg,
-                            'denied_by_user': True
-                        }
-
-                        # Add tool result to history
-                        tool_message = {
-                            'role': 'tool',
-                            'content': self._format_tool_result(result),
-                            'tool_call_id': tool_call.get('id', f'call_{iteration}')
-                        }
-                        self.conversation_history.append(tool_message)
-
-                        # Continue loop - let LLM retry with adjusted parameters
-                        break
-
-                # Execute tool via executor
-                result = self.tool_executor.execute_tool(tool_name, arguments)
-
-                # DEBUG: Log tool execution result
-                import os
-                if os.getenv('DEBUG_AGENT') or os.getenv('DEBUG_CONFIRMATION'):
-                    success = result.get('success') if isinstance(result, dict) else 'N/A'
-                    msg = str(result)[:100] if result else 'None'
-                    print(f"[DEBUG] Tool {tool_name} executed: success={success}, result={msg}")
-
-                # Close diff preview after execution to ensure clean state
-                if tool_instance and hasattr(tool_instance, 'get_diff_preview'):
-                    try:
-                        from backend.rpc.client import is_vscode_mode
-                        from backend.utils.feature import is_feature_enabled
-                        if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
-                            from backend.tools.vscode_tools import vscode
-                            vscode.close_diff()
-                    except Exception:
-                        pass
-
-                # Call tool output callback if provided
-                if self.tool_output_callback:
-                    try:
-                        self.tool_output_callback(tool_name, result, arguments)
-                    except Exception as e:
-                        # Don't let callback errors break execution
-                        import os
-                        if os.getenv('DEBUG_AGENT'):
-                            print(f"Tool output callback error: {e}")
-
-                # DEBUG: Log tool results
-                import os
-                if os.getenv('DEBUG_AGENT'):
-                    print(f"\n=== TOOL RESULT: {tool_name} ===")
-                    print(f"Args: {arguments}")
-                    result_str = str(result)[:500]  # First 500 chars
-                    print(f"Result: {result_str}...")
-                    print("=== END TOOL RESULT ===\n")
-
-                # Track active files (using executor to check if file operation)
-                if self.tool_executor.is_file_operation(tool_name):
-                    file_path = arguments.get('path', '')
+                # 跟踪活动文件
+                if self.tool_executor.is_file_operation(command.tool_name):
+                    file_path = command.arguments.get('path', '')
                     if file_path and file_path not in self.active_files:
                         self.active_files.append(file_path)
 
-                # Add tool result to history
+                # 添加工具结果到历史
                 tool_message = {
                     'role': 'tool',
-                    'content': self._format_tool_result(result),
-                    'tool_call_id': tool_call.get('id', f'call_{iteration}')
+                    'content': self._format_tool_result(ctx.result),
+                    'tool_call_id': command.tool_call_id
                 }
                 self.conversation_history.append(tool_message)
 
-            # Update messages for next iteration
-            messages = self._clean_system_reminders(list(self.conversation_history))
+                # 如果被拒绝，中断当前工具调用循环
+                if ctx.result and isinstance(ctx.result, dict) and ctx.result.get('denied_by_user'):
+                    break
 
-            # Check if should compress
+            # 更新消息
+            messages = self.message_pipeline.process(list(self.conversation_history))
+
+            # 检查是否需要压缩
             if self.token_counter.should_compress(time.time()):
                 self._compress_context()
-        
-        # Max iterations reached
+
+            self.events.emit(AgentEvent.ITERATION_ENDED, iteration=iteration)
+
+        # 达到最大迭代
         final_msg = f"Reached maximum iterations ({self.max_iterations}). Task may be incomplete."
-        self.conversation_history.append({
-            'role': 'assistant',
-            'content': final_msg
-        })
+        self.conversation_history.append({'role': 'assistant', 'content': final_msg})
+        self.events.emit(AgentEvent.LOOP_ENDED, response=final_msg, max_iterations=True)
         return final_msg
-    
+
+    def _handle_no_tool_calls(self, content: str, iteration: int) -> Optional[str]:
+        """处理无工具调用的情况"""
+        continue_keywords = [
+            "I'll", "I will", "Let me", "Now I", "Next I", "let's", "Let's",
+            "I need to", "I should", "I'm going to", "need to check",
+            "First", "Then", "After", "Before", "Step", "start by",
+            "需要", "现在", "接下来", "让我", "我来", "查看", "检查",
+            "首先", "然后", "接着", "第一", "第二", "步骤"
+        ]
+        # 检查是否以冒号结尾（可能是列表开头）或任务未完成的迹象
+        ends_with_list_intro = content.rstrip().endswith(':')
+        seems_incomplete = any(kw in content for kw in continue_keywords) or ends_with_list_intro
+
+        if seems_incomplete and iteration < self.max_iterations - 1:
+            self.conversation_history.append({'role': 'assistant', 'content': content})
+            self.conversation_history.append({
+                'role': 'user',
+                'content': 'Continue. Use tools to complete the task.'
+            })
+            return None  # 继续循环
+
+        # 任务完成
+        self.conversation_history.append({'role': 'assistant', 'content': content})
+        return content
+
+    def _emit_assistant_thinking(self, content: str):
+        """发送助手思考事件"""
+        if self.tool_output_callback and not self._stream_mode:
+            try:
+                if content and content.strip():
+                    self.tool_output_callback('__assistant_thinking__', content, {})
+                    self.events.emit(AgentEvent.ASSISTANT_THINKING, content=content)
+                else:
+                    msg = '💭 AI正在指挥做事，没功夫说话...'
+                    self.tool_output_callback('__assistant_thinking__', msg, {})
+            except Exception:
+                pass
+
     def _create_token_limit_suggestion(self, current_tokens: int, max_tokens: int) -> str:
         """创建 token 超限建议消息"""
         usage_pct = (current_tokens / max_tokens) * 100
-
-        suggestion = f"""⚠️ Context Token Limit Alert
+        return f"""⚠️ Context Token Limit Alert
 
 Current context size: {current_tokens:,} tokens ({usage_pct:.1f}% of {max_tokens:,} limit)
 
-Your last request would exceed the token limit. Please use more targeted tools:
-
 **Recommended Actions:**
-
-1. **For file reading**: Use `line_range` parameter
-   - Instead of: view_file(path="large_file.cpp")
-   - Use: view_file(path="large_file.cpp", line_range=[1, 100])
-
-2. **For code search**: Use `grep_search` instead of reading entire files
-   - grep_search(pattern="function_name", path="directory")
-
-3. **For directory listing**: Limit depth
-   - list_dir(path=".", max_depth=2)
-
-4. **Break down the task**: Work on smaller sections incrementally
-
-Please reformulate your request with more specific, targeted tool calls.
+1. Use `line_range` parameter for file reading
+2. Use `grep_search` instead of reading entire files
+3. Limit directory listing depth
+4. Break down the task into smaller sections
 """
-        return suggestion
 
     def _format_tool_result(self, result: Any) -> str:
         """Format tool result for LLM"""
         import json
-
         if isinstance(result, dict):
-            # Truncate large content
             if 'content' in result:
-                content = result['content']
                 result = result.copy()
-                result['content'] = self.token_counter.truncate_tool_result(content)
-
+                result['content'] = self.token_counter.truncate_tool_result(result['content'])
             return json.dumps(result, ensure_ascii=False, indent=2)
-        else:
-            return str(result)
-    
+        return str(result)
+
     def _compress_context(self):
         """Compress conversation history"""
-        # Build must-keep information
-        must_keep = f"""
-Active files: {', '.join(self.active_files)}
-Project structure: {self.project_root}
-"""
-        
-        # Build compressible content
+        must_keep = f"Active files: {', '.join(self.active_files)}\nProject: {self.project_root}"
         compressible = f"{len(self.conversation_history)} messages"
-        
-        # Get current and target tokens
-        current_tokens = self.token_counter.count_messages(self.conversation_history)
         target_tokens = self.token_counter.get_compression_target()
-        
+
         try:
-            # Call LLM to compress
             compression_result = self.client.compress_context(
-                self.conversation_history,
-                target_tokens,
-                must_keep,
-                compressible
+                self.conversation_history, target_tokens, must_keep, compressible
             )
-            
-            # Apply compression
+
             keep_indices = compression_result.get('keep_message_indices', [])
             compressed_summary = compression_result.get('compressed_summary', '')
-            
-            # Build new history
+
             new_history = []
-            
-            # Add compressed summary
             if compressed_summary:
                 new_history.append({
                     'role': 'system',
                     'content': f"[Compressed History]\n{compressed_summary}"
                 })
-            
-            # Add kept messages
+
             for idx in keep_indices:
                 if 0 <= idx < len(self.conversation_history):
                     new_history.append(self.conversation_history[idx])
-            
-            # Update history
+
             self.conversation_history = new_history
-            
-            # Update token count
             self.token_counter.update_usage(
                 'compressed_history',
                 self.token_counter.count_messages(new_history)
             )
-            
-            # Update last compression time
             self.token_counter.last_compression_time = time.time()
-            
+
+            self.events.emit(AgentEvent.CONTEXT_COMPRESSED,
+                           original_count=len(self.conversation_history),
+                           new_count=len(new_history))
+
         except Exception as e:
             print(f"Warning: Context compression failed: {e}")
-    
+
     def get_usage_report(self) -> str:
         """Get token usage report"""
         return self.token_counter.get_usage_report()
-    
+
     def save_session(self, session_file: str):
         """Save current session to file"""
         import json
         from datetime import datetime
-        
+
         session_data = {
             'timestamp': datetime.now().isoformat(),
             'project_root': self.project_root,
             'active_files': self.active_files,
-            'last_error': self.conversation_history[-1].get('content', '') if self.conversation_history else '',
-            'attempted_fixes': [
-                {
-                    'tool': call['function']['name'],
-                    'arguments': call['function'].get('arguments', {})
-                }
-                for call in self.tool_calls[-5:]  # Last 5 tool calls
-            ],
+            'command_history': self.command_history.summary(),
+            'last_commands': [cmd.to_dict() for cmd in self.command_history.get_last(5)],
             'compressed_context': self._get_context_summary(),
             'next_steps': self._suggest_next_steps()
         }
-        
+
         with open(session_file, 'w', encoding='utf-8', newline='\n') as f:
             json.dump(session_data, f, indent=2, ensure_ascii=False)
-    
+
     def _get_context_summary(self) -> str:
         """Get summary of current context"""
-        summary_parts = [
-            f"Files modified: {len(self.active_files)}",
-            f"Tool calls: {len(self.tool_calls)}",
-            f"Messages: {len(self.conversation_history)}"
-        ]
-        return '; '.join(summary_parts)
-    
+        summary = self.command_history.summary()
+        return f"Tools: {summary['executed']}, Success: {summary['successful']}, Failed: {summary['failed']}"
+
     def _suggest_next_steps(self) -> List[str]:
         """Suggest next steps based on current state"""
         suggestions = []
-        
-        # Check if there were compilation errors
-        if any('error' in str(call).lower() for call in self.tool_calls[-3:]):
-            suggestions.append("Review compilation errors manually")
-            suggestions.append("Check if dependencies are properly configured")
-        
-        # Check if files were modified
+
+        failed = self.command_history.get_failed()
+        if failed:
+            suggestions.append("Review failed tool calls")
+            suggestions.append("Check error messages and adjust parameters")
+
         if self.active_files:
             suggestions.append(f"Review changes in: {', '.join(self.active_files[:3])}")
-        
-        # Default suggestion
+
         if not suggestions:
             suggestions.append("Verify the changes and test manually")
-        
+
         return suggestions

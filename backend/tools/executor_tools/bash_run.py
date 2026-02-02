@@ -5,15 +5,16 @@ BashRun Tool - 执行 bash/shell 命令
 
 import platform
 import shlex
-from typing import Dict, Any, Optional, List, Callable, Union
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 from backend.tools.base import BaseTool, ToolResult
 from backend.utils.feature import is_feature_enabled
+
 from .bash_session import BashSession
 from .exceptions import ExecutorError
-
 
 # 跨平台命令白名单
 WHITELIST_COMMON = [
@@ -114,15 +115,7 @@ class BashRunTool(BaseTool):
 
     @property
     def description(self) -> str:
-        whitelist = get_whitelist()
-        sample = ', '.join(whitelist[:12])
-        return (
-            f"Execute shell command. Allowed: {sample}, ... "
-            f"Supports pipes (| on Unix/Windows/PowerShell) and redirects. "
-            f"IMPORTANT: Prefer specialized tools (grep_search, view_file, edit_file, "
-            f"list_dir, git, etc.) when available. Use bash_run ONLY for pipes or "
-            f"when no equivalent tool exists."
-        )
+        return "Execute shell command (cmake, make, gcc, git, etc.)."
 
     @property
     def category(self) -> str:
@@ -167,14 +160,14 @@ class BashRunTool(BaseTool):
         finally:
             session.close()
 
-    def get_confirmation_signature(self, arguments: Dict[str, Any]) -> str:
+    def confirmation_signature(self, arguments: Dict[str, Any]) -> str:
         """按基础命令分组确认，例如 bash_run:ls, bash_run:git"""
         command = arguments.get('command', '')
         # 提取基础命令（第一个词）
         base_cmd = command.split()[0] if command else ''
         return f"{self.name}:{base_cmd}"
 
-    def is_dangerous_operation(self, arguments: Dict[str, Any]) -> bool:
+    def is_dangerous(self, arguments: Dict[str, Any]) -> bool:
         """检查命令是否危险"""
         command = arguments.get('command', '')
 

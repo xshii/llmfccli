@@ -8,8 +8,7 @@ some open-source models), this adapter simulates tool calling through prompts.
 
 import json
 import re
-from typing import List, Dict, Any, Optional
-
+from typing import Any, Dict, List, Optional
 
 # Prompt template for simulating tool calls
 TOOL_CALL_SYSTEM_PROMPT = """You are an AI assistant with access to tools. When you need to use a tool, output a JSON block in the following format:

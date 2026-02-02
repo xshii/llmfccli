@@ -1,6 +1,6 @@
 [project]
 name = "claude-qwen"
-version = "0.1.0"
+version = "1.0.0"
 description = "AI coding assistant powered by Ollama + Qwen3 for C/C++ development"
 readme = "README.md"
 requires-python = ">=3.10"

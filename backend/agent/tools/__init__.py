@@ -4,20 +4,19 @@ Agent tools module - dynamic tool discovery, execution, and confirmation
 """
 
 # Tool registry (dynamic discovery)
-from .registry import ToolRegistry
-
-# Tool execution
-from .executor import ToolExecutor, RegistryToolExecutor, MockToolExecutor
-
 # Tool confirmation
 from .confirmation import ConfirmAction, ConfirmResult, ToolConfirmation
 
+# Tool execution
+from .executor import MockToolExecutor, RegistryToolExecutor, ToolExecutor
+from .registry import ToolRegistry
+
 # Backward compatible API from schemas.py
 from .schemas import (
-    registry,
-    get_tool_schemas,
     execute_tool,
+    get_tool_schemas,
     initialize_tools,
+    registry,
 )
 
 __all__ = [

@@ -11,9 +11,8 @@ import socket
 import threading
 import time
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
-from queue import Queue, Empty
-
+from queue import Empty, Queue
+from typing import Any, Dict, Optional, Tuple
 
 # 默认 socket 路径
 DEFAULT_SOCKET_PATH = "/tmp/claude-qwen.sock"

@@ -3,7 +3,7 @@
 Git version control tools
 """
 
-from .git import git, GitError
+from .git import GitError, git
 from .git_tool import GitTool
 
 __all__ = ['git', 'GitError', 'GitTool']

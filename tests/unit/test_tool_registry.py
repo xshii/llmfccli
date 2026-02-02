@@ -10,7 +10,7 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
-from backend.agent.tool_registry import ToolRegistry
+from backend.agent.tools.registry import ToolRegistry
 
 
 def test_tool_discovery():

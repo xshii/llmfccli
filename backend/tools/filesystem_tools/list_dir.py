@@ -4,17 +4,14 @@ ListDir Tool - 列出目录内容
 """
 
 import os
-import subprocess
 import platform
-from typing import Dict, Any
+import subprocess
+from typing import Any, Dict
+
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool, ToolResult
-
-
-class FileSystemError(Exception):
-    """Filesystem operation error"""
-    pass
+from backend.constants import Limit, Timeout, ToolDefaults
+from backend.tools.base import BaseTool, FileSystemError, ToolResult
 
 
 class ListDirParams(BaseModel):
@@ -25,8 +22,8 @@ class ListDirParams(BaseModel):
         json_schema_extra={"format": "filepath"}
     )
     max_depth: int = Field(
-        3,
-        description="Maximum traversal depth (default 3)"
+        ToolDefaults.LIST_DIR_DEPTH,
+        description=f"Maximum traversal depth (default {ToolDefaults.LIST_DIR_DEPTH})"
     )
 
 
@@ -45,14 +42,15 @@ class ListDirTool(BaseTool):
         }
 
     def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
+        depth = ToolDefaults.LIST_DIR_DEPTH
         return {
             'path': {
                 'en': 'Directory path (default \'.\')',
                 'zh': '目录路径（默认 \'.\'）',
             },
             'max_depth': {
-                'en': 'Maximum traversal depth (default 3)',
-                'zh': '最大遍历深度（默认 3）',
+                'en': f'Maximum traversal depth (default {depth})',
+                'zh': f'最大遍历深度（默认 {depth}）',
             },
         }
 
@@ -68,21 +66,13 @@ class ListDirTool(BaseTool):
     def parameters_model(self):
         return ListDirParams
 
-    def execute(self, path: str = ".", max_depth: int = 3) -> Dict[str, Any]:
+    def execute(self, path: str = ".", max_depth: int = ToolDefaults.LIST_DIR_DEPTH) -> Dict[str, Any]:
         """执行目录列表"""
-        # Resolve path
-        if not os.path.isabs(path) and self.project_root:
-            dir_path = os.path.join(self.project_root, path)
-        else:
-            dir_path = path
-
-        dir_path = os.path.abspath(dir_path)
-
-        # Security check
-        if self.project_root:
-            project_root = os.path.abspath(self.project_root)
-            if not dir_path.startswith(project_root):
-                raise FileSystemError(f"Path {path} is outside project root")
+        # Resolve path and validate security
+        try:
+            dir_path = self.resolve_and_validate_path(path)
+        except ValueError as e:
+            raise FileSystemError(str(e))
 
         # Check directory exists
         if not os.path.exists(dir_path):
@@ -103,12 +93,12 @@ class ListDirTool(BaseTool):
     def _list_dir_unix(self, dir_path: str, max_depth: int) -> str:
         """Use find + wc -l on Unix/Linux/Mac"""
         # Use find to list files with depth limit, then wc -l for line count
-        # find . -maxdepth 3 -type f -not -path '*/.*' | head -500
-        cmd = f"find '{dir_path}' -maxdepth {max_depth} -not -path '*/.*' | head -500"
+        max_files = Limit.FILE_LIST_MAX
+        cmd = f"find '{dir_path}' -maxdepth {max_depth} -not -path '*/.*' | head -{max_files}"
 
         try:
             result = subprocess.run(
-                cmd, shell=True, capture_output=True, text=True, timeout=30
+                cmd, shell=True, capture_output=True, text=True, timeout=Timeout.MEDIUM
             )
             files = result.stdout.strip().split('\n') if result.stdout.strip() else []
         except subprocess.TimeoutExpired:
@@ -145,7 +135,7 @@ class ListDirTool(BaseTool):
         try:
             result = subprocess.run(
                 ['file', '--mime', file_path],
-                capture_output=True, text=True, timeout=5
+                capture_output=True, text=True, timeout=Timeout.QUICK
             )
             if 'binary' in result.stdout.lower() or 'application/' in result.stdout:
                 if 'text' not in result.stdout.lower():
@@ -157,7 +147,7 @@ class ListDirTool(BaseTool):
         try:
             result = subprocess.run(
                 ['wc', '-l', file_path],
-                capture_output=True, text=True, timeout=5
+                capture_output=True, text=True, timeout=Timeout.QUICK
             )
             if result.returncode == 0:
                 # wc -l output: "  123 filename"
@@ -172,7 +162,7 @@ class ListDirTool(BaseTool):
         try:
             result = subprocess.run(
                 f'dir /s /b "{dir_path}"',
-                shell=True, capture_output=True, text=True, timeout=30
+                shell=True, capture_output=True, text=True, timeout=Timeout.MEDIUM
             )
             files = result.stdout.strip().split('\n') if result.stdout.strip() else []
         except subprocess.TimeoutExpired:
@@ -180,8 +170,9 @@ class ListDirTool(BaseTool):
 
         lines = []
         count = 0
+        max_files = Limit.FILE_LIST_MAX
         for file_path in files:
-            if not file_path or count >= 500:
+            if not file_path or count >= max_files:
                 break
 
             rel_path = os.path.relpath(file_path.strip(), dir_path)
@@ -210,7 +201,7 @@ class ListDirTool(BaseTool):
             # find /c /v "" counts all lines
             result = subprocess.run(
                 f'find /c /v "" "{file_path}"',
-                shell=True, capture_output=True, text=True, timeout=5
+                shell=True, capture_output=True, text=True, timeout=Timeout.QUICK
             )
             if result.returncode == 0:
                 # Output: "---------- FILENAME: 123"

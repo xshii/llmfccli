@@ -3,12 +3,12 @@
 /session 命令 - 管理会话
 """
 
-from typing import List, Optional
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.prompt import Prompt
 from datetime import datetime
+from typing import List, Optional
+
+from rich.console import Console
+from rich.prompt import Prompt
+from rich.table import Table
 
 from .base import Command
 

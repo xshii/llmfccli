@@ -9,12 +9,14 @@ Role 命令 - 角色切换管理
 """
 
 from typing import List
+
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
+
+from backend.roles import get_role_manager
 
 from .base import Command
-from backend.roles import get_role_manager
 
 
 class RoleCommand(Command):

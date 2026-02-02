@@ -6,7 +6,8 @@
 import importlib
 import inspect
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Type
+from typing import Dict, List, Optional, Type
+
 from rich.console import Console
 
 from .commands.base import Command

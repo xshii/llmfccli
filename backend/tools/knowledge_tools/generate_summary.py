@@ -8,7 +8,8 @@ GenerateSummary Tool - 生成文本摘要
 3. 支持多种摘要格式
 """
 
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 from pydantic import BaseModel, Field
 
 from backend.tools.base import BaseTool
@@ -144,7 +145,7 @@ class GenerateSummaryTool(BaseTool):
 
         if format == "bullet_points":
             prompt_parts.append("请以要点形式总结以下文本的核心内容：")
-            prompt_parts.append(f"- 生成 3-5 个要点")
+            prompt_parts.append("- 生成 3-5 个要点")
             prompt_parts.append(f"- 每个要点 {min_length // 3}-{max_length // 3} 字")
         else:
             prompt_parts.append("请生成以下文本的摘要：")

@@ -72,3 +72,6 @@ tests/fixtures/**/CMakeLists.txt
 
 # E2E test cases (generated fixtures)
 tests/fixtures/e2e-cases/
+
+# Benchmark reports
+tests/benchmark/report_*.json

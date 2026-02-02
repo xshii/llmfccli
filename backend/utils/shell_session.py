@@ -12,13 +12,13 @@ Supports:
 - Windows: cmd.exe
 """
 
+import os
+import platform
 import subprocess
 import threading
 import time
-import os
-import platform
-from typing import Optional, Tuple, Iterator, Callable
-from queue import Queue, Empty
+from queue import Empty, Queue
+from typing import Callable, Optional, Tuple
 
 
 class PersistentShellSession:

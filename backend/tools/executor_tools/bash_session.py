@@ -7,8 +7,8 @@ between CLI /cmd and Agent bash_run tool.
 """
 
 import time
-from typing import Dict, Any, Optional, Callable
 from pathlib import Path
+from typing import Any, Callable, Dict, Optional
 
 from backend.utils.shell_session import PersistentShellSession
 

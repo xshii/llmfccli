@@ -67,7 +67,7 @@ def test_registry_get_tool_metadata():
     print("   ✓ 不存在的工具正确返回 None")
 
     # Test 6: 测试 CLI 中实际使用的方式
-    print("\n6. 模拟 CLI _confirm_tool_execution 中的使用...")
+    print("\n6. 模拟 CLI _on_confirm 中的使用...")
     tool_name = 'view_file'
     tool_metadata = registry.get_tool_metadata(tool_name)
     param_formats = {}

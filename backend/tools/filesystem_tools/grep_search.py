@@ -4,17 +4,13 @@ GrepSearch Tool - Search for patterns in files using ripgrep
 """
 
 import os
-import re
 import subprocess
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, Optional
+
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool, ToolResult
-
-
-class FileSystemError(Exception):
-    """Filesystem operation error"""
-    pass
+from backend.constants import Limit, ToolDefaults
+from backend.tools.base import BaseTool, FileSystemError, ToolResult
 
 
 class GrepSearchParams(BaseModel):
@@ -41,21 +37,8 @@ class GrepSearchTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': (
-                "Search for pattern in files using ripgrep. Returns structured JSON results "
-                "(file path, line number, matched content). Preferred over bash_run for code search. "
-                "Use bash_run instead ONLY when you need pipes (grep | head | wc) or complex shell combinations.\n\n"
-                'GOOD: pattern="class.*Calculator", file_pattern="*.cpp"\n'
-                'GOOD: pattern="void initialize\\(", scope="src/"\n'
-                'BAD: Using bash_run with grep for simple pattern search'
-            ),
-            'zh': (
-                "使用 ripgrep 搜索文件内容。返回结构化 JSON 结果（文件路径、行号、匹配内容）。"
-                "优先使用此工具进行代码搜索。仅当需要管道（grep | head | wc）或复杂 shell 组合时才使用 bash_run。\n\n"
-                '好例子：pattern="class.*Calculator", file_pattern="*.cpp"\n'
-                '好例子：pattern="void initialize\\(", scope="src/"\n'
-                '坏例子：简单搜索却使用 bash_run grep'
-            )
+            'en': 'Search for pattern (regex) in files.',
+            'zh': '在文件中搜索模式（正则表达式）。'
         }
 
 
@@ -101,19 +84,11 @@ class GrepSearchTool(BaseTool):
         Raises:
             FileSystemError: If scope is outside project root or search fails
         """
-        # Resolve scope path
-        if not os.path.isabs(scope) and self.project_root:
-            scope_path = os.path.join(self.project_root, scope)
-        else:
-            scope_path = scope
-
-        scope_path = os.path.abspath(scope_path)
-
-        # Security check
-        if self.project_root:
-            project_root = os.path.abspath(self.project_root)
-            if not scope_path.startswith(project_root):
-                raise FileSystemError(f"Scope {scope} is outside project root")
+        # Resolve scope path and validate security
+        try:
+            scope_path = self.resolve_and_validate_path(scope)
+        except ValueError as e:
+            raise FileSystemError(str(e))
 
         # Check scope exists
         if not os.path.exists(scope_path):
@@ -129,7 +104,7 @@ class GrepSearchTool(BaseTool):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=ToolDefaults.GREP_TIMEOUT
             )
 
             matches = []
@@ -151,14 +126,15 @@ class GrepSearchTool(BaseTool):
             if not matches:
                 return ToolResult.success(f"No matches found for '{pattern}'")
 
-            lines = [f"{m['file']}:{m['line']}: {m['content']}" for m in matches[:50]]
-            if len(matches) > 50:
-                lines.append(f"... ({len(matches) - 50} more matches)")
+            max_results = Limit.SEARCH_RESULTS_MAX
+            lines = [f"{m['file']}:{m['line']}: {m['content']}" for m in matches[:max_results]]
+            if len(matches) > max_results:
+                lines.append(f"... ({len(matches) - max_results} more matches)")
 
             return ToolResult.success('\n'.join(lines))
 
         except subprocess.TimeoutExpired:
-            raise FileSystemError("Search timeout (>30s)")
+            raise FileSystemError(f"Search timeout (>{ToolDefaults.GREP_TIMEOUT}s)")
         except FileNotFoundError:
             raise FileSystemError("rg (ripgrep) not installed")
         except Exception as e:

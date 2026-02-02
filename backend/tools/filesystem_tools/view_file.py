@@ -4,15 +4,11 @@ ViewFile Tool - Read file contents with optional line range
 """
 
 import os
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
+
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool, ToolResult
-
-
-class FileSystemError(Exception):
-    """Filesystem operation error"""
-    pass
+from backend.tools.base import BaseTool, FileSystemError, ToolResult
 
 
 class ViewFileParams(BaseModel):
@@ -37,18 +33,8 @@ class ViewFileTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': (
-                'Read file contents with line numbers. Useful to see current content and line numbers before editing.\n\n'
-                'Examples:\n'
-                '  path="src/main.py"  # View entire file\n'
-                '  path="src/main.py", line_range=[100, 150]  # View lines 100-150 of large file'
-            ),
-            'zh': (
-                '读取文件内容（包含行号）。在编辑前查看当前内容和行号很有用。\n\n'
-                '示例：\n'
-                '  path="src/main.py"  # 查看整个文件\n'
-                '  path="src/main.py", line_range=[100, 150]  # 查看大文件的第 100-150 行'
-            )
+            'en': 'Read file contents with line numbers.',
+            'zh': '读取文件内容（包含行号）。'
         }
 
 
@@ -89,31 +75,18 @@ class ViewFileTool(BaseTool):
         Raises:
             FileSystemError: If file not found, invalid range, or read fails
         """
-        # Resolve path
-        if not os.path.isabs(path) and self.project_root:
-            path = os.path.join(self.project_root, path)
+        # Resolve path and validate security
+        try:
+            path = self.resolve_and_validate_path(path)
+        except ValueError as e:
+            raise FileSystemError(str(e))
 
-        path = os.path.abspath(path)
-
-        # Security check - prevent path traversal
-        if self.project_root:
-            project_root = os.path.abspath(self.project_root)
-            if not path.startswith(project_root):
-                raise FileSystemError(f"Path {path} is outside project root {project_root}")
-
-        # Check file exists
+        # Check file exists (with fuzzy matching fallback)
         if not os.path.exists(path):
-            # Try to find similar file
-            from backend.cli.path_utils import PathUtils
-            path_utils = PathUtils(self.project_root or os.getcwd())
-            original_path = path
-            similar = path_utils.find_similar_file(path)
-            if similar:
-                # Use the similar file
-                path = os.path.join(self.project_root or os.getcwd(), similar)
-                path = os.path.abspath(path)
-            else:
-                raise FileSystemError(f"File not found: {original_path}")
+            try:
+                path = self.find_file_with_fallback(path)
+            except FileNotFoundError as e:
+                raise FileSystemError(str(e))
 
         if not os.path.isfile(path):
             raise FileSystemError(f"Not a file: {path}")

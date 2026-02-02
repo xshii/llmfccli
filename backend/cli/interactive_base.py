@@ -6,14 +6,12 @@
 """
 
 import cmd
-import sys
-from typing import Optional, Dict, Callable, Any
-from pathlib import Path
+from typing import Callable, Dict, Optional
 
 from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.table import Table
 
 
 class InteractiveShellBase(cmd.Cmd):

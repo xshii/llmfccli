@@ -8,10 +8,11 @@ SaveKnowledge Tool - 保存知识条目
 3. 支持知识关联关系
 """
 
-import os
 import json
+import os
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 from backend.tools.base import BaseTool

@@ -4,13 +4,15 @@ Ollama client for Qwen3 model
 """
 
 import json
-import time
+import os
 import subprocess
-from typing import List, Dict, Any, Optional, Callable
 from pathlib import Path
-import yaml
+from typing import Any, Callable, Dict, List, Optional
 
 from .base import BaseLLMClient
+from .config import load_llm_config, get_project_root
+from .retry import RetryConfig, with_retry
+from .compression import compress_context, estimate_tokens_chinese
 
 
 class OllamaClient(BaseLLMClient):
@@ -21,63 +23,28 @@ class OllamaClient(BaseLLMClient):
         Initialize Ollama client
 
         Args:
-            config_path: Path to llm.yaml or ollama.yaml config file
+            config_path: Path to llm.yaml config file
             config: Direct config dict (takes precedence over config_path)
         """
         # Load configuration
-        if config is not None:
-            # Use provided config directly
-            self.config = config
-        else:
-            if config_path is None:
-                # Try llm.yaml first, fallback to ollama.yaml
-                project_root = Path(__file__).parent.parent.parent
-                llm_config_path = project_root / "config" / "llm.yaml"
-                ollama_config_path = project_root / "config" / "ollama.yaml"
+        self.config = load_llm_config(config_path, config, section='ollama')
 
-                if llm_config_path.exists():
-                    config_path = llm_config_path
-                elif ollama_config_path.exists():
-                    config_path = ollama_config_path
-                else:
-                    config_path = None
+        # 验证必需配置
+        self.base_url = self.config.get('base_url')
+        if not self.base_url:
+            raise ValueError("配置缺少 base_url")
 
-            if config_path and Path(config_path).exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    full_config = yaml.safe_load(f)
-                self.config = full_config.get('ollama', {})
-            else:
-                # Use default config if file not found
-                self.config = {
-                    'base_url': 'http://localhost:11434',
-                    'model': 'qwen3',
-                    'timeout': 300,
-                    'stream': False,
-                    'generation': {
-                        'temperature': 0.1,
-                        'top_p': 0.9,
-                        'top_k': 40,
-                        'num_ctx': 131072,
-                        'repeat_penalty': 1.1,
-                        'num_predict': 4096
-                    },
-                    'retry': {
-                        'max_attempts': 3,
-                        'backoff_factor': 2,
-                        'initial_delay': 1
-                    }
-                }
+        self.model = self.config.get('model') or self.config.get('models', {}).get('main')
+        if not self.model:
+            raise ValueError("配置缺少 model")
 
-        self.base_url = self.config.get('base_url', 'http://localhost:11434')
-        self.model = self.config.get('model') or self.config.get('models', {}).get('main', 'qwen3')
         self.timeout = self.config.get('timeout', 300)
         self.generation_params = self.config.get('generation', {})
-        self.retry_config = self.config.get('retry', {
-            'max_attempts': 3,
-            'backoff_factor': 2,
-            'initial_delay': 1
-        })
+        self.retry_config = RetryConfig.from_dict(
+            self.config.get('retry', {})
+        )
         self.stream_enabled = self.config.get('stream', False)
+        self.think_enabled = self.config.get('think', False)  # 思考模式（GLM-4.7）
 
         # Session-based logging
         self._session_request_file: Optional[Path] = None
@@ -85,13 +52,13 @@ class OllamaClient(BaseLLMClient):
         self._request_count = 0
 
         # Initialize log directory
-        self._log_dir = Path(__file__).parent.parent.parent / 'logs'
+        self._log_dir = get_project_root() / 'logs'
         self._log_dir.mkdir(exist_ok=True)
 
         # Start new session
         self.start_new_session()
 
-        # Track last request/conversation file for debugging (deprecated, use session files)
+        # Track last request/conversation file for debugging
         self.last_request_file = None
         self.last_conversation_file = None
 
@@ -99,12 +66,7 @@ class OllamaClient(BaseLLMClient):
         self._warmup()
 
     def start_new_session(self):
-        """
-        开始新的日志会话
-
-        创建新的 request 和 conversation 日志文件。
-        在 CLI 启动和 /clear 命令后调用。
-        """
+        """开始新的日志会话"""
         from datetime import datetime
 
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -112,31 +74,20 @@ class OllamaClient(BaseLLMClient):
         self._session_conversation_file = self._log_dir / f'session_{timestamp}_conversations.log'
         self._request_count = 0
 
-        # 写入会话头
         with open(self._session_conversation_file, 'w', encoding='utf-8', newline='\n') as f:
             f.write(f"# Session started at {datetime.now().isoformat()}\n")
             f.write("=" * 80 + "\n\n")
 
     def _get_current_model(self) -> str:
-        """
-        获取当前应使用的模型
-
-        优先使用角色管理器的模型，回退到配置文件中的默认模型
-
-        Returns:
-            模型名称
-        """
+        """获取当前应使用的模型"""
         try:
             from backend.roles import get_role_manager
             role_manager = get_role_manager()
             role_model = role_manager.get_model()
-            # 检查角色模型是否存在，如果不存在则回退到默认模型
             if role_manager.check_role_model_exists():
                 return role_model
-            # 角色模型不存在，使用默认模型
             return self.model
         except Exception:
-            # 角色管理器不可用时，使用默认模型
             return self.model
 
     def chat(
@@ -147,26 +98,10 @@ class OllamaClient(BaseLLMClient):
         on_chunk: Optional[Callable[[str], None]] = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Send chat request to Qwen3 using curl
-
-        Args:
-            messages: List of message dicts with 'role' and 'content'
-            tools: Optional list of tool definitions for function calling
-            stream: Enable streaming output (default: False)
-            on_chunk: Optional callback function called with each content chunk
-            **kwargs: Override generation parameters
-
-        Returns:
-            Response dict with 'message' and optional 'tool_calls'
-        """
-        # Merge generation params with kwargs
+        """Send chat request to Qwen3 using curl"""
         params = {**self.generation_params, **kwargs}
-
-        # 获取当前角色的模型
         current_model = self._get_current_model()
 
-        # Prepare request
         data = {
             'model': current_model,
             'messages': messages,
@@ -175,164 +110,154 @@ class OllamaClient(BaseLLMClient):
 
         if params:
             data['options'] = params
-
         if tools:
             data['tools'] = tools
+        if self.think_enabled:
+            data['think'] = True
 
-        # Retry logic
-        max_attempts = self.retry_config['max_attempts']
-        backoff_factor = self.retry_config['backoff_factor']
-        initial_delay = self.retry_config['initial_delay']
+        def do_request():
+            return self._execute_curl_request(data, on_chunk)
 
-        for attempt in range(max_attempts):
-            try:
-                # Write JSON to temp file
-                import tempfile
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False)
-                    temp_file = f.name
+        return with_retry(do_request, self.retry_config)
 
-                curl_cmd = ['curl', '-s', '-N', '--noproxy', 'localhost',
-                           f'{self.base_url}/api/chat', '-d', f'@{temp_file}']
+    def _execute_curl_request(
+        self,
+        data: Dict,
+        on_chunk: Optional[Callable[[str], None]] = None
+    ) -> Dict[str, Any]:
+        """Execute curl request to Ollama"""
+        import tempfile
+        from datetime import datetime
 
-                # Save request to session log (append mode)
-                import os
-                from datetime import datetime
+        # Write JSON to temp file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False)
+            temp_file = f.name
 
-                self._request_count += 1
-                request_timestamp = datetime.now().isoformat()
+        curl_cmd = ['curl', '-s', '-N', '--noproxy', 'localhost',
+                   '-w', '\n{"http_code":%{http_code}}',  # 输出 HTTP 状态码
+                   f'{self.base_url}/api/chat', '-d', f'@{temp_file}']
 
-                with open(temp_file, 'r', encoding='utf-8') as f:
-                    request_data = json.load(f)
+        # Log request
+        self._request_count += 1
+        request_timestamp = datetime.now().isoformat()
 
-                # Append to session request file (JSONL format)
-                if self._session_request_file:
-                    with open(self._session_request_file, 'a', encoding='utf-8', newline='\n') as f:
-                        log_entry = {
-                            'request_id': self._request_count,
-                            'timestamp': request_timestamp,
-                            'data': request_data
-                        }
-                        f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-                    self.last_request_file = str(self._session_request_file)
+        with open(temp_file, 'r', encoding='utf-8') as f:
+            request_data = json.load(f)
 
-                if os.getenv('DEBUG_AGENT'):
-                    print(f"\n=== CURL REQUEST #{self._request_count} ===")
-                    print(f"Session log: {self._session_request_file}")
-                    print(f"=== END CURL REQUEST ===\n")
+        if self._session_request_file:
+            with open(self._session_request_file, 'a', encoding='utf-8', newline='\n') as f:
+                log_entry = {
+                    'request_id': self._request_count,
+                    'timestamp': request_timestamp,
+                    'data': request_data
+                }
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            self.last_request_file = str(self._session_request_file)
 
-                if os.getenv('DEBUG_AGENT') or os.getenv('DEBUG_LLM'):
-                    print(f"\033[90mExecuting: curl -s -N \"{self.base_url}/api/chat\" -d @{temp_file}\033[0m")
+        if os.getenv('DEBUG_AGENT') or os.getenv('DEBUG_LLM'):
+            print(f"\033[90mExecuting: curl -s -N \"{self.base_url}/api/chat\" -d @{temp_file}\033[0m")
 
-                # Stream response
-                process = subprocess.Popen(
-                    curl_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    encoding='utf-8'
-                )
+        # Stream response
+        process = subprocess.Popen(
+            curl_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8'
+        )
 
-                full_response = ""
-                tool_calls = []
-                stop_tokens = ['<|endoftext|>', '<|im_end|>']
-                raw_lines = []
+        full_response = ""
+        tool_calls = []
+        stop_tokens = ['<|endoftext|>', '<|im_end|>']
+        raw_lines = []
 
-                for line in process.stdout:
-                    if os.getenv('DEBUG_AGENT'):
-                        raw_lines.append(line)
-                    if line.strip():
+        for line in process.stdout:
+            if os.getenv('DEBUG_AGENT'):
+                raw_lines.append(line)
+            if line.strip():
+                try:
+                    chunk = json.loads(line)
+
+                    if 'message' in chunk and 'content' in chunk['message']:
+                        content = chunk['message']['content']
+                        full_response += content
+
+                        if on_chunk and content:
+                            on_chunk(content.replace('\r', ''))
+
+                        for token in stop_tokens:
+                            if token in full_response:
+                                full_response = full_response.split(token)[0]
+                                process.kill()
+                                break
+
+                    if 'message' in chunk and 'tool_calls' in chunk['message']:
+                        tool_calls.extend(chunk['message']['tool_calls'])
+                    elif 'tool_calls' in chunk:
+                        tool_calls.extend(chunk['tool_calls'])
+                except json.JSONDecodeError:
+                    # 检查是否是 HTTP 状态码行
+                    if '"http_code"' in line:
                         try:
-                            chunk = json.loads(line)
-
-                            if 'message' in chunk and 'content' in chunk['message']:
-                                content = chunk['message']['content']
-                                full_response += content
-
-                                if on_chunk and content:
-                                    on_chunk(content.replace('\r', ''))
-
-                                should_stop = False
-                                for token in stop_tokens:
-                                    if token in full_response:
-                                        full_response = full_response.split(token)[0]
-                                        should_stop = True
-                                        break
-
-                                if should_stop:
-                                    process.kill()
-                                    break
-
-                            if 'message' in chunk and 'tool_calls' in chunk['message']:
-                                tool_calls.extend(chunk['message']['tool_calls'])
-                            elif 'tool_calls' in chunk:
-                                tool_calls.extend(chunk['tool_calls'])
-
-                        except:
+                            status = json.loads(line)
+                            http_code = status.get('http_code', 200)
+                            if http_code >= 400:
+                                raise Exception(f"Ollama API error: HTTP {http_code}")
+                        except json.JSONDecodeError:
                             pass
 
-                process.wait()
+        process.wait()
 
-                # Append to session conversation log
-                if self._session_conversation_file:
-                    with open(self._session_conversation_file, 'a', encoding='utf-8', newline='\n') as f:
-                        f.write(f"\n{'='*80}\n")
-                        f.write(f"REQUEST #{self._request_count} @ {request_timestamp}\n")
-                        f.write(f"{'='*80}\n")
-                        f.write(json.dumps(request_data, ensure_ascii=False, indent=2))
+        # Log conversation
+        if self._session_conversation_file:
+            self._log_conversation(request_data, request_timestamp, raw_lines, full_response, process)
 
-                        f.write(f"\n\n{'-'*40}\n")
-                        f.write("RESPONSE\n")
-                        f.write(f"{'-'*40}\n")
-                        raw_response = ''.join(raw_lines)
-                        try:
-                            response_json = json.loads(raw_response)
-                            f.write(json.dumps(response_json, indent=2, ensure_ascii=False))
-                        except:
-                            f.write(raw_response if raw_response else full_response)
+        # Clean up
+        try:
+            os.unlink(temp_file)
+        except:
+            pass
 
-                        stderr_output = process.stderr.read() if process.stderr else ''
-                        if stderr_output:
-                            f.write(f"\n\n{'-'*40}\n")
-                            f.write("STDERR\n")
-                            f.write(f"{'-'*40}\n")
-                            f.write(stderr_output)
+        result = {
+            'message': {
+                'content': full_response.replace('\r', '').strip()
+            }
+        }
 
-                        f.write("\n\n")
+        if tool_calls:
+            result['message']['tool_calls'] = tool_calls
 
-                    self.last_conversation_file = str(self._session_conversation_file)
+        return result
 
-                if os.getenv('DEBUG_AGENT'):
-                    print(f"\n=== RAW CURL OUTPUT ({len(raw_lines)} lines) ===")
-                    for i, line in enumerate(raw_lines[:10]):
-                        print(f"Line {i}: {line[:200]}")
-                    print("=== END RAW CURL OUTPUT ===\n")
+    def _log_conversation(self, request_data, timestamp, raw_lines, full_response, process):
+        """Log conversation to file"""
+        with open(self._session_conversation_file, 'a', encoding='utf-8', newline='\n') as f:
+            f.write(f"\n{'='*80}\n")
+            f.write(f"REQUEST #{self._request_count} @ {timestamp}\n")
+            f.write(f"{'='*80}\n")
+            f.write(json.dumps(request_data, ensure_ascii=False, indent=2))
 
-                # Clean up temp file
-                try:
-                    os.unlink(temp_file)
-                except:
-                    pass
+            f.write(f"\n\n{'-'*40}\n")
+            f.write("RESPONSE\n")
+            f.write(f"{'-'*40}\n")
+            raw_response = ''.join(raw_lines)
+            try:
+                response_json = json.loads(raw_response)
+                f.write(json.dumps(response_json, indent=2, ensure_ascii=False))
+            except:
+                f.write(raw_response if raw_response else full_response)
 
-                result = {
-                    'message': {
-                        'content': full_response.replace('\r', '').strip()
-                    }
-                }
+            stderr_output = process.stderr.read() if process.stderr else ''
+            if stderr_output:
+                f.write(f"\n\n{'-'*40}\n")
+                f.write("STDERR\n")
+                f.write(f"{'-'*40}\n")
+                f.write(stderr_output)
 
-                if tool_calls:
-                    result['message']['tool_calls'] = tool_calls
+            f.write("\n\n")
 
-                return result
-
-            except Exception as e:
-                if attempt < max_attempts - 1:
-                    delay = initial_delay * (backoff_factor ** attempt)
-                    print(f"Request failed (attempt {attempt + 1}/{max_attempts}), "
-                          f"retrying in {delay}s: {e}")
-                    time.sleep(delay)
-                else:
-                    raise RuntimeError(f"Request failed after {max_attempts} attempts: {e}")
+        self.last_conversation_file = str(self._session_conversation_file)
 
     def chat_with_tools(
         self,
@@ -341,30 +266,11 @@ class OllamaClient(BaseLLMClient):
         stream: bool = False,
         on_chunk: Optional[Callable[[str], None]] = None
     ) -> Dict[str, Any]:
-        """
-        Chat with function calling support
-
-        Args:
-            messages: Conversation history
-            tools: Tool definitions in OpenAI format
-            stream: Enable streaming output (default: False)
-            on_chunk: Optional callback function called with each content chunk
-
-        Returns:
-            Response with potential tool_calls
-        """
+        """Chat with function calling support"""
         return self.chat(messages, tools=tools, stream=stream, on_chunk=on_chunk)
 
     def parse_tool_calls(self, response: Dict[str, Any]) -> Optional[List[Dict]]:
-        """
-        Extract tool calls from response and ensure each has a unique id
-
-        Args:
-            response: Ollama response dict
-
-        Returns:
-            List of tool call dicts or None
-        """
+        """Extract tool calls from response"""
         message = response.get('message', {})
         tool_calls = message.get('tool_calls', [])
 
@@ -388,72 +294,22 @@ class OllamaClient(BaseLLMClient):
         must_keep: str,
         compressible: str
     ) -> Dict[str, Any]:
-        """
-        Use Qwen3 to compress conversation history
+        """Use Qwen3 to compress conversation history"""
+        def chat_func(msgs):
+            return self.chat(msgs, temperature=0.3)
 
-        Args:
-            messages: Full conversation history
-            target_tokens: Target token count after compression
-            must_keep: Description of content that must be kept
-            compressible: Description of content that can be compressed
-
-        Returns:
-            Compression result dict
-        """
-        from .prompts import get_compression_prompt
-
-        current_tokens = self.estimate_tokens(messages)
-
-        compression_prompt = get_compression_prompt(
-            current_tokens=current_tokens,
-            target_tokens=target_tokens,
-            must_keep=must_keep,
-            compressible=compressible
+        return compress_context(
+            messages, target_tokens, must_keep, compressible,
+            chat_func, estimate_tokens_chinese
         )
 
-        compress_messages = [
-            {'role': 'system', 'content': 'You are a context compression assistant.'},
-            {'role': 'user', 'content': compression_prompt}
-        ]
-
-        response = self.chat(compress_messages, temperature=0.3)
-
-        content = response['message']['content']
-        try:
-            if '```json' in content:
-                content = content.split('```json')[1].split('```')[0].strip()
-            elif '```' in content:
-                content = content.split('```')[1].split('```')[0].strip()
-
-            result = json.loads(content)
-            return result
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"Failed to parse compression result: {e}\nContent: {content}")
-
     def estimate_tokens(self, messages: List[Dict[str, str]]) -> int:
-        """
-        Estimate token count for messages
-
-        Args:
-            messages: List of message dicts
-
-        Returns:
-            Estimated token count
-        """
-        total_chars = sum(len(msg.get('content', '')) for msg in messages)
-        estimated_tokens = total_chars // 3
-        estimated_tokens += len(messages) * 10
-        return estimated_tokens
+        """Estimate token count for messages"""
+        return estimate_tokens_chinese(messages)
 
     def check_model_available(self) -> bool:
-        """
-        Check if model is available in Ollama
-
-        Returns:
-            True if model is available
-        """
+        """Check if model is available in Ollama"""
         try:
-            import subprocess
             result = subprocess.run(
                 ['curl', '-s', f'{self.base_url}/api/tags'],
                 capture_output=True,
@@ -474,7 +330,6 @@ class OllamaClient(BaseLLMClient):
         try:
             print(f"正在预热模型 {self.model}...")
             self.chat([{'role': 'user', 'content': 'hi'}], temperature=0.1)
-            # 预热后重新开始会话，清除预热请求的日志
             self.start_new_session()
             self.last_conversation_file = None
             self.last_request_file = None

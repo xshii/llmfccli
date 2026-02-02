@@ -1,9 +1,6 @@
-# config/llm.yaml - 统一 LLM 后端配置
+# config/llm.yaml - LLM 配置
 # 支持 Ollama 和 OpenAI 兼容 API
 
-# ============================================================
-# 默认后端选择
-# ============================================================
 default_backend: "ollama"  # 可选: ollama, openai
 
 # ============================================================
@@ -12,72 +9,47 @@ default_backend: "ollama"  # 可选: ollama, openai
 ollama:
   enabled: true
   base_url: "http://localhost:11434"
+  model: "glm-4.7-flash:latest"  # 全局模型，所有任务使用
   timeout: 300
   stream: true
+  think: true  # 启用思考模式（GLM-4.7 支持）
 
-  # 模型映射
-  models:
-    main: "claude-qwen:latest"      # 主 Agent 模型
-    compress: "qwen3:latest"        # 上下文压缩模型
-    intent: "qwen3:latest"          # 意图识别模型
+  # 按角色覆盖模型（可选，取消注释启用）
+  # models:
+  #   compress: "qwen3:latest"  # 上下文压缩用更快的模型
+  #   intent: "qwen3:latest"    # 意图识别用更快的模型
 
-  # 重试配置
   retry:
     max_attempts: 3
     backoff_factor: 2
     initial_delay: 1
 
 # ============================================================
-# OpenAI 兼容后端配置（内部公共大模型）
+# OpenAI 兼容后端配置
 # ============================================================
 openai:
-  enabled: true
-  # API 地址（OpenAI 兼容格式）
-  # 支持: OpenAI官方、Azure OpenAI、内部部署的兼容服务
+  enabled: false
   base_url: "https://api.openai.com/v1"
-
-  # API 密钥
-  # 支持三种方式:
-  # 1. 直接填写: "sk-xxx..."
-  # 2. 环境变量引用: "${OPENAI_API_KEY}"
-  # 3. 留空则从环境变量 OPENAI_API_KEY 读取
-  api_key: "${OPENAI_API_KEY}"
-
+  api_key: "${OPENAI_API_KEY}"  # 支持环境变量引用
+  model: "gpt-4-turbo"  # 全局模型
   timeout: 300
   stream: true
-
-  # 是否支持原生 tool/function calling
-  # 如果设为 false，将使用 prompt 模拟方式
-  # 支持原生调用的模型: gpt-4*, gpt-3.5-turbo (非 instruct), claude-*
-  # 不支持的模型: gpt-3.5-turbo-instruct, 部分开源模型
   native_tool_calling: true
 
-  # 模型映射
-  models:
-    main: "gpt-4-turbo"             # 主 Agent 模型
-    compress: "gpt-3.5-turbo"       # 上下文压缩模型（更快更便宜）
-    intent: "gpt-3.5-turbo"         # 意图识别模型
+  # 按角色覆盖模型（可选）
+  # models:
+  #   compress: "gpt-3.5-turbo"
+  #   intent: "gpt-3.5-turbo"
 
-  # 生成参数
   generation:
     temperature: 0.1
     top_p: 0.9
     max_tokens: 4096
 
-  # 重试配置
   retry:
     max_attempts: 3
     backoff_factor: 2
     initial_delay: 1
-
-# ============================================================
-# 任务级别后端覆盖（可选）
-# 允许不同任务使用不同后端
-# ============================================================
-task_backends:
-  main_agent: null      # null 表示使用 default_backend
-  compression: null     # 可设为 "openai" 使用更快的压缩
-  intent: null          # 可设为 "openai" 使用更快的意图识别
 
 # ============================================================
 # SSH 隧道配置（仅 Ollama 远程部署需要）
@@ -85,8 +57,6 @@ task_backends:
 ssh:
   enabled: true
   host: "ciserver"
-  # 远程执行命令时的额外 PATH 路径
-  # 非交互式 SSH 不会加载 shell 配置文件，需要手动指定
   extra_paths:
     - "/opt/homebrew/bin"
     - "/usr/local/bin"
@@ -106,5 +76,3 @@ model_management:
     - registry_name: "qwen3:latest"
       local_name: "qwen3:latest"
       auto_pull: true
-
-  default_model: "claude-qwen:latest"

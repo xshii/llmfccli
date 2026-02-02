@@ -138,10 +138,10 @@
             }
         },
         {
-            "name": "Module: interactive_base (demo)",
+            "name": "E2E: Run All Cases",
             "type": "debugpy",
             "request": "launch",
-            "module": "backend.interactive_base",
+            "program": "${workspaceFolder}/tests/e2e/test_e2e_cases.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
@@ -150,10 +150,10 @@
             }
         },
         {
-            "name": "E2E: Run All Cases",
+            "name": "Benchmark: Run",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/tests/e2e/test_e2e_cases.py",
+            "program": "${workspaceFolder}/tests/benchmark/run_benchmark.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",

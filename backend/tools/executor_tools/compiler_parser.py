@@ -4,7 +4,7 @@ Compiler output parser for extracting error and warning messages
 """
 
 import re
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 
 def parse_compile_errors(output: str) -> List[Dict[str, Any]]:

@@ -25,7 +25,7 @@ Host ollama-tunnel
     ServerAliveCountMax 3
 ```
 
-在 `config/ollama.yaml` 中启用：
+在 `config/llm.yaml` 中启用：
 
 ```yaml
 ssh:
@@ -45,7 +45,7 @@ ssh:
 
 ### 模型管理配置
 
-在 `config/ollama.yaml` 中配置模型定义和基础模型：
+在 `config/llm.yaml` 中配置模型定义和基础模型：
 
 ```yaml
 model_management:

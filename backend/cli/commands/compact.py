@@ -4,9 +4,9 @@ Compact 命令 - 上下文压缩
 """
 
 from typing import List
+
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
 
 from .base import Command
 
@@ -183,7 +183,7 @@ class CompactCommand(Command):
             self.console.print(f"  - 活动文件: {len(self.agent.active_files)} 个")
             self.console.print(f"  - 项目结构: {self.agent.project_root}")
             self.console.print(f"  - 最近消息: {msg_count_after} 条")
-            self.console.print(f"  - 工具定义: 已重新注入")
+            self.console.print("  - 工具定义: 已重新注入")
 
         except Exception as e:
             self.console.print(f"\n[red]✗ 压缩失败: {e}[/red]")

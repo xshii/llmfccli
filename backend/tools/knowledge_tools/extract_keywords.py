@@ -8,7 +8,8 @@ ExtractKeywords Tool - 从文本中提取关键词
 3. 按重要性排序
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List
+
 from pydantic import BaseModel, Field
 
 from backend.tools.base import BaseTool

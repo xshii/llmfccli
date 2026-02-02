@@ -6,7 +6,7 @@
 import importlib
 import inspect
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Type
+from typing import Any, Dict, List, Optional, Type
 
 from backend.tools.base import BaseTool
 
@@ -245,7 +245,7 @@ class ToolRegistry:
                 'category': metadata.category,
                 'schema': schema
             }
-        except Exception as e:
+        except Exception:
             # 静默失败，返回 None
             return None
 

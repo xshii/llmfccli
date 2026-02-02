@@ -31,8 +31,8 @@ def test_simple_replace():
             new_str="print('Hello World!')"
         )
 
-        assert result['success'] is True
-        print(f"✓ Result: {result['message']}")
+        assert result.ok is True
+        print(f"✓ Result: {result.output}")
 
         # Verify file content
         final_content = test_file.read_text()
@@ -60,8 +60,8 @@ def test_multiline_replace():
             new_str="    result = 1 + 2\n    return result"
         )
 
-        assert result['success'] is True
-        print(f"✓ Result: {result['message']}")
+        assert result.ok is True
+        print(f"✓ Result: {result.output}")
 
         # Verify file content
         final_content = test_file.read_text()
@@ -92,8 +92,8 @@ def test_replace_with_context():
             new_str="print(value)\nvalue = 20"
         )
 
-        assert result['success'] is True
-        print(f"✓ Result: {result['message']}")
+        assert result.ok is True
+        print(f"✓ Result: {result.output}")
 
         # Verify file content
         final_content = test_file.read_text()
@@ -124,9 +124,9 @@ def test_replace_all():
             replace_all=True
         )
 
-        assert result['success'] is True
-        print(f"✓ Result: {result['message']}")
-        assert "3 occurrences" in result['message']
+        assert result.ok is True
+        print(f"✓ Result: {result.output}")
+        assert "3 occurrences" in result.output
 
         # Verify file content
         final_content = test_file.read_text()
@@ -205,8 +205,8 @@ def test_preserve_indentation():
             new_str="\tif True:\n\t    return 2"
         )
 
-        assert result['success'] is True
-        print(f"✓ Result: {result['message']}")
+        assert result.ok is True
+        print(f"✓ Result: {result.output}")
 
         # Verify file content (exact indentation)
         final_content = test_file.read_text()

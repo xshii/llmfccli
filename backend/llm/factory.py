@@ -6,12 +6,12 @@ Creates appropriate LLM client based on configuration.
 """
 
 import os
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Dict, Optional
+
 import yaml
 
 from .base import BaseLLMClient
-
 
 # Cache for loaded configuration
 _config_cache: Optional[Dict] = None
@@ -38,26 +38,13 @@ def load_config(config_path: Optional[str] = None, force_reload: bool = False) -
         project_root = Path(__file__).parent.parent.parent
         config_path = project_root / "config" / "llm.yaml"
 
-        # Fallback to ollama.yaml if llm.yaml doesn't exist
-        if not Path(config_path).exists():
-            config_path = project_root / "config" / "ollama.yaml"
-
     config_path = Path(config_path)
 
-    if config_path.exists():
-        with open(config_path, 'r', encoding='utf-8') as f:
-            _config_cache = yaml.safe_load(f)
-    else:
-        # Default configuration
-        _config_cache = {
-            'default_backend': 'ollama',
-            'ollama': {
-                'enabled': True,
-                'base_url': 'http://localhost:11434',
-                'models': {'main': 'qwen3'},
-                'retry': {'max_attempts': 3, 'backoff_factor': 2, 'initial_delay': 1}
-            }
-        }
+    if not config_path.exists():
+        raise FileNotFoundError(f"配置文件不存在: {config_path}")
+
+    with open(config_path, 'r', encoding='utf-8') as f:
+        _config_cache = yaml.safe_load(f)
 
     return _config_cache
 
@@ -150,19 +137,30 @@ def _create_ollama_client(config: Dict, task: Optional[str] = None) -> BaseLLMCl
     from .ollama import OllamaClient
 
     ollama_config = config.get('ollama', {})
+    if not ollama_config:
+        raise ValueError("配置缺少 ollama 部分")
 
-    # Select model based on task
+    # 验证必需配置
+    base_url = ollama_config.get('base_url')
+    if not base_url:
+        raise ValueError("配置缺少 ollama.base_url")
+
+    global_model = ollama_config.get('model')
+    if not global_model:
+        raise ValueError("配置缺少 ollama.model")
+
+    # Select model: per-role override -> global model
     models = ollama_config.get('models', {})
     if task == 'compression':
-        model = models.get('compress', models.get('main', 'qwen3'))
+        model = models.get('compress', global_model)
     elif task == 'intent':
-        model = models.get('intent', models.get('main', 'qwen3'))
+        model = models.get('intent', global_model)
     else:
-        model = models.get('main', 'qwen3')
+        model = models.get('main', global_model)
 
     # Build client config
     client_config = {
-        'base_url': ollama_config.get('base_url', 'http://localhost:11434'),
+        'base_url': base_url,
         'model': model,
         'timeout': ollama_config.get('timeout', 300),
         'stream': ollama_config.get('stream', True),
@@ -186,23 +184,38 @@ def _create_openai_client(config: Dict, task: Optional[str] = None) -> BaseLLMCl
     from .openai_client import OpenAIClient
 
     openai_config = config.get('openai', {})
+    if not openai_config:
+        raise ValueError("配置缺少 openai 部分")
 
-    # Select model based on task
+    # 验证必需配置
+    base_url = openai_config.get('base_url')
+    if not base_url:
+        raise ValueError("配置缺少 openai.base_url")
+
+    api_key = openai_config.get('api_key')
+    if not api_key:
+        raise ValueError("配置缺少 openai.api_key")
+
+    global_model = openai_config.get('model')
+    if not global_model:
+        raise ValueError("配置缺少 openai.model")
+
+    # Select model: per-role override -> global model
     models = openai_config.get('models', {})
     if task == 'compression':
-        model = models.get('compress', models.get('main', 'gpt-3.5-turbo'))
+        model = models.get('compress', global_model)
     elif task == 'intent':
-        model = models.get('intent', models.get('main', 'gpt-3.5-turbo'))
+        model = models.get('intent', global_model)
     else:
-        model = models.get('main', 'gpt-4-turbo')
+        model = models.get('main', global_model)
 
     # Build client config
     client_config = {
-        'base_url': openai_config.get('base_url', 'https://api.openai.com/v1'),
-        'api_key': openai_config.get('api_key'),
+        'base_url': base_url,
+        'api_key': api_key,
+        'model': model,
         'timeout': openai_config.get('timeout', 300),
         'stream': openai_config.get('stream', True),
-        'models': {'main': model},
         'generation': openai_config.get('generation', {
             'temperature': 0.1,
             'top_p': 0.9,

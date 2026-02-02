@@ -4,11 +4,13 @@ GitTool - Git 版本控制工具类
 """
 
 import json
-from typing import Dict, Any, Optional, List, Literal, Union
+from typing import Any, Dict, Literal, Optional, Union
+
 from pydantic import BaseModel, Field, field_validator
 
 from backend.tools.base import BaseTool, ToolResult
-from .git import git, GitError
+
+from .git import git
 
 
 class GitParams(BaseModel):
@@ -87,20 +89,20 @@ class GitTool(BaseTool):
         """执行 Git 操作"""
         return git(action, args or {}, self.project_root)
 
-    def get_confirmation_signature(self, arguments: Dict[str, Any]) -> str:
+    def confirmation_signature(self, arguments: Dict[str, Any]) -> str:
         """按 action 分组确认，例如 git:push, git:commit"""
         action = arguments.get('action', '')
         return f"{self.name}:{action}"
 
-    def is_dangerous_operation(self, arguments: Dict[str, Any]) -> bool:
+    def is_dangerous(self, arguments: Dict[str, Any]) -> bool:
         """检查 Git 操作是否危险"""
         action = arguments.get('action', '')
         args = arguments.get('args', {}) or {}
 
         dangerous_conditions = {
             'reset': lambda a: a.get('mode') == 'hard',
-            'push': lambda a: a.get('force') == True,
-            'branch': lambda a: a.get('operation') == 'delete' and a.get('force'),
+            'push': lambda a: bool(a.get('force')),
+            'branch': lambda a: a.get('operation') == 'delete' and bool(a.get('force')),
             'rebase': lambda a: True,  # rebase 总是需要确认
             'stash': lambda a: a.get('operation') in ['drop', 'clear'],
             'cherry-pick': lambda a: True,  # cherry-pick 总是需要确认

@@ -3,7 +3,8 @@
 Help 命令 - 动态生成版
 """
 
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING, List
+
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel

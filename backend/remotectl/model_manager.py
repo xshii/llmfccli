@@ -4,7 +4,8 @@ Model Manager for Ollama custom models
 """
 
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, Optional
+
 import yaml
 
 from .client import RemoteOllamaClient
@@ -25,7 +26,7 @@ class ModelManager:
         self.config_dir = self.project_root / "config"
 
         # Load model management config
-        config_path = self.config_dir / "ollama.yaml"
+        config_path = self.config_dir / "llm.yaml"
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
         self.model_config = config.get('model_management', {})
@@ -266,7 +267,7 @@ class ModelManager:
         Returns:
             Dict with update status
         """
-        config_path = self.project_root / "config" / "ollama.yaml"
+        config_path = self.project_root / "config" / "llm.yaml"
 
         if not config_path.exists():
             return {

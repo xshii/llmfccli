@@ -7,10 +7,10 @@ from .loop import AgentLoop
 from .token_counter import TokenCounter
 from .tools import (
     ToolRegistry,
-    registry,
-    get_tool_schemas,
     execute_tool,
+    get_tool_schemas,
     initialize_tools,
+    registry,
 )
 
 __all__ = [

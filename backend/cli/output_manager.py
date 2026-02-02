@@ -6,14 +6,15 @@
 """
 
 import time
-from typing import Dict, Any, List, Optional, Union
-from rich.console import Console
-from rich.text import Text
-from rich.panel import Panel
-from rich.markup import render
+from typing import Any, Dict, List, Optional, Union
 
-from .path_utils import PathUtils
+from rich.console import Console
+from rich.markup import render
+from rich.panel import Panel
+from rich.text import Text
+
 from .hyperlink import create_file_hyperlink, create_tool_hyperlink
+from .path_utils import PathUtils
 
 
 class ToolOutputManager:

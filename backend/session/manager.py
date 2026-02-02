@@ -3,12 +3,12 @@
 Session manager for saving and resuming conversation sessions
 """
 
-import json
 import hashlib
+import json
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, field, asdict
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

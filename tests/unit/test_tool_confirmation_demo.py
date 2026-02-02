@@ -12,9 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 
 from backend.agent.tools import registry
 from backend.cli.path_utils import PathUtils
-from backend.cli.output_manager import ToolOutputManager
+from backend.cli.hyperlink import create_file_hyperlink
 from rich.console import Console
-from rich.panel import Panel
 
 
 def demo_tool_confirmation():
@@ -28,8 +27,6 @@ def demo_tool_confirmation():
     # 创建组件
     path_utils = PathUtils(project_root)
     console = Console()
-    output_manager = ToolOutputManager(console, path_utils, agent=None)
-    output_manager.use_vscode_protocol = True
 
     console.print("\n" + "=" * 70)
     console.print("[bold cyan]工具确认功能演示 - 路径超链接和智能压缩[/bold cyan]")
@@ -118,7 +115,12 @@ def demo_tool_confirmation():
                     console.print(f"  [dim]原始路径:[/dim] {rel_path} [dim]({len(rel_path)}字符)[/dim]")
 
                 # 生成超链接
-                value_str = output_manager._create_file_hyperlink(value_str, line=line_number)
+                value_str = create_file_hyperlink(
+                    path=value_str,
+                    project_root=project_root,
+                    path_utils=path_utils,
+                    line=line_number
+                )
 
                 # 解析压缩后的显示文本
                 # 格式: [link=vscode://file...]compressed_path[/link]
@@ -127,12 +129,12 @@ def demo_tool_confirmation():
                 if match:
                     compressed = match.group(1)
                     console.print(f"  [dim]压缩显示:[/dim] {compressed} [dim]({len(compressed)}字符)[/dim]")
-                    console.print(f"  [dim]超链接:[/dim] 是 [dim](VSCode 协议 + 行号:{line_number or 'N/A'})[/dim]")
+                    console.print(f"  [dim]超链接:[/dim] 是 [dim](协议 + 行号:{line_number or 'N/A'})[/dim]")
 
             elif len(value_str) > 60:
                 value_str = value_str[:57] + "..."
 
-            args_display.append(f"  • [cyan]{key}[/cyan]: {value_str}")
+            args_display.append(f"  - [cyan]{key}[/cyan]: {value_str}")
 
         # 显示最终效果
         console.print(f"\n  [bold]最终显示效果:[/bold]")
@@ -169,23 +171,23 @@ def demo_tool_confirmation():
 
     # 总结
     console.print("\n" + "=" * 70)
-    console.print("[bold green]✅ 改进总结[/bold green]")
+    console.print("[bold green]改进总结[/bold green]")
     console.print("=" * 70)
     console.print("""
 [bold]1. 智能路径压缩[/bold]
-   • 基于字符长度（50字符）而非固定层级
-   • 短路径不压缩，保持可读性
-   • 长路径智能裁剪，保留关键信息
+   - 基于字符长度（50字符）而非固定层级
+   - 短路径不压缩，保持可读性
+   - 长路径智能裁剪，保留关键信息
 
-[bold]2. VSCode 超链接[/bold]
-   • 自动检测 filepath 格式的参数
-   • 生成 vscode://file/path:line 协议链接
-   • 支持行号跳转（从 line_range 等参数提取）
+[bold]2. 超链接支持[/bold]
+   - 自动检测 filepath 格式的参数
+   - 支持多种协议（file://、vscode://）
+   - 支持行号跳转
 
 [bold]3. 最优显示效果[/bold]
-   • 项目内路径优先用相对路径
-   • 路径压缩保留第一层和文件名
-   • 中间层级智能裁剪，确保不超过限制
+   - 项目内路径优先用相对路径
+   - 路径压缩保留第一层和文件名
+   - 中间层级智能裁剪，确保不超过限制
     """)
     console.print("=" * 70 + "\n")
 

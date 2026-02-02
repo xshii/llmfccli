@@ -6,7 +6,7 @@ Status Line - 状态行显示模块
 """
 
 import os
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from rich.console import Console
 

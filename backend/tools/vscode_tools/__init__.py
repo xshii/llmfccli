@@ -5,12 +5,12 @@ VSCode integration tools
 
 from .vscode import (
     VSCodeError,
+    apply_changes,
     get_active_file,
     get_selection,
-    show_diff,
-    apply_changes,
+    get_workspace_folder,
     open_file,
-    get_workspace_folder
+    show_diff,
 )
 
 __all__ = [

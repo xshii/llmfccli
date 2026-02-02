@@ -1,10 +1,10 @@
 # Claude-Qwen
 
-基于 Ollama + Qwen3 构建的 C/C++ AI 编程助手。
+基于 Ollama 本地部署的 AI 编程助手，支持 GLM-4.7、Qwen3 等模型。
 
 ## 项目介绍
 
-Claude-Qwen 是一个开源的 AI 编程助手，专注于 C/C++ 项目开发。通过本地部署的 Qwen3 大模型，提供智能代码补全、错误修复、测试生成等功能。
+Claude-Qwen 是一个开源的 AI 编程助手，专注于 C/C++ 项目开发。通过 Ollama 本地部署大模型（推荐 GLM-4.7-flash），提供智能代码补全、错误修复、测试生成等功能。
 
 **设计灵感**: 参考 Anthropic Claude Code 的工作机制，结合 Ollama 的本地部署优势。
 
@@ -55,11 +55,11 @@ cd claude-qwen
 # 2. 安装依赖
 pip install -e .[dev]
 
-# 3. 拉取 Qwen3 模型
-ollama pull qwen3
+# 3. 拉取模型（推荐 GLM-4.7-flash）
+ollama pull glm-4.7-flash
 
-# 4. 验证安装（运行测试）
-python tests/run_all_tests.py
+# 4. 验证安装（运行单元测试）
+python3 tests/run_unit_tests.py
 ```
 
 ### 基本使用
@@ -79,8 +79,8 @@ claude-qwen
 
 修改 `config/` 目录下的配置文件：
 
+- `llm.yaml` - 模型配置（model, think mode, timeout 等）
 - `token_budget.yaml` - Token 分配策略和压缩阈值
-- `ollama.yaml` - 模型参数（temperature, top_p 等）
 - `tools.yaml` - 工具白名单和安全限制
 
 ## 测试用例
@@ -98,11 +98,14 @@ claude-qwen
 
 运行测试：
 ```bash
-# 全部测试
-python tests/run_all_tests.py
+# 单元测试（快速，不需要 LLM）
+python3 tests/run_unit_tests.py
 
-# 单个测试
-python tests/test_case_1.py
+# 端到端测试（需要 LLM）
+python3 tests/e2e/test_case_1.py
+
+# Benchmark 测试
+claude-qwen --test
 ```
 
 ## 项目结构
@@ -111,13 +114,17 @@ python tests/test_case_1.py
 claude-qwen/
 ├── backend/              # Python 后端
 │   ├── agent/           # Agent 核心逻辑
-│   ├── llm/             # Ollama 客户端
+│   ├── llm/             # LLM 客户端（Ollama/OpenAI）
 │   ├── tools/           # 工具系统（文件、编译、分析）
-│   └── cli.py           # 命令行界面
-├── vscode-extension/    # VSCode 插件（开发中）
+│   ├── cli/             # 命令行界面
+│   └── utils/           # 工具函数
 ├── tests/               # 测试用例
-│   └── fixtures/        # 测试项目（包含故意的错误）
+│   ├── unit/            # 单元测试
+│   ├── e2e/             # 端到端测试
+│   ├── benchmark/       # 性能基准测试
+│   └── fixtures/        # 测试项目
 ├── config/              # 配置文件
+├── QUICKSTART.md        # 快速入门指南
 └── README.md
 ```
 
@@ -125,15 +132,30 @@ claude-qwen/
 
 - [x] 测试用例和测试项目
 - [x] 项目结构和配置文件
-- [ ] Token 计数器
-- [ ] Ollama 客户端
-- [ ] 基础工具（view/edit/grep/bash）
-- [ ] Agent 主循环
-- [ ] 上下文压缩
-- [ ] CLI 交互界面
+- [x] Token 计数器
+- [x] Ollama 客户端（支持 Qwen3、GLM-4.7）
+- [x] 基础工具（view/edit/grep/bash）
+- [x] Agent 主循环
+- [x] 上下文压缩
+- [x] CLI 交互界面
+- [x] Benchmark 测试框架
 - [ ] VSCode 插件
 
 ## 更新日志
+
+### v1.0.0 (2025-02-02)
+
+**新功能**
+- 支持 GLM-4.7-flash 模型，默认模型切换为 glm-4.7-flash:latest
+- 新增思考模式 (think mode) 支持，提升复杂任务推理能力
+- 新增 `--test` 参数运行 benchmark 测试
+- 新增 `--model` 参数指定模型
+- 新增 QUICKSTART.md 快速入门指南
+
+**改进**
+- 优化 todo_write 工具描述，鼓励并行调用
+- 简化 benchmark 测试用例，移除 GTest 依赖
+- 清理 VSCode launch.json 配置
 
 ### v0.2.0 (2025-12-26)
 
@@ -168,14 +190,13 @@ claude-qwen/
 
 ### 交流讨论
 - Discussions：项目设计、架构讨论
-- QQ 群：123456789（待建）
-- 邮件：your.email@example.com
 
 ## 致谢
 
 - [Anthropic Claude Code](https://docs.anthropic.com/) - 设计灵感来源
 - [Ollama](https://ollama.ai/) - 本地大模型部署
-- [Qwen](https://github.com/QwenLM/Qwen) - 基座模型
+- [GLM / 智谱AI](https://github.com/THUDM/GLM-4) - 推荐模型
+- [Qwen / 通义千问](https://github.com/QwenLM/Qwen) - 支持模型
 - [tree-sitter](https://tree-sitter.github.io/) - 代码解析
 
 ## 许可证

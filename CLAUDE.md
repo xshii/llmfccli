@@ -93,7 +93,7 @@ mypy backend/
 - 支持 OpenAI 格式的工具/函数调用
 - 通过专用 LLM 调用进行上下文压缩
 
-配置从 `config/ollama.yaml` 加载，包括 temperature (0.1)、top_p (0.9) 和上下文窗口 (131072 tokens) 等参数。
+配置从 `config/llm.yaml` 加载，包括 model、timeout、stream 等参数。
 
 ### 编译错误恢复循环
 
@@ -111,7 +111,7 @@ Agent 实现编译-修复-重试循环（最多 3 次尝试）处理 C++ 编译�
 ## 配置文件
 
 - `config/token_budget.yaml`：Token 分配和压缩阈值
-- `config/ollama.yaml`：模型参数和重试配置
+- `config/llm.yaml`：LLM 后端配置（Ollama/OpenAI）、模型设置和重试配置
 - `config/tools.yaml`：工具定义、白名单和安全限制
 
 ## 测试套件结构
@@ -205,8 +205,8 @@ pkill -f "ssh.*ollama-tunnel"
 
 ### 配置文件设置
 
-- `config/ollama.yaml` 中的 `base_url` 设置为 `http://localhost:11434`
-- `model` 设置为 `qwen3:latest`（完整模型名称包含标签）
+- `config/llm.yaml` 中的 `ollama.base_url` 设置为 `http://localhost:11434`
+- `ollama.model` 设置为 `claude-qwen:latest`
 
 ### 依赖安装
 

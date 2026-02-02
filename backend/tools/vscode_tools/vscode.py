@@ -8,8 +8,7 @@ Provides tools for integrating with VSCode extension:
 - get_selection: Get currently selected text
 """
 
-import os
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 
 class VSCodeError(Exception):

@@ -3,14 +3,14 @@
 Tool confirmation manager for user approval before executing tools
 
 Supports dynamic tool discovery - uses BaseTool methods for:
-- get_confirmation_signature(): Fine-grained confirmation grouping
-- is_dangerous_operation(): Check if operation needs extra confirmation
-- category property: Tool categorization
+- confirmation_signature(): Fine-grained confirmation grouping
+- is_dangerous(): Check if operation needs extra confirmation
+- skip_confirmation: Whether to skip confirmation entirely
 """
 
-from typing import Dict, Set, Optional, Callable, Union, Tuple, TYPE_CHECKING
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Set, Union
 
 if TYPE_CHECKING:
     from .registry import ToolRegistry
@@ -41,29 +41,18 @@ class ToolConfirmation:
             tool_registry: Optional ToolRegistry for dynamic tool lookup
         """
         # In-memory confirmation state (session-level)
-        self.allowed_tool_calls: Set[str] = set()
-        self.denied_tools: Set[str] = set()
+        self.allowed_signatures: Set[str] = set()
+        self.denied_names: Set[str] = set()
 
         # Tool registry for dynamic lookup
-        self._tool_registry = tool_registry
+        self._registry = tool_registry
 
         # Callback for user confirmation (set by CLI)
-        # Can return ConfirmAction or ConfirmResult (with reason)
-        self.confirm_callback: Optional[Callable[[str, str, Dict], Union[ConfirmAction, ConfirmResult]]] = None
-
-    def _load_confirmations(self):
-        """Load confirmations from file (disabled - session-level only)"""
-        # Session-level only: do not load from file
-        pass
-
-    def _save_confirmations(self):
-        """Save confirmations to file (disabled - session-level only)"""
-        # Session-level only: do not save to file
-        pass
+        self._callback: Optional[Callable[[str, str, Dict], Union[ConfirmAction, ConfirmResult]]] = None
 
     def set_tool_registry(self, registry: 'ToolRegistry'):
         """Set the tool registry for dynamic lookup"""
-        self._tool_registry = registry
+        self._registry = registry
 
     def set_confirmation_callback(self, callback: Callable[[str, str, Dict], Union[ConfirmAction, ConfirmResult]]):
         """Set the confirmation callback function
@@ -72,189 +61,145 @@ class ToolConfirmation:
         - ConfirmAction: Simple action without reason
         - ConfirmResult: Action with optional reason (for denial)
         """
-        self.confirm_callback = callback
+        self._callback = callback
 
-    def _get_tool_instance(self, tool_name: str):
+    def _get_tool(self, tool_name: str):
         """Get tool instance from registry"""
-        if self._tool_registry:
-            return self._tool_registry.get(tool_name)
+        if self._registry:
+            return self._registry.get(tool_name)
         return None
 
-    def _get_tool_signature(self, tool_name: str, arguments: Dict) -> str:
+    def _get_signature(self, tool_name: str, arguments: Dict) -> str:
         """
         Get unique signature for a tool call
 
-        Uses the tool's get_confirmation_signature() method if available,
+        Uses the tool's confirmation_signature() method if available,
         otherwise falls back to just the tool name.
-
-        Args:
-            tool_name: Tool name
-            arguments: Tool arguments
-
-        Returns:
-            Signature string like "edit_file", "bash_run:ls", or "git:status"
         """
-        tool = self._get_tool_instance(tool_name)
-        if tool and hasattr(tool, 'get_confirmation_signature'):
-            return tool.get_confirmation_signature(arguments)
-
-        # Fallback: just tool name
+        tool = self._get_tool(tool_name)
+        if tool and hasattr(tool, 'confirmation_signature'):
+            return tool.confirmation_signature(arguments)
         return tool_name
 
-    def get_tool_category(self, tool_name: str) -> str:
-        """
-        Get tool category for grouping
-
-        Uses the tool's category property if available.
-
-        Args:
-            tool_name: Tool name
-
-        Returns:
-            Category name
-        """
-        tool = self._get_tool_instance(tool_name)
+    def _get_category(self, tool_name: str) -> str:
+        """Get tool category for grouping"""
+        tool = self._get_tool(tool_name)
         if tool and hasattr(tool, 'category'):
             return tool.category
-
-        # Fallback
         return 'unknown'
 
-    def is_dangerous_operation(self, tool_name: str, arguments: Dict) -> bool:
-        """
-        Check if operation is dangerous
-
-        Uses the tool's is_dangerous_operation() method if available.
-        Dangerous operations require confirmation even if the tool is whitelisted.
-
-        Args:
-            tool_name: Tool name
-            arguments: Tool arguments
-
-        Returns:
-            True if operation is dangerous
-        """
-        tool = self._get_tool_instance(tool_name)
-        if tool and hasattr(tool, 'is_dangerous_operation'):
-            return tool.is_dangerous_operation(arguments)
-
+    def _is_dangerous(self, tool_name: str, arguments: Dict) -> bool:
+        """Check if operation is dangerous (requires confirmation even if whitelisted)"""
+        tool = self._get_tool(tool_name)
+        if tool and hasattr(tool, 'is_dangerous'):
+            return tool.is_dangerous(arguments)
         return False
 
-    # Backward compatibility alias
-    def is_dangerous_git_operation(self, action: str, args: Dict) -> bool:
-        """Deprecated: Use is_dangerous_operation() instead"""
-        return self.is_dangerous_operation('git', {'action': action, 'args': args})
+    def _should_skip(self, tool_name: str) -> bool:
+        """Check if tool declares skip_confirmation=True"""
+        tool = self._get_tool(tool_name)
+        if tool and hasattr(tool, 'skip_confirmation'):
+            return tool.skip_confirmation
+        return False
 
     def needs_confirmation(self, tool_name: str, arguments: Dict) -> bool:
         """
         Check if tool execution needs user confirmation
 
-        Args:
-            tool_name: Tool name
-            arguments: Tool arguments
-
-        Returns:
-            True if confirmation needed
+        Priority:
+        1. skip_confirmation=True → skip
+        2. denied_names → always confirm
+        3. allowed_signatures + not dangerous → skip
+        4. is_dangerous → always confirm
+        5. first time → confirm
         """
         import os
         debug = os.getenv('DEBUG_CONFIRMATION', False)
 
-        # Get tool call signature
-        signature = self._get_tool_signature(tool_name, arguments)
+        # 1. Check if tool declares skip_confirmation
+        if self._should_skip(tool_name):
+            if debug:
+                print(f"[DEBUG] Tool {tool_name} declares skip_confirmation=True")
+            return False
+
+        signature = self._get_signature(tool_name, arguments)
 
         if debug:
             print(f"[DEBUG] Checking confirmation for tool: {tool_name}")
-            print(f"[DEBUG] Tool signature: {signature}")
-            print(f"[DEBUG] allowed_tool_calls: {self.allowed_tool_calls}")
-            print(f"[DEBUG] denied_tools: {self.denied_tools}")
+            print(f"[DEBUG] Signature: {signature}")
+            print(f"[DEBUG] allowed_signatures: {self.allowed_signatures}")
+            print(f"[DEBUG] denied_names: {self.denied_names}")
 
-        # Check if tool is denied (by tool name only)
-        if tool_name in self.denied_tools:
+        # 2. Check if tool is denied
+        if tool_name in self.denied_names:
             if debug:
                 print(f"[DEBUG] Tool {tool_name} is DENIED")
             return True
 
-        # Check if this specific tool call is allowed
-        if signature in self.allowed_tool_calls:
-            # Check if it's a dangerous operation even if the tool is whitelisted
-            # Uses dynamic lookup via tool's is_dangerous_operation() method
-            if self.is_dangerous_operation(tool_name, arguments):
+        # 3. Check if signature is allowed
+        if signature in self.allowed_signatures:
+            # 4. But dangerous operations still need confirmation
+            if self._is_dangerous(tool_name, arguments):
                 if debug:
-                    print(f"[DEBUG] Tool {tool_name} with dangerous parameters - needs confirmation")
+                    print(f"[DEBUG] Tool {tool_name} is dangerous - needs confirmation")
                 return True
 
             if debug:
-                print(f"[DEBUG] Tool call {signature} is ALLOWED (no confirmation needed)")
+                print(f"[DEBUG] Signature {signature} is ALLOWED")
             return False
 
-        # First time seeing this specific tool call, needs confirmation
+        # 5. First time - needs confirmation
         if debug:
-            print(f"[DEBUG] Tool call {signature} needs confirmation (first time)")
+            print(f"[DEBUG] Signature {signature} needs confirmation (first time)")
         return True
 
-    def confirm_tool_execution(self, tool_name: str, arguments: Dict) -> ConfirmResult:
+    def confirm(self, tool_name: str, arguments: Dict) -> ConfirmResult:
         """
         Get user confirmation for tool execution
-
-        Args:
-            tool_name: Tool name
-            arguments: Tool arguments
 
         Returns:
             ConfirmResult with action and optional reason
         """
         # If no callback set, allow by default (for testing)
-        if self.confirm_callback is None:
+        if self._callback is None:
             return ConfirmResult(action=ConfirmAction.ALLOW_ONCE)
 
-        # Note: Preview is shown in AgentLoop before calling this method
-        # to ensure it's displayed regardless of confirmation settings
+        category = self._get_category(tool_name)
 
-        # Get tool category
-        category = self.get_tool_category(tool_name)
-
-        # Ask user - callback can return ConfirmAction or ConfirmResult
-        callback_result = self.confirm_callback(tool_name, category, arguments)
+        # Ask user
+        callback_result = self._callback(tool_name, category, arguments)
 
         # Normalize to ConfirmResult
         if isinstance(callback_result, ConfirmResult):
             result = callback_result
         else:
-            # Legacy ConfirmAction return
             result = ConfirmResult(action=callback_result)
 
-        # Update allowed/denied lists based on action
+        # Update state based on action
         import os
         debug = os.getenv('DEBUG_CONFIRMATION', False)
 
         if result.action == ConfirmAction.ALLOW_ALWAYS:
-            # Get tool call signature and add to allowed set
-            signature = self._get_tool_signature(tool_name, arguments)
-            self.allowed_tool_calls.add(signature)
-
+            signature = self._get_signature(tool_name, arguments)
+            self.allowed_signatures.add(signature)
             if debug:
-                print(f"[DEBUG] Added tool call '{signature}' to allowed_tool_calls")
-                print(f"[DEBUG] allowed_tool_calls now: {self.allowed_tool_calls}")
-
-            self._save_confirmations()
+                print(f"[DEBUG] Added '{signature}' to allowed_signatures")
 
         elif result.action == ConfirmAction.DENY:
-            self.denied_tools.add(tool_name)
-            self._save_confirmations()
+            self.denied_names.add(tool_name)
             if debug:
-                print(f"[DEBUG] Added tool '{tool_name}' to denied_tools")
+                print(f"[DEBUG] Added '{tool_name}' to denied_names")
 
         return result
 
-    def reset_confirmations(self):
+    def reset(self):
         """Reset all confirmations (session-level only)"""
-        self.allowed_tool_calls.clear()
-        self.denied_tools.clear()
-        # Note: No file to delete - confirmations are session-level only
+        self.allowed_signatures.clear()
+        self.denied_names.clear()
 
-    def get_confirmation_status(self) -> Dict:
+    def status(self) -> Dict:
         """Get current confirmation status"""
         return {
-            'allowed_tool_calls': list(self.allowed_tool_calls),
-            'denied_tools': list(self.denied_tools)
+            'allowed_signatures': list(self.allowed_signatures),
+            'denied_names': list(self.denied_names)
         }

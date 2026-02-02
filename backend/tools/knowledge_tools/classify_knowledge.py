@@ -8,11 +8,12 @@ ClassifyKnowledge Tool - 知识分类
 3. 支持多标签分类
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool
 from backend.roles import get_role_manager
+from backend.tools.base import BaseTool
 
 
 class ClassifyKnowledgeParams(BaseModel):

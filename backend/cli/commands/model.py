@@ -4,6 +4,7 @@ Model 命令 - Ollama 模型管理
 """
 
 from typing import List
+
 from rich.console import Console
 
 from .base import Command

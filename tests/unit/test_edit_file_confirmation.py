@@ -80,7 +80,7 @@ def test_confirmation_after_allow_always():
         confirmation.set_confirmation_callback(mock_callback_allow_always)
 
         # First execution: user allows always
-        result = confirmation.confirm_tool_execution('edit_file', {
+        result = confirmation.confirm('edit_file', {
             'path': str(test_file),
             'old_str': 'line two',
             'new_str': 'line TWO'
@@ -88,9 +88,9 @@ def test_confirmation_after_allow_always():
         assert result.action == ConfirmAction.ALLOW_ALWAYS
         print(f"✓ User set 'always allow' for edit_file")
 
-        # Verify edit_file is now in allowed_tool_calls
-        assert 'edit_file' in confirmation.allowed_tool_calls
-        print(f"✓ edit_file added to allowed_tool_calls: {confirmation.allowed_tool_calls}")
+        # Verify edit_file is now in allowed_signatures
+        assert 'edit_file' in confirmation.allowed_signatures
+        print(f"✓ edit_file added to allowed_signatures: {confirmation.allowed_signatures}")
 
         # Initialize tool executor WITH confirmation manager
         executor = RegistryToolExecutor(project_root, confirmation_manager=confirmation)
@@ -141,7 +141,7 @@ def test_smart_parameter_adaptation():
             return ConfirmAction.ALLOW_ALWAYS
 
         confirmation.set_confirmation_callback(mock_callback_allow_always)
-        confirmation.confirm_tool_execution('edit_file', {
+        confirmation.confirm('edit_file', {
             'path': str(test_file),
             'old_str': 'line two',
             'new_str': 'line TWO'
@@ -195,15 +195,15 @@ def test_different_files_same_tool():
             return ConfirmAction.ALLOW_ALWAYS
 
         confirmation.set_confirmation_callback(mock_callback_allow_always)
-        confirmation.confirm_tool_execution('edit_file', {
+        confirmation.confirm('edit_file', {
             'path': str(file1),
             'old_str': 'hello',
             'new_str': 'HELLO'
         })
 
         # Signature should be 'edit_file' (not file-specific)
-        print(f"✓ allowed_tool_calls: {confirmation.allowed_tool_calls}")
-        assert 'edit_file' in confirmation.allowed_tool_calls
+        print(f"✓ allowed_signatures: {confirmation.allowed_signatures}")
+        assert 'edit_file' in confirmation.allowed_signatures
 
         executor = RegistryToolExecutor(project_root, confirmation_manager=confirmation)
 
@@ -240,7 +240,7 @@ def test_different_files_same_tool():
 
 def test_confirmation_reset():
     """
-    Test 5: Verify reset_confirmations clears the always allow state
+    Test 5: Verify reset clears the always allow state
     """
     print("=" * 70)
     print("Test 5: Reset confirmations")
@@ -257,7 +257,7 @@ def test_confirmation_reset():
             return ConfirmAction.ALLOW_ALWAYS
 
         confirmation.set_confirmation_callback(mock_callback_allow_always)
-        confirmation.confirm_tool_execution('edit_file', {
+        confirmation.confirm('edit_file', {
             'path': str(test_file),
             'old_str': 'original',
             'new_str': 'ORIGINAL'
@@ -269,7 +269,7 @@ def test_confirmation_reset():
         print(f"✓ Before reset: needs_confirmation={needs_confirm}")
 
         # Reset
-        confirmation.reset_confirmations()
+        confirmation.reset()
         print(f"✓ Reset confirmations")
 
         # Should need confirmation again
@@ -301,10 +301,10 @@ def test_session_level_confirmations():
             return ConfirmAction.ALLOW_ALWAYS
 
         confirmation1.set_confirmation_callback(mock_callback_allow_always)
-        confirmation1.confirm_tool_execution('edit_file', {})
+        confirmation1.confirm('edit_file', {})
 
-        assert 'edit_file' in confirmation1.allowed_tool_calls
-        print(f"    ✓ Session 1 allowed_tool_calls: {confirmation1.allowed_tool_calls}")
+        assert 'edit_file' in confirmation1.allowed_signatures
+        print(f"    ✓ Session 1 allowed_signatures: {confirmation1.allowed_signatures}")
 
         # Second session (simulate restart)
         print("\n  [Session 2] New session - should NOT have saved confirmation")
@@ -312,8 +312,8 @@ def test_session_level_confirmations():
         confirmation2 = ToolConfirmation(tool_registry=registry2)
 
         # New session should start fresh
-        assert 'edit_file' not in confirmation2.allowed_tool_calls
-        print(f"    ✓ Session 2 allowed_tool_calls: {confirmation2.allowed_tool_calls}")
+        assert 'edit_file' not in confirmation2.allowed_signatures
+        print(f"    ✓ Session 2 allowed_signatures: {confirmation2.allowed_signatures}")
         print(f"    ✓ Confirmations are session-level only (no persistence)")
 
         print("\n✅ Test 6 PASSED\n")

@@ -4,9 +4,9 @@ Remote Ollama Client for SSH-based operations
 """
 
 import subprocess
-import json
-from typing import Tuple, Optional, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
 import yaml
 
 
@@ -18,13 +18,10 @@ class RemoteOllamaClient:
         Initialize remote Ollama client
 
         Args:
-            config_path: Path to config file (ollama.yaml or llm.yaml)
+            config_path: Path to config file (llm.yaml)
         """
         if config_path is None:
-            # Try llm.yaml first (new), fallback to ollama.yaml (legacy)
-            llm_config = Path(__file__).parent.parent.parent / "config" / "llm.yaml"
-            ollama_config = Path(__file__).parent.parent.parent / "config" / "ollama.yaml"
-            config_path = str(llm_config if llm_config.exists() else ollama_config)
+            config_path = str(Path(__file__).parent.parent.parent / "config" / "llm.yaml")
 
         self.config_path = config_path
         self.config = self._load_config()
@@ -176,7 +173,6 @@ class RemoteOllamaClient:
         """
         import base64
         import tempfile
-        import platform
 
         if self.ssh_enabled:
             # Remote: use base64 encoding to transfer file safely

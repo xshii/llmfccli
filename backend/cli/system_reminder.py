@@ -6,9 +6,8 @@ System Reminder Manager
 自动读取 config/system_reminder.yaml 并生成注入到 LLM 上下文的提示信息
 """
 
-import os
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import Any, List, Optional
 
 import yaml
 

@@ -4,15 +4,11 @@ CreateFile Tool - 创建文件
 """
 
 import os
-from typing import Dict, Any
+from typing import Any, Dict
+
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool, ToolResult
-
-
-class FileSystemError(Exception):
-    """Filesystem operation error"""
-    pass
+from backend.tools.base import BaseTool, FileSystemError, ToolResult
 
 
 class CreateFileParams(BaseModel):
@@ -65,17 +61,11 @@ class CreateFileTool(BaseTool):
 
     def execute(self, path: str, content: str) -> Dict[str, Any]:
         """执行文件创建"""
-        # Resolve path
-        if not os.path.isabs(path) and self.project_root:
-            path = os.path.join(self.project_root, path)
-
-        path = os.path.abspath(path)
-
-        # Security check
-        if self.project_root:
-            project_root = os.path.abspath(self.project_root)
-            if not path.startswith(project_root):
-                raise FileSystemError(f"Path {path} is outside project root")
+        # Resolve path and validate security
+        try:
+            path = self.resolve_and_validate_path(path)
+        except ValueError as e:
+            raise FileSystemError(str(e))
 
         # Check if file already exists
         if os.path.exists(path):

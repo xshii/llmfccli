@@ -6,7 +6,8 @@ Uses dynamic tool discovery from backend/tools/xxx_tools/ directories.
 All tools inheriting from BaseTool are automatically discovered and registered.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 from .registry import ToolRegistry as DynamicToolRegistry
 
 

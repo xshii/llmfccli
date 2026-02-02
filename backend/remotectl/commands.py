@@ -10,8 +10,8 @@ This module provides reusable command logic that can be used by:
 """
 
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
+from rich.table import Table
 
 from .client import RemoteOllamaClient
 from .model_manager import ModelManager
@@ -144,13 +144,13 @@ class RemoteCommands:
         if success:
             if stdout:
                 self.console.print(stdout)
-            self.console.print(f"[green]✓ Command completed successfully[/green]")
+            self.console.print("[green]✓ Command completed successfully[/green]")
         else:
             if stdout:
                 self.console.print(stdout)
             if stderr:
                 self.console.print(f"[red]Error: {stderr}[/red]")
-            self.console.print(f"[red]✗ Command failed[/red]")
+            self.console.print("[red]✗ Command failed[/red]")
 
         return success
 
@@ -170,12 +170,12 @@ class RemoteCommands:
         if success:
             if stdout:
                 self.console.print(stdout)
-            self.console.print(f"[green]✓ Remote command completed successfully[/green]")
+            self.console.print("[green]✓ Remote command completed successfully[/green]")
         else:
             if stdout:
                 self.console.print(stdout)
             if stderr:
                 self.console.print(f"[red]Error: {stderr}[/red]")
-            self.console.print(f"[red]✗ Remote command failed[/red]")
+            self.console.print("[red]✗ Remote command failed[/red]")
 
         return success

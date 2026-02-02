@@ -4,6 +4,11 @@
 # 默认角色
 default_role: "programmer"
 
+# 模型配置说明：
+# - 默认使用 llm.yaml 中的全局模型
+# - 如需为角色指定专用模型，取消注释 model 字段
+# - 如需自定义 Modelfile，取消注释 base_model 和 modelfile 字段
+
 # 角色定义
 roles:
   # ============================================================
@@ -15,14 +20,10 @@ roles:
     description: "C/C++ 编程助手，提供代码补全、错误修复和测试生成"
     icon: "💻"
 
-    # 使用的模型（角色专用模型名称）
-    model: "role-programmer:latest"
-
-    # 基础模型（用于创建角色模型）
-    base_model: "qwen3:latest"
-
-    # Modelfile 路径（相对于项目根目录）
-    modelfile: "config/modelfiles/programmer.modelfile"
+    # 角色专用模型（可选，默认使用 llm.yaml 中的全局模型）
+    # model: "role-programmer:latest"
+    # base_model: "qwen3:latest"
+    # modelfile: "config/modelfiles/programmer.modelfile"
 
     # 启用的工具类别
     tool_categories:
@@ -35,6 +36,19 @@ roles:
     excluded_tools: []
 
   # ============================================================
+  # 问答助手角色（纯对话，无工具）
+  # ============================================================
+  chat:
+    name: "问答助手"
+    name_en: "Chat Assistant"
+    description: "通用问答助手，回答技术问题、解释概念、提供建议，不执行任何工具操作"
+    icon: "💬"
+
+    # 不启用任何工具
+    tool_categories: []
+    excluded_tools: []
+
+  # ============================================================
   # 知识治理员角色
   # ============================================================
   knowledge_curator:
@@ -43,10 +57,10 @@ roles:
     description: "知识结构化与分类归档专家，支持 RAG 知识库构建"
     icon: "📚"
 
-    # 使用的模型
-    model: "role-knowledge-curator:latest"
-    base_model: "qwen3:latest"
-    modelfile: "config/modelfiles/knowledge-curator.modelfile"
+    # 角色专用模型（可选）
+    # model: "role-knowledge-curator:latest"
+    # base_model: "qwen3:latest"
+    # modelfile: "config/modelfiles/knowledge-curator.modelfile"
 
     # 启用的工具类别（知识治理专用工具）
     tool_categories:
@@ -75,9 +89,10 @@ roles:
     description: "技术文档撰写专家，生成高质量的 README、API 文档和教程"
     icon: "📝"
 
-    model: "role-doc-writer:latest"
-    base_model: "qwen3:latest"
-    modelfile: "config/modelfiles/doc-writer.modelfile"
+    # 角色专用模型（可选）
+    # model: "role-doc-writer:latest"
+    # base_model: "qwen3:latest"
+    # modelfile: "config/modelfiles/doc-writer.modelfile"
 
     tool_categories:
       - filesystem
@@ -95,9 +110,10 @@ roles:
     description: "专注于代码质量、安全性和最佳实践的审查专家"
     icon: "🔍"
 
-    model: "role-code-reviewer:latest"
-    base_model: "qwen3:latest"
-    modelfile: "config/modelfiles/code-reviewer.modelfile"
+    # 角色专用模型（可选）
+    # model: "role-code-reviewer:latest"
+    # base_model: "qwen3:latest"
+    # modelfile: "config/modelfiles/code-reviewer.modelfile"
 
     tool_categories:
       - filesystem

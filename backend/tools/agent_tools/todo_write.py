@@ -5,11 +5,12 @@ TodoWrite Tool - 任务列表管理工具
 用于创建和管理结构化任务列表，向用户展示进度。
 """
 
-from typing import Dict, Any, List, Literal
+from typing import Any, Dict, List, Literal
+
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool, ToolResult
 from backend.todo import get_todo_manager
+from backend.tools.base import BaseTool, ToolResult
 
 
 class TodoItemParam(BaseModel):
@@ -54,20 +55,12 @@ class TodoWriteTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                "Create and manage a structured task list to track progress. "
-                "Use for: (1) Multi-step tasks (3+ steps); (2) Complex implementations; "
-                "(3) Multiple user requests; (4) Planning before work. "
-                "Rules: Only ONE task can be in_progress at a time. "
-                "Mark tasks completed IMMEDIATELY after finishing (don't batch). "
-                "Use imperative form for content, present continuous for activeForm."
+                "Track progress for multi-step tasks. "
+                "Call with work tools in parallel when possible."
             ),
             'zh': (
-                "创建和管理结构化任务列表以跟踪进度。"
-                "适用于：(1) 多步骤任务（3步以上）；(2) 复杂实现；"
-                "(3) 多个用户请求；(4) 工作前规划。"
-                "规则：同一时间只能有一个 in_progress 任务。"
-                "完成后立即标记 completed（不批量标记）。"
-                "content 使用祈使语气，activeForm 使用进行时态。"
+                "跟踪多步骤任务进度。"
+                "尽量与工作工具并行调用。"
             )
         }
 
@@ -79,6 +72,11 @@ class TodoWriteTool(BaseTool):
     def priority(self) -> int:
         # 高优先级，鼓励 LLM 使用
         return 85
+
+    @property
+    def skip_confirmation(self) -> bool:
+        # 任务管理工具，无副作用，无需确认
+        return True
 
     @property
     def parameters_model(self):

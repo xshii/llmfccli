@@ -175,9 +175,12 @@ def test_todo_write_tool():
         {'content': '保存结果', 'status': 'pending', 'activeForm': '保存结果中'},
     ])
 
-    assert result['success'] is True
-    assert result['total'] == 3
-    assert result['current_task'] == '处理数据'
+    # result is a ToolResult with ok and output attributes
+    assert result.ok is True
+    # Check manager state directly for counts
+    manager = get_todo_manager()
+    assert manager.total_count == 3
+    assert manager.current_task.content == '处理数据'
 
     console.print("[green]✓ Test 6: todo_write 工具执行成功[/green]")
 

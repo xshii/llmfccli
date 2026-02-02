@@ -5,9 +5,9 @@
 提供路径压缩和格式化功能
 """
 
-import os
-from typing import Optional, List, Tuple
 import glob as glob_module
+import os
+from typing import List, Optional, Tuple
 
 
 class PathUtils:

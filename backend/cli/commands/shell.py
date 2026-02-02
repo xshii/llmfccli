@@ -4,10 +4,11 @@ Shell 命令 - 本地 shell 命令执行
 """
 
 from typing import List
+
 from rich.console import Console
 
-from .base import Command
 from ...utils.shell_session import PersistentShellSession
+from .base import Command
 
 
 class CmdCommand(Command):
@@ -59,9 +60,9 @@ class CmdCommand(Command):
             self.console.print(f"[red]{error}[/red]")
 
         if success:
-            self.console.print(f"[green]✓ 命令执行成功[/green]")
+            self.console.print("[green]✓ 命令执行成功[/green]")
         else:
-            self.console.print(f"[red]✗ 命令执行失败[/red]")
+            self.console.print("[red]✗ 命令执行失败[/red]")
 
         return True
 

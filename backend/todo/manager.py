@@ -3,10 +3,10 @@
 TodoManager - 单例模式管理任务列表状态
 """
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Callable, Literal
-from enum import Enum
 import threading
+from dataclasses import dataclass
+from enum import Enum
+from typing import Callable, List, Optional
 
 
 class TodoStatus(str, Enum):

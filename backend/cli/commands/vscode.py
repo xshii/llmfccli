@@ -3,9 +3,10 @@
 VSCode 集成命令
 """
 
-import subprocess
 import shutil
+import subprocess
 from typing import List
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -56,8 +57,8 @@ class VSCodeCommand(Command):
 
     def test_integration(self):
         """测试 VSCode extension 集成"""
-        from backend.tools import vscode
         from backend.rpc.client import is_vscode_mode
+        from backend.tools import vscode
 
         self.console.print("\n[cyan]═══════════════════════════════════════[/cyan]")
         self.console.print("[cyan bold]  VSCode Extension 集成测试[/cyan bold]")

@@ -16,7 +16,6 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from rich.table import Table
 
 from backend.cli.interactive_base import InteractiveShellBase
 from backend.remotectl.commands import RemoteCommands

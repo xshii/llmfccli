@@ -4,15 +4,11 @@ EditFile Tool - Exact string replacement following Claude Code design
 """
 
 import os
-from typing import Dict, Any
+from typing import Any, Dict
+
 from pydantic import BaseModel, Field
 
-from backend.tools.base import BaseTool, ToolResult
-
-
-class FileSystemError(Exception):
-    """Filesystem operation error"""
-    pass
+from backend.tools.base import BaseTool, FileSystemError, ToolResult
 
 
 class EditFileParams(BaseModel):
@@ -43,34 +39,8 @@ class EditFileTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': (
-                'Performs exact string replacements in files.\n\n'
-                'Usage:\n'
-                '- Recommended: Use view_file first to get the exact string content, but you CAN call edit_file directly if you know the exact old_str.\n'
-                '- If editing a previously viewed file, use the same path from that view_file call.\n'
-                '- When editing text from view_file output, preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. '
-                'The line number prefix format is: spaces + line number + tab. Everything after that tab is the actual file content to match. '
-                'Never include any part of the line number prefix in old_str or new_str.\n'
-                '- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n'
-                '- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n'
-                '- The edit will FAIL if old_str is not unique in the file. Either provide a larger string with more surrounding context to make it unique '
-                'or use replace_all=True to change every instance of old_str.\n'
-                '- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.'
-            ),
-            'zh': (
-                '对文件执行精确的字符串替换。\n\n'
-                '使用说明：\n'
-                '- 建议：先用 view_file 获取准确的字符串内容，但如果你确定准确的 old_str，可以直接调用 edit_file。\n'
-                '- 如果编辑之前查看过的文件，使用与 view_file 调用相同的路径。\n'
-                '- 编辑 view_file 输出的文本时，请保持行号前缀之后的精确缩进（制表符/空格）。'
-                '行号前缀格式为：空格 + 行号 + 制表符。制表符之后才是实际的文件内容。'
-                '绝不要在 old_str 或 new_str 中包含行号前缀的任何部分。\n'
-                '- 始终优先编辑代码库中的现有文件。除非明确要求，否则不要创建新文件。\n'
-                '- 仅在用户明确要求时使用表情符号。除非被要求，否则避免向文件中添加表情符号。\n'
-                '- 如果 old_str 在文件中不唯一，编辑将失败。要么提供更大的字符串和更多上下文使其唯一，'
-                '要么使用 replace_all=True 来更改 old_str 的所有实例。\n'
-                '- 使用 replace_all 可以在整个文件中替换和重命名字符串。此参数在重命名变量等场景下很有用。'
-            )
+            'en': 'Replace exact string in file. old_str must be unique (or use replace_all=True).',
+            'zh': '精确替换文件中的字符串。old_str 必须唯一（或使用 replace_all=True）。'
         }
 
     def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
@@ -116,60 +86,23 @@ class EditFileTool(BaseTool):
             replace_all: Replace all occurrences
         """
         # Resolve path
-        if not os.path.isabs(path) and self.project_root:
-            full_path = os.path.join(self.project_root, path)
-        else:
-            full_path = path
-        full_path = os.path.abspath(full_path)
+        full_path = self.resolve_path(path)
 
-        # Check if file exists
+        # Check if file exists (with fuzzy matching fallback)
         if not os.path.isfile(full_path):
-            # Try to find similar file
-            from backend.cli.path_utils import PathUtils
-            path_utils = PathUtils(self.project_root or os.getcwd())
-            similar = path_utils.find_similar_file(path)
-            if similar:
-                full_path = os.path.join(self.project_root or os.getcwd(), similar)
-                full_path = os.path.abspath(full_path)
-            else:
+            try:
+                full_path = self.find_file_with_fallback(path)
+            except FileNotFoundError:
                 return  # File doesn't exist, skip preview
 
-        try:
-            # Read file
-            with open(full_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-
-            # Check if old_str exists
-            if old_str not in content:
-                return  # String not found, skip preview
-
-            # Generate new content
-            if replace_all:
-                new_file_content = content.replace(old_str, new_str)
-                title_op = f"Replace all ({content.count(old_str)} occurrences)"
-            else:
-                count = content.count(old_str)
-                if count != 1:
-                    return  # Not unique, skip preview
-                new_file_content = content.replace(old_str, new_str, 1)
-                title_op = "Replace"
-
-            # Show diff in VSCode
-            from backend.utils.feature import is_feature_enabled
-            from backend.rpc.client import is_vscode_mode
-
-            if is_vscode_mode() and is_feature_enabled("ide_integration.show_diff_before_edit"):
-                from backend.tools.vscode_tools import vscode
-                import time
-                timestamp = int(time.time() * 1000)
-                vscode.show_diff(
-                    title=f"Preview: {title_op} in {os.path.basename(full_path)} [{timestamp}]",
-                    original_path=full_path,
-                    modified_content=new_file_content
-                )
-        except Exception:
-            # Preview failed, continue silently
-            pass
+        # Use DiffPreviewManager to show preview
+        from backend.tools.diff_preview import get_diff_preview_manager
+        get_diff_preview_manager().show_replace_preview(
+            file_path=full_path,
+            old_str=old_str,
+            new_str=new_str,
+            replace_all=replace_all
+        )
 
     def execute(self, path: str, old_str: str, new_str: str, replace_all: bool = False) -> Dict[str, Any]:
         """
@@ -187,31 +120,17 @@ class EditFileTool(BaseTool):
         Raises:
             FileSystemError: If file not found, string not found, or not unique
         """
-        # Resolve path
-        if not os.path.isabs(path) and self.project_root:
-            full_path = os.path.join(self.project_root, path)
-        else:
-            full_path = path
+        # Resolve path and validate security
+        try:
+            full_path = self.resolve_and_validate_path(path)
+        except ValueError as e:
+            raise FileSystemError(str(e))
 
-        full_path = os.path.abspath(full_path)
-
-        # Security check
-        if self.project_root:
-            project_root = os.path.abspath(self.project_root)
-            if not full_path.startswith(project_root):
-                raise FileSystemError(f"Path {path} is outside project root")
-
-        # Check file exists
+        # Check file exists (with fuzzy matching fallback)
         if not os.path.exists(full_path):
-            # Try to find similar file
-            from backend.cli.path_utils import PathUtils
-            path_utils = PathUtils(self.project_root or os.getcwd())
-            similar = path_utils.find_similar_file(path)
-            if similar:
-                # Use the similar file
-                full_path = os.path.join(self.project_root or os.getcwd(), similar)
-                full_path = os.path.abspath(full_path)
-            else:
+            try:
+                full_path = self.find_file_with_fallback(path)
+            except FileNotFoundError:
                 raise FileSystemError(f"File not found: {path}")
 
         # Read file

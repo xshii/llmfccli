@@ -17,7 +17,6 @@ Or import specific clients:
 from .ollama import OllamaClient
 
 # Re-export utility function
-from .ollama import OllamaClient as _OllamaClient
 
 
 def create_tool_definition(name: str, description: str,

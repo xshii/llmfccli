@@ -3,7 +3,8 @@
 InstantCompact Tool - 即时压缩指定工具调用的结果
 """
 
-from typing import Dict, Any
+from typing import Any, Dict
+
 from pydantic import BaseModel, Field
 
 from backend.tools.base import BaseTool

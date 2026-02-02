@@ -10,10 +10,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from backend.tools.git_tools.git import _git_mr
+from backend.tools.git_tools.commands import git_mr
 
 
-def test_git_mr_with_missing_command():
+def testgit_mr_with_missing_command():
     """测试 git mr 命令不存在时的处理（应该快速失败，不卡住）"""
     import time
 
@@ -25,7 +25,7 @@ def test_git_mr_with_missing_command():
     }
 
     start = time.time()
-    result = _git_mr(args, str(project_root))
+    result = git_mr(args, str(project_root))
     elapsed = time.time() - start
 
     print(f"Execution time: {elapsed:.2f}s")
@@ -35,13 +35,13 @@ def test_git_mr_with_missing_command():
     assert elapsed < 35, f"Command took too long: {elapsed}s"
 
     # 应该失败（因为 git mr 可能不是标准命令）
-    if not result['success']:
+    if not result.ok:
         print("✓ Command failed as expected (git mr may not be available)")
         # 检查是否是超时错误还是命令不存在错误
-        if 'timed out' in result['error']:
+        if 'timed out' in result.output:
             print("⚠ Command timed out - this should be investigated")
         else:
-            print(f"✓ Command failed quickly with error: {result['error']}")
+            print(f"✓ Command failed quickly with error: {result.output}")
     else:
         print("✓ Command succeeded (git mr is available)")
 
@@ -49,4 +49,4 @@ def test_git_mr_with_missing_command():
 
 
 if __name__ == "__main__":
-    test_git_mr_with_missing_command()
+    testgit_mr_with_missing_command()

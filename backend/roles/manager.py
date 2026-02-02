@@ -12,9 +12,10 @@
 
 import os
 import subprocess
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import yaml
 
 
@@ -28,7 +29,7 @@ class Role:
     icon: str                        # 角色图标（emoji）
     model: str                       # 使用的模型（角色专用模型名称）
     tool_categories: List[str]       # 启用的工具类别
-    base_model: str = "qwen3:latest"  # 基础模型
+    base_model: str = ""  # 基础模型（从 llm.yaml 读取）
     modelfile: str = ""               # Modelfile 路径
     included_tools: List[str] = field(default_factory=list)  # 额外包含的工具（跨类别复用）
     excluded_tools: List[str] = field(default_factory=list)  # 排除的工具
@@ -99,7 +100,7 @@ class RoleManager:
             self._create_default_config()
 
     def _create_default_config(self):
-        """创建默认配置"""
+        """创建默认配置（模型从 llm.yaml 读取）"""
         self._roles = {
             'programmer': Role(
                 id='programmer',
@@ -107,8 +108,8 @@ class RoleManager:
                 name_en='Programmer',
                 description='C/C++ 编程助手',
                 icon='💻',
-                model='claude-qwen:latest',
-                base_model='qwen3:latest',
+                model='',  # 从 llm.yaml 读取
+                base_model='',  # 从 llm.yaml 读取
                 modelfile='config/modelfiles/programmer.modelfile',
                 tool_categories=['filesystem', 'executor', 'git', 'agent'],
                 excluded_tools=[]
@@ -128,8 +129,8 @@ class RoleManager:
                     name_en=role_data.get('name_en', role_id),
                     description=role_data.get('description', ''),
                     icon=role_data.get('icon', '🤖'),
-                    model=role_data.get('model', 'qwen3:latest'),
-                    base_model=role_data.get('base_model', 'qwen3:latest'),
+                    model=role_data.get('model', ''),
+                    base_model=role_data.get('base_model', ''),
                     modelfile=role_data.get('modelfile', ''),
                     tool_categories=role_data.get('tool_categories', []),
                     included_tools=role_data.get('included_tools', []),
@@ -209,7 +210,8 @@ class RoleManager:
         role = self._roles.get(role_id or self._current_role_id)
         if role:
             return role.model
-        return "qwen3:latest"
+        # 如果角色不存在，返回空字符串让调用方从 llm.yaml 读取
+        return ""
 
     def get_modelfile_path(self, role_id: Optional[str] = None) -> Optional[str]:
         """
@@ -357,8 +359,12 @@ class RoleManager:
                 continue
 
             # 3. 按类别检查
+            # 注意：'other' 类别只在 tool_categories 非空时才包含，
+            # 这样 chat 等纯对话角色可以通过空 tool_categories 禁用所有工具
             tool_category = get_tool_category(tool_name)
-            if tool_category in role.tool_categories or tool_category == 'other':
+            if tool_category in role.tool_categories:
+                filtered.append(tool)
+            elif role.tool_categories and tool_category == 'other':
                 filtered.append(tool)
 
         return filtered

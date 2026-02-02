@@ -4,7 +4,7 @@ Prompt templates for Qwen3 model
 """
 
 # System prompt for the main agent
-SYSTEM_PROMPT = """你是一个专业的 C/C++ 编程助手，基于 Qwen3 模型。
+SYSTEM_PROMPT = """你是一个专业的 C/C++ 编程助手。
 
 核心能力：
 - 跨目录搜索和定位代码文件
@@ -257,7 +257,7 @@ FUNCTION_CALL_FORMAT = """调用工具时使用 JSON 格式：
       }}
     }},
     {{
-      "id": "call_2", 
+      "id": "call_2",
       "name": "view_file",
       "arguments": {{
         "path": "src/network/handler.cpp",
@@ -283,7 +283,7 @@ def get_system_prompt(project_root: str = "") -> str:
     return SYSTEM_PROMPT
 
 
-def get_intent_prompt(user_input: str, project_root: str = "", 
+def get_intent_prompt(user_input: str, project_root: str = "",
                       active_file: str = "", recent_changes: str = "") -> str:
     """Get intent recognition prompt"""
     return format_prompt(

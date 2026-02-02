@@ -4,11 +4,20 @@
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
-from typing import Dict, Any, Optional, Type, List, Union
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Type, Union
+
 from pydantic import BaseModel
 
 from backend.utils.i18n import t
+
+
+class FileSystemError(Exception):
+    """文件系统操作错误
+
+    统一的文件系统异常类，用于所有文件系统工具。
+    """
+    pass
 
 
 @dataclass
@@ -141,6 +150,15 @@ class BaseTool(ABC):
         return 50
 
     @property
+    def skip_confirmation(self) -> bool:
+        """是否跳过用户确认直接执行
+
+        默认: False（需要确认）
+        无副作用的工具（如查看、交互、任务管理）可设为 True。
+        """
+        return False
+
+    @property
     def parameters_model(self) -> Type[BaseModel]:
         """参数模型（Pydantic）- 自动生成 JSON Schema
 
@@ -236,7 +254,7 @@ class BaseTool(ABC):
         except Exception as e:
             return ToolResult.fail(str(e)).to_dict()
 
-    def get_confirmation_signature(self, _arguments: Dict[str, Any]) -> str:
+    def confirmation_signature(self, _arguments: Dict[str, Any]) -> str:
         """
         获取用于确认分组的签名
 
@@ -253,7 +271,7 @@ class BaseTool(ABC):
         """
         return self.name
 
-    def is_dangerous_operation(self, _arguments: Dict[str, Any]) -> bool:
+    def is_dangerous(self, _arguments: Dict[str, Any]) -> bool:
         """
         检查操作是否危险，需要额外确认
 
@@ -270,3 +288,91 @@ class BaseTool(ABC):
             True 如果操作危险需要确认
         """
         return False
+
+    # ========== 路径处理方法 ==========
+
+    def resolve_path(self, path: str) -> str:
+        """
+        解析路径为绝对路径
+
+        将相对路径转换为基于 project_root 的绝对路径。
+
+        Args:
+            path: 相对或绝对路径
+
+        Returns:
+            绝对路径
+        """
+        import os
+        if not os.path.isabs(path) and self.project_root:
+            path = os.path.join(self.project_root, path)
+        return os.path.abspath(path)
+
+    def _validate_path_security(self, path: str) -> None:
+        """
+        验证路径安全性（防止路径遍历攻击）
+
+        内部方法，通过 resolve_and_validate_path() 调用。
+
+        Args:
+            path: 绝对路径
+
+        Raises:
+            ValueError: 如果路径在项目根目录外
+        """
+        import os
+        if self.project_root:
+            project_root = os.path.abspath(self.project_root)
+            if not path.startswith(project_root):
+                raise ValueError(f"Path {path} is outside project root {project_root}")
+
+    def resolve_and_validate_path(self, path: str) -> str:
+        """
+        解析路径并验证安全性
+
+        组合 resolve_path 和 _validate_path_security。
+
+        Args:
+            path: 相对或绝对路径
+
+        Returns:
+            验证后的绝对路径
+
+        Raises:
+            ValueError: 如果路径在项目根目录外
+        """
+        resolved = self.resolve_path(path)
+        self._validate_path_security(resolved)
+        return resolved
+
+    def find_file_with_fallback(self, path: str) -> str:
+        """
+        查找文件，不存在时尝试模糊匹配
+
+        Args:
+            path: 文件路径（已解析的绝对路径或相对路径）
+
+        Returns:
+            存在的文件绝对路径
+
+        Raises:
+            FileNotFoundError: 如果文件不存在且无法找到相似文件
+        """
+        import os
+
+        # 确保是绝对路径
+        abs_path = self.resolve_path(path)
+
+        if os.path.exists(abs_path):
+            return abs_path
+
+        # 尝试模糊匹配
+        from backend.cli.path_utils import PathUtils
+        path_utils = PathUtils(self.project_root or os.getcwd())
+        similar = path_utils.find_similar_file(path)
+
+        if similar:
+            found_path = os.path.join(self.project_root or os.getcwd(), similar)
+            return os.path.abspath(found_path)
+
+        raise FileNotFoundError(f"File not found: {path}")

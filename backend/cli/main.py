@@ -3,34 +3,32 @@
 主 CLI 类 - 重构后的简化版本
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
-from typing import Optional, Dict
+from typing import Optional
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.history import FileHistory
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
 from ..agent.loop import AgentLoop
-from ..llm.client import OllamaClient
-from ..utils.precheck import PreCheck
 from ..agent.tools import ConfirmAction, ConfirmResult
+from ..llm.client import OllamaClient
 from ..remotectl.commands import RemoteCommands
-from .cli_completer import ClaudeQwenCompleter, PathCompleter, FileNameCompleter, CombinedCompleter
-from ..utils.shell_session import PersistentShellSession
 from ..tools.executor_tools.bash_session import set_shared_session
-from ..utils.i18n import I18n
 from ..utils.feature import is_feature_enabled
-
-from .path_utils import PathUtils
-from .output_manager import ToolOutputManager
+from ..utils.i18n import I18n
+from .ui import PrecheckRunner, StatusLine, ToolConfirmationUI
+from ..utils.shell_session import PersistentShellSession
+from .completers import ClaudeQwenCompleter, CombinedCompleter, FileNameCompleter, PathCompleter
 from .command_registry import CommandRegistry
-from .status_line import StatusLine
+from .output_manager import ToolOutputManager
+from .path_utils import PathUtils
 
 
 class CLI:
@@ -69,12 +67,20 @@ class CLI:
         self.agent = AgentLoop(
             client=self.client,
             project_root=self.project_root,
-            confirmation_callback=self._confirm_tool_execution,
+            confirmation_callback=self._on_confirm,
             tool_output_callback=None  # 稍后设置
         )
 
         # 初始化路径工具
         self.path_utils = PathUtils(self.project_root)
+
+        # 初始化工具确认 UI
+        self.tool_confirmation_ui = ToolConfirmationUI(
+            console=self.console,
+            project_root=self.project_root,
+            path_utils=self.path_utils,
+            confirmation_manager=self.agent.confirmation
+        )
 
         # 初始化输出管理器
         self.output_manager = ToolOutputManager(self.console, self.path_utils, self.agent)
@@ -149,331 +155,13 @@ class CLI:
 
     def _run_precheck(self):
         """运行环境预检查"""
-        while True:
-            self.console.print("\n[cyan]运行环境检查...[/cyan]")
+        runner = PrecheckRunner(self.console)
+        if not runner.run():
+            sys.exit(1)
 
-            # 运行预检查（跳过项目结构检查）
-            results = []
-            # 首先检查并终止本地 Ollama（如果使用远程）
-            results.append(PreCheck.check_and_kill_local_ollama())
-            results.append(PreCheck.check_ssh_tunnel())
-            results.append(PreCheck.check_ollama_connection())
-            results.append(PreCheck.check_ollama_model(model_name="qwen3:latest"))
-
-            # 显示结果
-            all_passed = all(r.success for r in results)
-
-            for result in results:
-                status = "✓" if result.success else "✗"
-                color = "green" if result.success else "red"
-                self.console.print(f"[{color}]{status}[/{color}] {result.message}")
-
-            if not all_passed:
-                self.console.print("\n[yellow]⚠ 环境检查失败[/yellow]")
-                self.console.print("\n[yellow]建议操作:[/yellow]")
-
-                # 加载 SSH 配置（优先 llm.yaml，回退 ollama.yaml）
-                ssh_host = "ollama-tunnel"
-                extra_paths = []
-                try:
-                    import yaml
-                    llm_config = Path(__file__).parent.parent.parent / "config" / "llm.yaml"
-                    ollama_config = Path(__file__).parent.parent.parent / "config" / "ollama.yaml"
-                    config_path = llm_config if llm_config.exists() else ollama_config
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = yaml.safe_load(f)
-                        ssh_host = config.get('ssh', {}).get('host', 'ollama-tunnel')
-                        extra_paths = config.get('ssh', {}).get('extra_paths', [])
-                except Exception:
-                    pass
-
-                # 构建远程命令的 PATH 前缀
-                if extra_paths:
-                    path_prefix = f"export PATH=\"{':'.join(extra_paths)}:$PATH\" && "
-                else:
-                    path_prefix = ""
-
-                for result in results:
-                    if not result.success:
-                        if "SSH Tunnel" in result.name:
-                            if "远程 Ollama 服务未运行" in result.message:
-                                self.console.print(f"  • 在远程服务器启动 Ollama: [cyan]ssh {ssh_host} '{path_prefix}ollama serve &'[/cyan]")
-                            else:
-                                self.console.print(f"  • 启动 SSH 隧道: [cyan]ssh -fN {ssh_host}[/cyan]")
-                        elif "Ollama Connection" in result.name:
-                            self.console.print(f"  • 在远程服务器启动 Ollama: [cyan]ssh {ssh_host} '{path_prefix}nohup ollama serve > /dev/null 2>&1 &'[/cyan]")
-                        elif "Ollama Model" in result.name:
-                            model = result.details.get('model', 'qwen3:latest')
-                            self.console.print(f"  • 拉取模型: [cyan]ollama pull {model}[/cyan]")
-
-                self.console.print("\n[yellow]提示: 使用 --skip-precheck 参数跳过环境检查[/yellow]\n")
-
-                # 询问用户是否要启动 SSH 并重试、重试或退出
-                try:
-                    self.console.print("选择操作 - \\[s]启动SSH并重试 / \\[R]手动重试 / \\[n]退出: ", end='')
-
-                    # 单键读取（不需要按回车）
-                    import platform
-                    response = ''
-                    if not sys.stdin.isatty():
-                        # 非交互模式，使用普通输入
-                        response = input().strip().lower() or 'r'
-                    elif platform.system() == 'Windows':
-                        import msvcrt
-                        response = msvcrt.getch().decode('utf-8', errors='ignore').lower()
-                        self.console.print(response)  # 回显用户输入
-                    else:
-                        try:
-                            import termios
-                            import tty
-                            fd = sys.stdin.fileno()
-                            old_settings = termios.tcgetattr(fd)
-                            try:
-                                tty.setraw(fd)
-                                response = sys.stdin.read(1).lower()
-                            finally:
-                                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                            self.console.print(response)  # 回显用户输入
-                        except (termios.error, OSError):
-                            # 终端不支持 termios，使用普通输入
-                            response = input().strip().lower() or 'r'
-                    if response == 's':
-                        # 启动 SSH 隧道并重试
-                        import subprocess
-                        import platform
-
-                        try:
-                            # 终止占用端口 11434 的进程
-                            if platform.system() == 'Windows':
-                                # Windows: 使用 netstat 和 taskkill
-                                result = subprocess.run(
-                                    'netstat -ano | findstr :11434',
-                                    shell=True, capture_output=True, text=True
-                                )
-                                if result.returncode == 0 and result.stdout.strip():
-                                    pids = set()
-                                    for line in result.stdout.strip().split('\n'):
-                                        parts = line.split()
-                                        if parts:
-                                            pids.add(parts[-1])
-                                    for pid in pids:
-                                        if pid.strip() and pid != '0':
-                                            subprocess.run(f'taskkill /PID {pid} /F', shell=True, capture_output=True)
-                                    self.console.print(f"[dim]已终止占用端口 11434 的进程 (PID: {', '.join(pids)})[/dim]")
-                            else:
-                                # macOS/Linux: 使用 lsof
-                                result = subprocess.run(
-                                    'lsof -i tcp:11434',
-                                    shell=True, capture_output=True, text=True
-                                )
-                                if result.stdout.strip():
-                                    # 获取 PID（跳过标题行）
-                                    lines = result.stdout.strip().split('\n')[1:]
-                                    pids = set()
-                                    for line in lines:
-                                        parts = line.split()
-                                        if len(parts) >= 2:
-                                            pids.add(parts[1])
-                                    if pids:
-                                        for pid in pids:
-                                            subprocess.run(['kill', '-9', pid], capture_output=True)
-                                        self.console.print(f"[dim]已终止占用端口 11434 的进程 (PID: {', '.join(pids)})[/dim]")
-                            import time
-                            time.sleep(1)  # 等待端口释放
-                        except Exception as e:
-                            self.console.print(f"[dim]清理端口失败: {e}[/dim]")
-
-                        # 启动新隧道
-                        self.console.print(f"[cyan]启动 SSH 隧道: ssh -fN {ssh_host}[/cyan]")
-                        try:
-                            subprocess.run(['ssh', '-fN', ssh_host], check=True)
-                            self.console.print("[green]✓ SSH 隧道已启动[/green]")
-                        except subprocess.CalledProcessError as e:
-                            self.console.print(f"[red]✗ SSH 启动失败: {e}[/red]")
-                        except FileNotFoundError:
-                            self.console.print("[red]✗ 未找到 ssh 命令[/red]")
-
-                        # 检查并启动远程 Ollama 服务
-                        import time
-                        time.sleep(1)  # 等待隧道建立
-                        try:
-                            # 检查 Ollama 是否响应
-                            check_result = subprocess.run(
-                                ['curl', '-s', '--connect-timeout', '2', 'http://localhost:11434/api/tags'],
-                                capture_output=True, text=True, timeout=5
-                            )
-                            if check_result.returncode != 0 or not check_result.stdout.strip():
-                                # Ollama 未运行，尝试启动
-                                self.console.print(f"[cyan]启动远程 Ollama 服务...[/cyan]")
-                                ollama_cmd = f"{path_prefix}nohup ollama serve > /dev/null 2>&1 &"
-                                subprocess.run(
-                                    ['ssh', '-o', 'ClearAllForwardings=yes', ssh_host, ollama_cmd],
-                                    capture_output=True, timeout=10
-                                )
-                                time.sleep(2)  # 等待 Ollama 启动
-                                self.console.print("[green]✓ 远程 Ollama 启动命令已发送[/green]")
-                        except Exception as e:
-                            self.console.print(f"[dim]启动远程 Ollama 失败: {e}[/dim]")
-
-                        continue
-                    elif response == 'n':
-                        # 退出
-                        self.console.print("[red]已取消启动[/red]")
-                        sys.exit(1)
-                    else:
-                        # 重试（默认，包括空输入）
-                        continue
-                except (KeyboardInterrupt, EOFError):
-                    self.console.print("\n[red]已取消启动[/red]")
-                    sys.exit(1)
-            else:
-                self.console.print("\n[green]✓ 环境检查通过[/green]")
-                break
-
-    def _confirm_tool_execution(self, tool_name: str, category: str, arguments: dict) -> ConfirmResult:
-        """提示用户确认工具执行
-
-        Args:
-            tool_name: 要执行的工具名称
-            category: 工具类别（filesystem, executor, analyzer）
-            arguments: 工具参数
-
-        Returns:
-            ConfirmResult: 用户的选择和可选的拒绝原因
-        """
-        from .hyperlink import create_file_hyperlink
-
-        # 获取工具 schema 以检查参数格式
-        from backend.agent.tools import registry
-        tool_metadata = registry.get_tool_metadata(tool_name)
-        param_formats = {}
-
-        if tool_metadata:
-            properties = tool_metadata.get('schema', {}).get('function', {}).get('parameters', {}).get('properties', {})
-            for param_name, param_info in properties.items():
-                if param_info.get('format') == 'filepath':
-                    param_formats[param_name] = 'filepath'
-
-        # 格式化参数显示，带路径压缩
-        args_display = []
-
-        # 提取行号信息（用于显示）
-        line_number = None
-        if 'line_range' in arguments and arguments['line_range']:
-            # line_range 格式: (start, end) 或 [start, end]
-            line_range = arguments['line_range']
-            if isinstance(line_range, (tuple, list)) and len(line_range) >= 1:
-                line_number = line_range[0]
-        elif 'line' in arguments:
-            line_number = arguments.get('line')
-        elif 'start_line' in arguments:
-            line_number = arguments.get('start_line')
-
-        for key, value in arguments.items():
-            # 根据 schema 格式处理路径参数（使用统一的 hyperlink 模块）
-            if param_formats.get(key) == 'filepath':
-                value_str = create_file_hyperlink(
-                    path=str(value),
-                    project_root=self.project_root,
-                    path_utils=self.path_utils,
-                    line=line_number
-                )
-                args_display.append(f"  • {key}: {value_str}")
-            # 嵌套 dict 展开显示
-            elif isinstance(value, dict) and value:
-                args_display.append(f"  • {key}:")
-                for sub_key, sub_value in value.items():
-                    sub_value_str = str(sub_value)
-                    if len(sub_value_str) > 50:
-                        sub_value_str = sub_value_str[:47] + "..."
-                    args_display.append(f"      - {sub_key}: {sub_value_str}")
-            # list 展开显示
-            elif isinstance(value, list) and value:
-                if len(value) <= 3:
-                    args_display.append(f"  • {key}: {value}")
-                else:
-                    args_display.append(f"  • {key}: [{len(value)} items]")
-                    for item in value[:3]:
-                        item_str = str(item)
-                        if len(item_str) > 50:
-                            item_str = item_str[:47] + "..."
-                        args_display.append(f"      - {item_str}")
-                    if len(value) > 3:
-                        args_display.append(f"      - ... ({len(value) - 3} more)")
-            else:
-                value_str = str(value)
-                # 截断其他长值
-                if len(value_str) > 60:
-                    value_str = value_str[:57] + "..."
-                args_display.append(f"  • {key}: {value_str}")
-        args_text = "\n".join(args_display) if args_display else "  (无参数)"
-
-        # 特殊处理 bash_run - 高亮命令
-        if tool_name == 'bash_run':
-            command = arguments.get('command', '')
-            self.console.print(Panel(
-                f"[yellow]⚠ 工具执行确认[/yellow] - 工具: [bold]{tool_name}[/bold] | 类别: [dim]{category}[/dim]\n"
-                f"命令: [cyan]{command}[/cyan] | 参数:\n{args_text}",
-                title="需要确认",
-                border_style="yellow"
-            ))
-        else:
-            self.console.print(Panel(
-                f"[yellow]⚠ 工具执行确认[/yellow] - 工具: [bold]{tool_name}[/bold] | 类别: [dim]{category}[/dim] | 参数:\n{args_text}",
-                title="需要确认",
-                border_style="yellow"
-            ))
-
-        # 获取工具签名用于显示
-        signature = self.agent.confirmation._get_tool_signature(tool_name, arguments)
-
-        # 提示操作
-        self.console.print("[bold]选择操作:[/bold]")
-        self.console.print("  [green]1[/green] - 本次允许")
-        self.console.print(f"  [blue]2[/blue] - 始终允许 [cyan]{signature}[/cyan]")
-        self.console.print("  [red]3[/red] - 拒绝并停止")
-
-        # 检查 stdin 是否可用（VSCode rerun 时可能不可用）
-        if not sys.stdin.isatty():
-            self.console.print("[yellow]⚠ 非交互模式，自动拒绝工具执行[/yellow]")
-            return ConfirmResult(action=ConfirmAction.DENY, reason="非交互模式")
-
-        while True:
-            try:
-                choice = input("> ").strip()
-
-                if choice == '1':
-                    self.console.print("[green]✓ 本次允许执行[/green]")
-                    return ConfirmResult(action=ConfirmAction.ALLOW_ONCE)
-                elif choice == '2':
-                    self.console.print(f"[blue]✓ 始终允许: {signature}[/blue]")
-
-                    # 对 git 工具额外提示危险参数
-                    if tool_name == 'git':
-                        args = arguments.get('args', {})
-                        action = arguments.get('action', '')
-                        if self.agent.confirmation.is_dangerous_git_operation(action, args):
-                            self.console.print(
-                                f"[yellow]  ⚠️  注意：危险参数仍需确认 (如 --force, --hard)[/yellow]"
-                            )
-
-                    return ConfirmResult(action=ConfirmAction.ALLOW_ALWAYS)
-                elif choice == '3':
-                    self.console.print("[yellow]请输入拒绝原因 (直接回车跳过):[/yellow]")
-                    try:
-                        reason = input("> ").strip()
-                    except (KeyboardInterrupt, EOFError):
-                        reason = ""
-                    if reason:
-                        self.console.print(f"[red]✗ 已拒绝: {reason}[/red]")
-                    else:
-                        self.console.print("[red]✗ 已拒绝[/red]")
-                    return ConfirmResult(action=ConfirmAction.DENY, reason=reason if reason else None)
-                else:
-                    self.console.print("[yellow]无效选择，请输入 1、2 或 3[/yellow]")
-            except (KeyboardInterrupt, EOFError):
-                self.console.print("[red]✗ 已取消[/red]")
-                return ConfirmResult(action=ConfirmAction.DENY, reason="用户取消")
+    def _on_confirm(self, tool_name: str, category: str, arguments: dict) -> ConfirmResult:
+        """提示用户确认工具执行（代理到 ToolConfirmationUI）"""
+        return self.tool_confirmation_ui.confirm(tool_name, category, arguments)
 
     def show_welcome(self):
         """显示欢迎消息"""
@@ -523,6 +211,7 @@ class CLI:
             str: 包含 <system-reminder> 标签的上下文字符串
         """
         import os
+
         from backend.cli.system_reminder import get_system_reminder
 
         context_parts = []
@@ -684,7 +373,7 @@ class CLI:
 
             # 清理旧会话
             session_manager.clear_old_sessions(keep_count=20)
-        except Exception as e:
+        except Exception:
             # 静默失败
             pass
 
@@ -713,7 +402,6 @@ class CLI:
                 return False
 
             # 提示用户是否恢复
-            import re
             summary = latest.summary or "无摘要"
             if len(summary) > 50:
                 summary = summary[:47] + "..."
@@ -745,7 +433,7 @@ class CLI:
                         except Exception:
                             pass
 
-                        self.console.print(f"[green]✓ 已恢复会话[/green]")
+                        self.console.print("[green]✓ 已恢复会话[/green]")
                         return True
             except KeyboardInterrupt:
                 pass
@@ -869,9 +557,22 @@ def main():
     parser.add_argument('--root', '-r', help='项目根目录', default=None)
     parser.add_argument('--skip-precheck', action='store_true',
                         help='跳过环境预检查（用于测试或离线环境）')
-    parser.add_argument('--version', '-v', action='version', version='0.1.0')
+    parser.add_argument('--version', '-v', action='version', version='1.0.0')
+    parser.add_argument('--test', '-t', action='store_true',
+                        help='运行 benchmark 测试')
+    parser.add_argument('--model', '-m', help='指定模型（用于 --test）', default=None)
 
     args = parser.parse_args()
+
+    # 运行 benchmark 测试
+    if args.test:
+        import os
+        from tests.benchmark.run_benchmark import AgentBenchmark
+        # 使用 fixtures 目录作为测试项目
+        test_project = os.path.join(os.path.dirname(__file__), '../../tests/fixtures/sample-cpp')
+        benchmark = AgentBenchmark(project_root=test_project, model=args.model or "glm-4.7-flash:latest")
+        benchmark.run_all()
+        return
 
     # Initialize and run CLI
     cli = CLI(project_root=args.root, skip_precheck=args.skip_precheck)
