@@ -17,8 +17,8 @@
 在 `~/.ssh/config` 中配置：
 
 ```bash
-Host ollama-tunnel
-    HostName 192.168.3.41
+Host ciserver
+    HostName 192.168.3.45
     User gakki
     LocalForward 11434 localhost:11434
     ServerAliveInterval 60
@@ -30,7 +30,7 @@ Host ollama-tunnel
 ```yaml
 ssh:
   enabled: true
-  host: "ollama-tunnel"
+  host: "ciserver"
   user: "gakki"  # 可选，如果在 .ssh/config 中已定义
 ```
 
@@ -156,17 +156,17 @@ print(info['modelfile'])
 ```bash
 # 1. 配置 SSH（如果使用远程服务器）
 cat >> ~/.ssh/config << 'EOF'
-Host ollama-tunnel
-    HostName 192.168.3.41
+Host ciserver
+    HostName 192.168.3.45
     User gakki
     LocalForward 11434 localhost:11434
 EOF
 
 # 2. 复制 SSH 密钥
-ssh-copy-id gakki@192.168.3.41
+ssh-copy-id gakki@192.168.3.45
 
 # 3. 测试连接
-ssh ollama-tunnel "ollama list"
+ssh ciserver "ollama list"
 
 # 4. 检查健康状态
 python -m backend.remotectl.cli health
@@ -257,10 +257,10 @@ class ModelManager:
 
 ```bash
 # 检查 SSH 配置
-ssh ollama-tunnel "echo 'SSH works'"
+ssh ciserver "echo 'SSH works'"
 
 # 检查隧道
-ssh -fN ollama-tunnel
+ssh -fN ciserver
 curl http://localhost:11434/api/tags
 ```
 
@@ -274,7 +274,7 @@ ls -la Modelfile.claude-qwen
 cat Modelfile.claude-qwen
 
 # 手动创建测试
-ssh ollama-tunnel "ollama create test:latest -f - << 'EOF'
+ssh ciserver "ollama create test:latest -f - << 'EOF'
 FROM qwen3:latest
 SYSTEM \"Test model\"
 EOF"
@@ -284,8 +284,8 @@ EOF"
 
 ```bash
 # 确保远程用户有权限
-ssh ollama-tunnel "which ollama"
-ssh ollama-tunnel "ollama list"
+ssh ciserver "which ollama"
+ssh ciserver "ollama list"
 ```
 
 ## 最佳实践

@@ -29,9 +29,9 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
 编辑 `~/.ssh/config`，添加：
 
 ```
-Host ollama-tunnel
-    HostName ciserver
-    User root
+Host ciserver
+    HostName 192.168.3.45
+    User gakki
     LocalForward 11434 localhost:11434
     ServerAliveInterval 60
     ServerAliveCountMax 3
@@ -40,14 +40,14 @@ Host ollama-tunnel
 ### 2.3 本地：复制公钥到远程服务器
 
 ```bash
-ssh-copy-id root@ciserver
+ssh-copy-id gakki@192.168.3.45
 ```
 
 ### 2.4 远端：确认 Ollama 运行中
 
 ```bash
 # SSH 登录远端
-ssh root@ciserver
+ssh ciserver
 
 # 检查 Ollama 状态
 systemctl status ollama
@@ -60,7 +60,7 @@ ollama list
 
 ```bash
 # 启动后台隧道
-ssh -fN ollama-tunnel
+ssh -fN ciserver
 
 # 验证隧道（本地访问远端 Ollama）
 curl http://localhost:11434/api/tags
@@ -69,7 +69,7 @@ curl http://localhost:11434/api/tags
 ### 2.6 本地：停止隧道
 
 ```bash
-pkill -f "ssh.*ollama-tunnel"
+pkill -f "ssh.*ciserver"
 ```
 
 ## 3. 本地：验证安装
@@ -131,8 +131,8 @@ python3 tests/benchmark/run_single.py write_test
 | `claude-qwen` | 本地 | 启动交互式 CLI |
 | `python3 tests/run_unit_tests.py` | 本地 | 运行单元测试 |
 | `python3 tests/benchmark/run_single.py write_test` | 本地 | 运行单个 benchmark |
-| `ssh -fN ollama-tunnel` | 本地 | 启动 SSH 隧道 |
-| `pkill -f "ssh.*ollama-tunnel"` | 本地 | 停止 SSH 隧道 |
+| `ssh -fN ciserver` | 本地 | 启动 SSH 隧道 |
+| `pkill -f "ssh.*ciserver"` | 本地 | 停止 SSH 隧道 |
 | `ollama list` | 远端 | 查看已安装模型 |
 
 ---
