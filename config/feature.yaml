@@ -41,6 +41,12 @@ agent_behavior:
     enabled: true
     description: "在用户消息中注入 system reminder 配置信息"
 
+# 工具配置
+tool_config:
+  # 工具描述语言
+  # 可选值: "en" (英文), "zh" (中文)
+  description_language: "en"
+
 # CLI 输出功能
 cli_output:
   # 文件路径超链接协议配置

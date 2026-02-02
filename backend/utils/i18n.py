@@ -41,8 +41,22 @@ class I18n:
             else:
                 cls._current_language = language
         else:
-            # Read from config file
-            config_path = Path(__file__).parent.parent / 'config' / 'language.yaml'
+            # Priority 1: Read from feature.yaml (tool_config.description_language)
+            feature_path = Path(__file__).parent.parent.parent / 'config' / 'feature.yaml'
+            if feature_path.exists():
+                try:
+                    with open(feature_path, 'r', encoding='utf-8') as f:
+                        feature_config = yaml.safe_load(f) or {}
+                    tool_config = feature_config.get('tool_config', {})
+                    lang = tool_config.get('description_language')
+                    if lang and lang in cls.SUPPORTED_LANGUAGES:
+                        cls._current_language = lang
+                        return
+                except Exception:
+                    pass
+
+            # Priority 2: Read from language.yaml
+            config_path = Path(__file__).parent.parent.parent / 'config' / 'language.yaml'
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = yaml.safe_load(f)
