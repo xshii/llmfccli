@@ -31,6 +31,17 @@ from .output_manager import ToolOutputManager
 from .path_utils import PathUtils
 
 
+def _reset_terminal():
+    """重置终端状态（防止上次调试中断后终端异常）"""
+    try:
+        import termios
+        fd = sys.stdin.fileno()
+        attrs = termios.tcgetattr(fd)
+        termios.tcsetattr(fd, termios.TCSADRAIN, attrs)
+    except Exception:
+        pass  # Windows 或非 TTY 环境忽略
+
+
 class CLI:
     """交互式 CLI - 重构版"""
 
@@ -41,6 +52,9 @@ class CLI:
             project_root: 项目根目录
             skip_precheck: 跳过环境预检查（用于测试）
         """
+        # 重置终端状态
+        _reset_terminal()
+
         # 初始化语言设置（必须在所有工具加载之前）
         I18n.initialize()
 
