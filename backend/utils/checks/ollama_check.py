@@ -86,7 +86,7 @@ def check_ollama_connection(base_url: str = "http://localhost:11434") -> PreChec
             return PreCheckResult(
                 "Ollama Connection",
                 False,
-                "无法连接 Ollama（远程服务可能未启动）",
+                f"无法连接 Ollama: {base_url}（检查 SSH 隧道 ciserver 是否已启动）",
                 {"url": base_url, "stderr": result.stderr}
             )
     except subprocess.TimeoutExpired:
