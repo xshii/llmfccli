@@ -31,7 +31,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
 ```
 Host ciserver
     HostName 192.168.3.45
-    User gakki
+    User root
     LocalForward 11434 localhost:11434
     ServerAliveInterval 60
     ServerAliveCountMax 3
@@ -40,7 +40,7 @@ Host ciserver
 ### 2.3 本地：复制公钥到远程服务器
 
 ```bash
-ssh-copy-id gakki@192.168.3.45
+ssh-copy-id root@192.168.3.45
 ```
 
 ### 2.4 远端：确认 Ollama 运行中
