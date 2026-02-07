@@ -33,7 +33,7 @@ tool_execution:
 agent_behavior:
   # 当模型未调用工具但回复看起来未完成时，自动发送 continue 提示
   auto_continue_on_incomplete:
-    enabled: true
+    enabled: false
     description: "当模型回复包含'让我'、'接下来'等关键词但未调用工具时，自动提示模型继续使用工具"
 
   # 是否在用户消息中注入 system reminder（来自 config/system_reminder.yaml）
@@ -59,7 +59,7 @@ cli_output:
   #   - "vscode"  : 使用 vscode://file/ 协议（需要 VS Code）
   #   - "none"    : 不使用协议，仅显示原始路径（适用于不支持超链接的环境）
   hyperlink_protocol:
-    protocol: "file"
+    protocol: "none"
     description: "文件路径超链接使用的协议 (file/vscode/none)"
 
     # 是否在路径后附加行号 (path:line 格式)

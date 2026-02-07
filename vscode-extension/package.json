@@ -2,7 +2,7 @@
   "name": "claude-qwen",
   "displayName": "Claude-Qwen AI Assistant",
   "description": "AI-powered C/C++ programming assistant with local Qwen3 model",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "publisher": "claude-qwen",
   "repository": {
     "type": "git",
