@@ -1,10 +1,10 @@
 # Claude-Qwen
 
-基于 Ollama 本地部署的 AI 编程助手，支持 GLM-4.7、Qwen3 等模型。
+基于 Ollama 本地部署的 AI 编程助手，支持 Qwen3-coder、GLM-4.7 等模型。
 
 ## 项目介绍
 
-Claude-Qwen 是一个开源的 AI 编程助手，专注于 C/C++ 项目开发。通过 Ollama 本地部署大模型（推荐 GLM-4.7-flash），提供智能代码补全、错误修复、测试生成等功能。
+Claude-Qwen 是一个开源的 AI 编程助手，专注于 C/C++ 项目开发。通过 Ollama 本地部署大模型（推荐 Qwen3-coder），提供智能代码补全、错误修复、测试生成等功能。
 
 **设计灵感**: 参考 Anthropic Claude Code 的工作机制，结合 Ollama 的本地部署优势。
 
@@ -14,6 +14,7 @@ Claude-Qwen 是一个开源的 AI 编程助手，专注于 C/C++ 项目开发。
 - ✅ 测试用例生成 - 自动生成 GTest 单元测试和集成测试
 - 💾 上下文管理 - Token 预算分配和智能压缩
 - 🔄 VSCode 集成 - Diff 对比和一键应用修改
+- 🎨 CLI Diff - 终端彩色差异显示（VSCode 不可用时的替代方案）
 
 ## 项目优势
 
@@ -55,8 +56,8 @@ cd claude-qwen
 # 2. 安装依赖
 pip install -e .[dev]
 
-# 3. 拉取模型（推荐 GLM-4.7-flash）
-ollama pull glm-4.7-flash
+# 3. 拉取模型（推荐 qwen3-coder）
+ollama pull qwen3-coder
 
 # 4. 验证安装（运行单元测试）
 python3 tests/run_unit_tests.py
@@ -82,6 +83,7 @@ claude-qwen
 - `llm.yaml` - 模型配置（model, think mode, timeout 等）
 - `token_budget.yaml` - Token 分配策略和压缩阈值
 - `tools.yaml` - 工具白名单和安全限制
+- `feature.yaml` - 功能开关（diff 显示、重试策略、会话恢复等）
 
 ## 测试用例
 
@@ -124,6 +126,7 @@ claude-qwen/
 │   ├── benchmark/       # 性能基准测试
 │   └── fixtures/        # 测试项目
 ├── config/              # 配置文件
+├── vscode-extension/    # VSCode 插件
 ├── QUICKSTART.md        # 快速入门指南
 └── README.md
 ```
@@ -133,15 +136,31 @@ claude-qwen/
 - [x] 测试用例和测试项目
 - [x] 项目结构和配置文件
 - [x] Token 计数器
-- [x] Ollama 客户端（支持 Qwen3、GLM-4.7）
+- [x] Ollama 客户端（支持 Qwen3-coder、GLM-4.7）
 - [x] 基础工具（view/edit/grep/bash）
 - [x] Agent 主循环
 - [x] 上下文压缩
 - [x] CLI 交互界面
 - [x] Benchmark 测试框架
-- [ ] VSCode 插件
+- [x] VSCode 插件
+- [x] CLI 彩色 Diff 显示
+- [x] Feature Flags 功能开关系统
 
 ## 更新日志
+
+### v1.1.0 (2026-02-07)
+
+**新功能**
+- 默认模型切换为 qwen3-coder:latest
+- CLI 彩色 diff 显示（`edit_file` / `create_file` 执行后显示 unified diff）
+- `create_file` 支持 VSCode diff preview
+- VSCode diff 确认后自动打开修改的文件
+- 工具执行后空响应自动重试（feature flag 控制）
+- Feature Flags 系统（`config/feature.yaml` 集中管理功能开关）
+
+**改进**
+- 修复 config 路径解析（`precheck_runner.py` / `i18n.py`）
+- 会话恢复提示可通过 feature flag 关闭
 
 ### v1.0.0 (2025-02-02)
 

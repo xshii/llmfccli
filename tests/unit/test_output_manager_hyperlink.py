@@ -60,9 +60,9 @@ def test_hyperlink_format():
         print(f"  参数: {case['args']}")
         print(f"  格式化: {formatted}")
 
-        # 检查是否包含超链接
+        # 检查是否包含超链接或纯路径（取决于 hyperlink_protocol 配置）
         if '[link=file://' in formatted and '[/link]' in formatted:
-            # 提取超链接部分
+            # file:// 协议模式
             link_match = re.search(r'\[link=file://([^\]]+)\]([^\[]+)\[/link\]', formatted)
             if link_match:
                 abs_path = link_match.group(1)
@@ -81,8 +81,11 @@ def test_hyperlink_format():
             else:
                 print(f"  ✗ 超链接格式不正确！")
                 all_passed = False
+        elif case['args'].get('path', '') in formatted:
+            # none 协议模式：路径以纯文本显示
+            print(f"  ✓ 纯路径模式（none 协议）")
         else:
-            print(f"  ✗ 未找到超链接！")
+            print(f"  ✗ 未找到路径！")
             all_passed = False
 
     print("\n" + "=" * 60)

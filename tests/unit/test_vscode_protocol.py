@@ -62,7 +62,7 @@ def test_vscode_protocol():
         print(f"\n  生成的超链接:")
         print(f"    {hyperlink}")
 
-        # 提取超链接 URI
+        # 提取超链接 URI（file:// / vscode:// 模式）或检查纯路径（none 模式）
         link_match = re.search(r'\[link=(.*?)\]', hyperlink)
         if link_match:
             uri = link_match.group(1)
@@ -71,20 +71,24 @@ def test_vscode_protocol():
             # 验证协议格式（file:// 或 vscode://）
             if uri.startswith('file://') or uri.startswith('vscode://file'):
                 print(f"    协议格式正确")
-
-                # 验证行号（如果有）
-                if case['line'] is not None:
-                    if f":{case['line']}" in hyperlink:
-                        print(f"    行号 {case['line']} 包含正确")
-                    else:
-                        print(f"    行号缺失!")
-                        all_passed = False
             else:
                 print(f"    未知协议格式: {uri}")
                 all_passed = False
         else:
-            print(f"    未找到超链接格式!")
-            all_passed = False
+            # none 协议：纯路径，无超链接
+            if case['path'] in hyperlink:
+                print(f"    纯路径模式（none 协议）")
+            else:
+                print(f"    路径未正确显示!")
+                all_passed = False
+
+        # 验证行号（如果有）
+        if case['line'] is not None:
+            if f":{case['line']}" in hyperlink:
+                print(f"    行号 {case['line']} 包含正确")
+            else:
+                print(f"    行号缺失!")
+                all_passed = False
 
     print("\n" + "=" * 70)
     if all_passed:

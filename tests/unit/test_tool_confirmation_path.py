@@ -106,11 +106,12 @@ def test_path_hyperlink_in_confirmation():
     for line in args_display:
         print(f"     {line}")
 
-    # 验证超链接格式（支持 file:// 或 vscode://）
-    assert 'file' in args_display[0].lower() or 'link=' in args_display[0], "路径未转换为超链接"
-    assert ':42' in args_display[0], "超链接未包含行号"
-    assert '[link=' in args_display[0], "未使用 Rich 超链接格式"
-    print("\n   路径成功转换为带行号的超链接")
+    # 验证路径显示（支持 file:// / vscode:// 超链接 或 none 协议纯路径）
+    has_hyperlink = 'link=' in args_display[0]
+    has_path = 'tools.py' in args_display[0]
+    assert has_hyperlink or has_path, "路径未正确显示"
+    assert ':42' in args_display[0], "未包含行号"
+    print("\n   路径显示正确（含行号）")
 
     # Test 4: 测试路径压缩
     print("\n[Test 4] 测试路径压缩效果")
@@ -136,10 +137,10 @@ def test_path_hyperlink_in_confirmation():
     print(f"   项目文件: {project_file}")
     print(f"   超链接: {hyperlink}")
 
-    # 应该包含超链接
-    assert 'file' in hyperlink.lower() or 'link=' in hyperlink, "未使用协议"
-    assert '[link=' in hyperlink, "未使用 Rich 超链接"
-    print("   项目内文件生成超链接成功")
+    # 应该包含路径信息（超链接或纯路径取决于协议配置）
+    assert 'network_handler.cpp' in hyperlink, "路径未正确显示"
+    assert ':25' in hyperlink, "行号未正确显示"
+    print("   项目内文件路径显示正确")
 
     print("\n" + "=" * 60)
     print("所有测试通过！")

@@ -435,8 +435,10 @@ class CLI:
                 return False
 
             try:
-                from rich.prompt import Confirm
-                if Confirm.ask("是否恢复该会话?", default=False, console=self.console):
+                self.console.print("是否恢复该会话? [dim](y/N)[/dim] ", end="")
+                runner = PrecheckRunner(self.console)
+                key = runner._read_single_key()
+                if key == 'y':
                     # 恢复会话
                     session = session_manager.load_session(latest.id)
                     if session:
@@ -577,7 +579,7 @@ def main():
     parser.add_argument('--root', '-r', help='项目根目录', default=None)
     parser.add_argument('--skip-precheck', action='store_true',
                         help='跳过环境预检查（用于测试或离线环境）')
-    parser.add_argument('--version', '-v', action='version', version='1.0.0')
+    parser.add_argument('--version', '-v', action='version', version='1.1.0')
     parser.add_argument('--test', '-t', action='store_true',
                         help='运行 benchmark 测试')
     parser.add_argument('--model', '-m', help='指定模型（用于 --test）', default=None)
@@ -590,7 +592,7 @@ def main():
         from tests.benchmark.run_benchmark import AgentBenchmark
         # 使用 fixtures 目录作为测试项目
         test_project = os.path.join(os.path.dirname(__file__), '../../tests/fixtures/sample-cpp')
-        benchmark = AgentBenchmark(project_root=test_project, model=args.model or "glm-4.7-flash:latest")
+        benchmark = AgentBenchmark(project_root=test_project, model=args.model or "qwen3-coder:latest")
         benchmark.run_all()
         return
 

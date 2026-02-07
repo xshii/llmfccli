@@ -12,7 +12,6 @@ ollama:
   model: "qwen3-coder:latest"  # 全局模型，所有任务使用
   timeout: 300
   stream: true
-  think: true  # 启用思考模式
 
   # 按角色覆盖模型（可选，取消注释启用）
   # models:
