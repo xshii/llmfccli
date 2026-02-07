@@ -41,7 +41,7 @@ class PrecheckRunner:
         """加载 SSH 配置"""
         try:
             import yaml
-            config_path = Path(__file__).parent.parent.parent / "config" / "llm.yaml"
+            config_path = Path(__file__).parent.parent.parent.parent / "config" / "llm.yaml"
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
                 self._ssh_host = config.get('ssh', {}).get('host')

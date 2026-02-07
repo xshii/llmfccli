@@ -42,7 +42,7 @@ class I18n:
                 cls._current_language = language
         else:
             # Read from config file
-            config_path = Path(__file__).parent.parent / 'config' / 'language.yaml'
+            config_path = Path(__file__).parent.parent.parent / 'config' / 'language.yaml'
             if config_path.exists():
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = yaml.safe_load(f)

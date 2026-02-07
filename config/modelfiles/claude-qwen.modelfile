@@ -6,7 +6,7 @@
 # - config/ollama.yaml only contains runtime config (base_url, timeout, etc.)
 # - Avoid config duplication, single source of truth
 
-FROM qwen3:latest
+FROM qwen3-coder:latest
 
 # System Prompt (English for better performance)
 SYSTEM """You are Claude-Qwen, a CLI-based AI programming assistant for C/C++ development.
