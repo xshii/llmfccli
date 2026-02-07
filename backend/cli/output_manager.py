@@ -13,6 +13,7 @@ from rich.markup import render
 from rich.panel import Panel
 from rich.text import Text
 
+from .cli_diff import show_edit_diff
 from .hyperlink import create_file_hyperlink, create_tool_hyperlink
 from .path_utils import PathUtils
 
@@ -75,11 +76,39 @@ class ToolOutputManager:
         # 显示执行结果（最多5行）
         self._display_result_lines(output)
 
+        # edit_file / create_file 时在 CLI 中显示彩色差异
+        if tool_name in ('edit_file', 'create_file') and args:
+            self._show_cli_diff(output, args)
+
         self.tool_outputs.append({
             'tool': tool_name,
             'output': output,
             'args': args or {}
         })
+
+    def _show_cli_diff(self, output: Union[Dict, str, Any], args: Dict):
+        """edit_file / create_file 成功后在 CLI 显示彩色差异"""
+        # 仅在成功时显示
+        if isinstance(output, dict) and not output.get('success', output.get('ok', True)):
+            return
+
+        from backend.utils.feature import is_feature_enabled
+        if not is_feature_enabled("cli_output.show_diff_in_cli"):
+            return
+
+        file_path = args.get('path', '')
+
+        # edit_file: old_str -> new_str
+        old_str = args.get('old_str', '')
+        new_str = args.get('new_str', '')
+        if old_str or new_str:
+            show_edit_diff(self.console, old_str, new_str, file_path=file_path)
+            return
+
+        # create_file: 空 -> content（全部为新增）
+        content = args.get('content', '')
+        if content:
+            show_edit_diff(self.console, '', content, file_path=file_path)
 
     def _display_result_lines(self, output: Union[Dict, str, Any], max_lines: int = 5):
         """显示工具执行结果（最多 max_lines 行）

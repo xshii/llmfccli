@@ -118,7 +118,7 @@ class DiffPreviewManager:
         显示任意内容变更的差异预览
 
         Args:
-            file_path: 文件绝对路径
+            file_path: 文件绝对路径（新建文件时可以不存在）
             new_content: 新的文件内容
             title: 可选的预览标题
 
@@ -129,9 +129,6 @@ class DiffPreviewManager:
             return False
 
         try:
-            if not os.path.isfile(file_path):
-                return False
-
             timestamp = int(time.time() * 1000)
             display_title = title or f"Preview: {os.path.basename(file_path)} [{timestamp}]"
 

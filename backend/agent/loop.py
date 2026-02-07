@@ -169,6 +169,10 @@ class AgentLoop:
                 if is_vscode_mode():
                     from backend.tools.vscode_tools import vscode
                     vscode.close_diff()
+
+                    # accept 后打开修改的文件
+                    if ctx.error is None and ctx.arguments.get('path'):
+                        vscode.open_file(ctx.arguments['path'])
             except Exception:
                 pass
 

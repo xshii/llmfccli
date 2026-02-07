@@ -59,6 +59,17 @@ class CreateFileTool(BaseTool):
     def parameters_model(self):
         return CreateFileParams
 
+    def get_diff_preview(self, path: str, content: str) -> None:
+        """在 VSCode 中显示新建文件的差异预览（空 -> content）"""
+        full_path = self.resolve_path(path)
+
+        from backend.tools.diff_preview import get_diff_preview_manager
+        get_diff_preview_manager().show_content_preview(
+            file_path=full_path,
+            new_content=content,
+            title=f"Preview: Create {os.path.basename(full_path)}",
+        )
+
     def execute(self, path: str, content: str) -> Dict[str, Any]:
         """执行文件创建"""
         # Resolve path and validate security
