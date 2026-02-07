@@ -48,6 +48,11 @@ agent_behavior:
 
 # CLI 输出功能
 cli_output:
+  # 在 CLI 中用颜色显示 edit_file 的差异（VSCode diff view 的替代方案）
+  show_diff_in_cli:
+    enabled: true
+    description: "edit_file 执行后在终端中显示彩色 unified diff"
+
   # 文件路径超链接协议配置
   # 可选值:
   #   - "file"    : 使用 file:// 协议（默认，大多数终端支持）
