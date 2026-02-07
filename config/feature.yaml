@@ -41,6 +41,11 @@ agent_behavior:
     enabled: true
     description: "在用户消息中注入 system reminder 配置信息"
 
+  # 工具执行后模型返回空内容时自动重试
+  retry_on_empty_after_tool:
+    enabled: true
+    description: "当模型在工具执行后返回空内容时，自动重试一次（Qwen3/Ollama 已知问题）"
+
 # CLI 输出功能
 cli_output:
   # 文件路径超链接协议配置

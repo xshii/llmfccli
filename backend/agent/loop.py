@@ -356,8 +356,26 @@ class AgentLoop:
 
     def _handle_no_tool_calls(self, content: str, iteration: int) -> Optional[str]:
         """处理无工具调用的情况"""
-        # 检查是否启用自动 continue 功能
         from backend.utils.feature import is_feature_enabled
+
+        # 空响应重试：工具执行后模型返回空内容时自动重试（通过开关控制）
+        if not content and iteration < self.max_iterations - 1:
+            retry_enabled = is_feature_enabled("agent_behavior.retry_on_empty_after_tool")
+            if retry_enabled:
+                last_msg = self.conversation_history[-1] if self.conversation_history else None
+                if last_msg and last_msg.get('role') == 'tool':
+                    self.events.emit(
+                        AgentEvent.NO_TOOL_CALLS, content=content, auto_continue=True
+                    )
+                    if self.tool_output_callback:
+                        self.tool_output_callback(
+                            '__no_tool_calls__',
+                            '⚠️ 模型在工具执行后返回空内容，正在重试...',
+                            {}
+                        )
+                    return None  # 继续循环
+
+        # 检查是否启用自动 continue 功能
         auto_continue_enabled = is_feature_enabled("agent_behavior.auto_continue_on_incomplete")
 
         if auto_continue_enabled:
