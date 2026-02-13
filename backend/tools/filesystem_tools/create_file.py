@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-CreateFile Tool - 创建文件
+CreateFile Tool - 创建新文件或覆写已有文件
 """
 
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +22,7 @@ class CreateFileParams(BaseModel):
 
 
 class CreateFileTool(BaseTool):
-    """创建文件工具"""
+    """创建新文件或覆写已有文件"""
 
     @property
     def name(self) -> str:
@@ -31,22 +31,30 @@ class CreateFileTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': 'Create new file with content',
-            'zh': '创建新文件并写入内容'
+            'en': (
+                'Create a new file or overwrite an existing file with full content. '
+                'Use this for new files or when you need to rewrite an entire file. '
+                'For partial edits (replacing specific lines), prefer edit_file instead.'
+            ),
+            'zh': (
+                '创建新文件或用完整内容覆写已有文件。'
+                '用于新建文件或需要重写整个文件的场景。'
+                '如果只需修改特定几行，优先使用 edit_file。'
+            ),
         }
-
 
     def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:
         return {
             'path': {
-                'en': 'File path',
-                'zh': '文件路径',
+                'en': 'File path (relative to project root or absolute path)',
+                'zh': '文件路径（相对于项目根目录或绝对路径）',
             },
             'content': {
-                'en': 'File content',
-                'zh': '文件内容',
+                'en': 'Complete file content to write',
+                'zh': '要写入的完整文件内容',
             },
         }
+
     @property
     def category(self) -> str:
         return "filesystem"
@@ -59,28 +67,34 @@ class CreateFileTool(BaseTool):
     def parameters_model(self):
         return CreateFileParams
 
-    def get_diff_preview(self, path: str, content: str) -> None:
-        """在 VSCode 中显示新建文件的差异预览（空 -> content）"""
+    def get_diff_preview(
+        self,
+        path: str,
+        content: str,
+        interactive: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Show diff preview for creating or overwriting a file"""
         full_path = self.resolve_path(path)
+        is_new = not os.path.isfile(full_path)
 
         from backend.tools.diff_preview import get_diff_preview_manager
-        get_diff_preview_manager().show_content_preview(
+        title = f"Preview: Create {os.path.basename(full_path)}" if is_new else None
+        return get_diff_preview_manager().show_content_preview(
             file_path=full_path,
             new_content=content,
-            title=f"Preview: Create {os.path.basename(full_path)}",
+            title=title,
+            interactive=interactive,
         )
 
     def execute(self, path: str, content: str) -> Dict[str, Any]:
-        """执行文件创建"""
+        """执行文件创建或覆写"""
         # Resolve path and validate security
         try:
             path = self.resolve_and_validate_path(path)
         except ValueError as e:
             raise FileSystemError(str(e))
 
-        # Check if file already exists
-        if os.path.exists(path):
-            raise FileSystemError(f"File already exists: {path}")
+        is_overwrite = os.path.exists(path)
 
         # Create parent directories
         parent_dir = os.path.dirname(path)
@@ -95,6 +109,8 @@ class CreateFileTool(BaseTool):
             with open(path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(content)
         except Exception as e:
-            raise FileSystemError(f"Failed to create file {path}: {e}")
+            raise FileSystemError(f"Failed to write file {path}: {e}")
 
+        if is_overwrite:
+            return ToolResult.success(f"Overwrote {path} ({len(content)} bytes)")
         return ToolResult.success(f"Created {path} ({len(content)} bytes)")

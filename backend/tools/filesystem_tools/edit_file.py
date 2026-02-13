@@ -4,7 +4,7 @@ EditFile Tool - Exact string replacement following Claude Code design
 """
 
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -75,7 +75,14 @@ class EditFileTool(BaseTool):
     def parameters_model(self):
         return EditFileParams
 
-    def get_diff_preview(self, path: str, old_str: str, new_str: str, replace_all: bool = False) -> None:
+    def get_diff_preview(
+        self,
+        path: str,
+        old_str: str,
+        new_str: str,
+        replace_all: bool = False,
+        interactive: bool = False,
+    ) -> Optional[Dict[str, Any]]:
         """
         Generate and show diff preview in VSCode (without applying changes)
 
@@ -84,6 +91,10 @@ class EditFileTool(BaseTool):
             old_str: String to replace
             new_str: Replacement string
             replace_all: Replace all occurrences
+            interactive: If True, wait for user Accept/Reject decision
+
+        Returns:
+            dict: {'shown': bool, 'accepted': bool|None} or None if file not found
         """
         # Resolve path
         full_path = self.resolve_path(path)
@@ -93,15 +104,16 @@ class EditFileTool(BaseTool):
             try:
                 full_path = self.find_file_with_fallback(path)
             except FileNotFoundError:
-                return  # File doesn't exist, skip preview
+                return None  # File doesn't exist, skip preview
 
         # Use DiffPreviewManager to show preview
         from backend.tools.diff_preview import get_diff_preview_manager
-        get_diff_preview_manager().show_replace_preview(
+        return get_diff_preview_manager().show_replace_preview(
             file_path=full_path,
             old_str=old_str,
             new_str=new_str,
-            replace_all=replace_all
+            replace_all=replace_all,
+            interactive=interactive,
         )
 
     def execute(self, path: str, old_str: str, new_str: str, replace_all: bool = False) -> Dict[str, Any]:

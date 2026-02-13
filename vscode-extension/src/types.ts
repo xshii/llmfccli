@@ -58,6 +58,7 @@ export interface DiffParams {
     title: string;
     originalPath: string;
     modifiedContent: string;
+    interactive?: boolean;
 }
 
 /**

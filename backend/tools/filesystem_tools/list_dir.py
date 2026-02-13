@@ -59,6 +59,10 @@ class ListDirTool(BaseTool):
         return "filesystem"
 
     @property
+    def skip_confirmation(self) -> bool:
+        return True  # Read-only operation, no side effects
+
+    @property
     def priority(self) -> int:
         return 65
 

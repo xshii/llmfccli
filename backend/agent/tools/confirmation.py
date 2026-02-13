@@ -186,9 +186,11 @@ class ToolConfirmation:
                 print(f"[DEBUG] Added '{signature}' to allowed_signatures")
 
         elif result.action == ConfirmAction.DENY:
-            self.denied_names.add(tool_name)
+            # Don't persist deny state - only reject the current call.
+            # Future calls go through normal first-time confirmation flow.
+            # Dangerous operations have their own is_dangerous() check.
             if debug:
-                print(f"[DEBUG] Added '{tool_name}' to denied_names")
+                print(f"[DEBUG] Denied '{tool_name}' (this call only, not persisted)")
 
         return result
 

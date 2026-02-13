@@ -7,7 +7,7 @@ DiffPreviewManager - 统一的差异预览管理
 
 import os
 import time
-from typing import Optional
+from typing import Any, Dict, Optional
 
 
 class DiffPreviewManager:
@@ -56,8 +56,9 @@ class DiffPreviewManager:
         file_path: str,
         old_str: str,
         new_str: str,
-        replace_all: bool = False
-    ) -> bool:
+        replace_all: bool = False,
+        interactive: bool = False,
+    ) -> Dict[str, Any]:
         """
         显示字符串替换的差异预览
 
@@ -66,24 +67,26 @@ class DiffPreviewManager:
             old_str: 要替换的字符串
             new_str: 替换后的字符串
             replace_all: 是否替换所有出现
+            interactive: 是否等待用户 Accept/Reject 决策
 
         Returns:
-            bool: 是否成功显示预览
+            dict: {'shown': bool, 'accepted': bool|None}
+                  accepted 为 None 表示非交互模式
         """
         if not self._is_preview_enabled():
-            return False
+            return {'shown': False, 'accepted': None}
 
         try:
             # 读取文件
             if not os.path.isfile(file_path):
-                return False
+                return {'shown': False, 'accepted': None}
 
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             # 检查字符串是否存在
             if old_str not in content:
-                return False
+                return {'shown': False, 'accepted': None}
 
             # 生成新内容
             count = content.count(old_str)
@@ -92,28 +95,34 @@ class DiffPreviewManager:
                 title_op = f"Replace all ({count} occurrences)"
             else:
                 if count != 1:
-                    return False  # 不唯一，跳过预览
+                    return {'shown': False, 'accepted': None}  # 不唯一，跳过预览
                 new_content = content.replace(old_str, new_str, 1)
                 title_op = "Replace"
 
             # 显示差异
             timestamp = int(time.time() * 1000)
-            self._get_vscode().show_diff(
+            result = self._get_vscode().show_diff(
                 title=f"Preview: {title_op} in {os.path.basename(file_path)} [{timestamp}]",
                 original_path=file_path,
-                modified_content=new_content
+                modified_content=new_content,
+                interactive=interactive,
             )
-            return True
+
+            if interactive and result.get('success'):
+                return {'shown': True, 'accepted': result.get('accepted', False)}
+
+            return {'shown': result.get('success', False), 'accepted': None}
 
         except Exception:
-            return False
+            return {'shown': False, 'accepted': None}
 
     def show_content_preview(
         self,
         file_path: str,
         new_content: str,
-        title: Optional[str] = None
-    ) -> bool:
+        title: Optional[str] = None,
+        interactive: bool = False,
+    ) -> Dict[str, Any]:
         """
         显示任意内容变更的差异预览
 
@@ -121,26 +130,33 @@ class DiffPreviewManager:
             file_path: 文件绝对路径（新建文件时可以不存在）
             new_content: 新的文件内容
             title: 可选的预览标题
+            interactive: 是否等待用户 Accept/Reject 决策
 
         Returns:
-            bool: 是否成功显示预览
+            dict: {'shown': bool, 'accepted': bool|None}
+                  accepted 为 None 表示非交互模式
         """
         if not self._is_preview_enabled():
-            return False
+            return {'shown': False, 'accepted': None}
 
         try:
             timestamp = int(time.time() * 1000)
             display_title = title or f"Preview: {os.path.basename(file_path)} [{timestamp}]"
 
-            self._get_vscode().show_diff(
+            result = self._get_vscode().show_diff(
                 title=display_title,
                 original_path=file_path,
-                modified_content=new_content
+                modified_content=new_content,
+                interactive=interactive,
             )
-            return True
+
+            if interactive and result.get('success'):
+                return {'shown': True, 'accepted': result.get('accepted', False)}
+
+            return {'shown': result.get('success', False), 'accepted': None}
 
         except Exception:
-            return False
+            return {'shown': False, 'accepted': None}
 
 
 # 全局单例

@@ -114,29 +114,45 @@ def get_selection() -> Dict[str, Any]:
             raise VSCodeError(response.get("error", "Failed to get selection"))
 
 
-def show_diff(title: str, original_path: str, modified_content: str) -> Dict[str, Any]:
+def show_diff(
+    title: str,
+    original_path: str,
+    modified_content: str,
+    interactive: bool = False,
+    timeout: float = 10.0,
+) -> Dict[str, Any]:
     """Show diff comparison in VSCode
 
     Args:
         title: Diff title
         original_path: Path to original file
         modified_content: Modified content to compare
+        interactive: If True, wait for user Accept/Reject decision
+        timeout: RPC timeout in seconds (default 10s, interactive uses 300s)
 
     Returns:
-        dict: {'success': bool, 'message': str}
+        dict: {'success': bool, 'message': str, 'accepted': bool|None}
+              accepted is only set in interactive mode
     """
     from backend.rpc.client import is_vscode_mode, send_vscode_request
 
     params = {
         "title": title,
         "originalPath": original_path,
-        "modifiedContent": modified_content
+        "modifiedContent": modified_content,
     }
 
+    if interactive:
+        params["interactive"] = True
+        timeout = 300.0  # User needs time to review
+
     if is_vscode_mode():
-        return send_vscode_request("showDiff", params)
+        return send_vscode_request("showDiff", params, timeout=timeout)
     else:
-        return _mock_response("showDiff", params)
+        result = _mock_response("showDiff", params)
+        if interactive:
+            result["accepted"] = True
+        return result
 
 
 def close_diff() -> Dict[str, Any]:

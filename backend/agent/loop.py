@@ -164,6 +164,9 @@ class AgentLoop:
     def _cleanup_after_tool(self, ctx: ExecutionContext):
         """工具执行后清理"""
         if ctx.metadata.get('preview_shown'):
+            # Interactive mode already closed the diff view on the VSCode side
+            if ctx.metadata.get('diff_accepted') is not None:
+                return
             try:
                 from backend.rpc.client import is_vscode_mode
                 if is_vscode_mode():

@@ -111,9 +111,9 @@ export class JsonRpcServer {
     /**
      * Handle showDiff request
      */
-    private async handleShowDiff(params: DiffParams): Promise<{ success: boolean; message?: string; error?: string }> {
+    private async handleShowDiff(params: DiffParams): Promise<{ success: boolean; message?: string; accepted?: boolean; error?: string }> {
         try {
-            const { title, originalPath, modifiedContent } = params;
+            const { title, originalPath, modifiedContent, interactive } = params;
 
             // Create URIs for diff view with unique timestamp to ensure refresh
             const originalUri = vscode.Uri.file(originalPath);
@@ -133,7 +133,31 @@ export class JsonRpcServer {
             await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title);
             this.currentDiffEditor = vscode.window.activeTextEditor;
 
-            // Always focus back to terminal (where CLI is running)
+            if (interactive) {
+                // Interactive mode: show Accept/Reject buttons and wait for user decision
+                const choice = await vscode.window.showInformationMessage(
+                    `Apply changes to ${originalPath.split('/').pop() || originalPath}?`,
+                    { modal: false },
+                    'Accept',
+                    'Reject'
+                );
+
+                const accepted = choice === 'Accept';
+
+                // Close diff view after decision
+                if (this.currentDiffEditor && !this.currentDiffEditor.document.isClosed) {
+                    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+                    this.currentDiffEditor = undefined;
+                }
+
+                // Dispose registration
+                registration.dispose();
+
+                return { success: true, accepted, message: accepted ? 'User accepted changes' : 'User rejected changes' };
+            }
+
+            // Non-interactive mode: original behavior
+            // Focus back to terminal (where CLI is running)
             await vscode.commands.executeCommand('workbench.action.terminal.focus');
 
             // Dispose registration after a delay
