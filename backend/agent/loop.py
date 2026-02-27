@@ -46,6 +46,12 @@ from .patterns import (
 class AgentLoop:
     """Main agent loop for task execution"""
 
+    # 需要去重的工具及其去重 key 提取方式
+    _DEDUP_TOOLS = {
+        'view_file': lambda args: args.get('path', ''),
+        'grep_search': lambda args: f"{args.get('pattern', '')}@{args.get('scope', '')}",
+    }
+
     def __init__(self,
                  client: Optional[BaseLLMClient] = None,
                  tool_executor: Optional[ToolExecutor] = None,
@@ -336,6 +342,9 @@ class AgentLoop:
                     if file_path and file_path not in self.active_files:
                         self.active_files.append(file_path)
 
+                # 去重：替换同文件/同搜索的旧结果
+                self._dedup_tool_result(command.tool_name, command.arguments)
+
                 # 添加工具结果到历史
                 tool_message = {
                     'role': 'tool',
@@ -362,6 +371,40 @@ class AgentLoop:
         self.conversation_history.append({'role': 'assistant', 'content': final_msg})
         self.events.emit(AgentEvent.LOOP_ENDED, response=final_msg, max_iterations=True)
         return final_msg
+
+    def _dedup_tool_result(self, tool_name: str, arguments: dict):
+        """将同 key 的旧工具结果替换为摘要，只保留最新版"""
+        key_fn = self._DEDUP_TOOLS.get(tool_name)
+        if key_fn is None:
+            return
+
+        dedup_key = key_fn(arguments)
+        if not dedup_key:
+            return
+
+        # 收集同 tool_name + 同 key + 成功的旧命令的 tool_call_id
+        old_ids = set()
+        for cmd in self.command_history.commands:
+            if (cmd.tool_name == tool_name
+                    and cmd.success
+                    and key_fn(cmd.arguments) == dedup_key):
+                old_ids.add(cmd.tool_call_id)
+
+        if not old_ids:
+            return
+
+        # 遍历 conversation_history，替换旧的 tool 结果为摘要
+        saved_tokens = 0
+        for msg in self.conversation_history:
+            if msg.get('role') == 'tool' and msg.get('tool_call_id') in old_ids:
+                old_content = msg['content']
+                old_len = self.token_counter.count_tokens(old_content)
+                msg['content'] = f"[已更新] {dedup_key} 的内容已被最新 {tool_name} 替换。"
+                new_len = self.token_counter.count_tokens(msg['content'])
+                saved_tokens += old_len - new_len
+
+        if saved_tokens > 0:
+            self.events.emit(AgentEvent.CONTEXT_COMPRESSED, saved_tokens=saved_tokens)
 
     def _handle_no_tool_calls(self, content: str, iteration: int) -> Optional[str]:
         """处理无工具调用的情况"""
