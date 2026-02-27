@@ -83,19 +83,9 @@ class PreviewHandler(ExecutionHandler):
         tool = ctx.tool_instance
         if tool and hasattr(tool, 'get_diff_preview'):
             try:
-                result = tool.get_diff_preview(**ctx.arguments, interactive=True)
+                result = tool.get_diff_preview(**ctx.arguments)
                 if result and result.get('shown'):
                     ctx.metadata['preview_shown'] = True
-                    if result.get('accepted') is not None:
-                        # Interactive mode: user made a decision
-                        ctx.metadata['diff_accepted'] = result['accepted']
-                        if not result['accepted']:
-                            ctx.stop_with_error(
-                                'User rejected changes in diff preview. '
-                                'Adjust parameters or ask for clarification.'
-                            )
-                            ctx.result['denied_by_user'] = True
-                            return ctx
             except Exception:
                 # 预览失败，继续执行
                 pass
@@ -112,10 +102,6 @@ class ConfirmationHandler(ExecutionHandler):
         self.on_deny = on_deny
 
     def handle(self, ctx: ExecutionContext) -> ExecutionContext:
-        # Skip CLI confirmation if user already accepted via diff preview
-        if ctx.metadata.get('diff_accepted') is True:
-            return self._next(ctx)
-
         if not self.confirmation.needs_confirmation(ctx.tool_name, ctx.arguments):
             return self._next(ctx)
 

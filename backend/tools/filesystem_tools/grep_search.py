@@ -37,8 +37,15 @@ class GrepSearchTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': 'Search for pattern (regex) in files.',
-            'zh': '在文件中搜索模式（正则表达式）。'
+            'en': (
+                'Search for pattern (regex) in files. Use this FIRST to locate relevant '
+                'code before reading or editing. Returns matching lines with file paths '
+                'and line numbers.'
+            ),
+            'zh': (
+                '在文件中搜索模式（正则表达式）。在读取或编辑前优先使用此工具定位相关代码。'
+                '返回匹配行及文件路径和行号。'
+            ),
         }
 
 

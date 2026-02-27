@@ -39,8 +39,16 @@ class EditFileTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': 'Replace exact string in file. old_str must be unique (or use replace_all=True).',
-            'zh': '精确替换文件中的字符串。old_str 必须唯一（或使用 replace_all=True）。'
+            'en': (
+                'Replace exact string in file. old_str must be copied verbatim from view_file '
+                'output, including whitespace and indentation. Must be unique in file (or use '
+                'replace_all=True). For changes covering >40% of the file, use create_file instead.'
+            ),
+            'zh': (
+                '精确替换文件中的字符串。old_str 必须从 view_file 输出中逐字复制，包括空格和缩进。'
+                '必须在文件中唯一（或使用 replace_all=True）。'
+                '如果修改内容超过文件的 40%，应改用 create_file 重写。'
+            ),
         }
 
     def get_parameters_i18n(self) -> Dict[str, Dict[str, str]]:

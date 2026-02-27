@@ -32,14 +32,14 @@ class CreateFileTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                'Create a new file or overwrite an existing file with full content. '
-                'Use this for new files or when you need to rewrite an entire file. '
-                'For partial edits (replacing specific lines), prefer edit_file instead.'
+                'Create new file or overwrite existing file with complete content. '
+                'Use for: new files, or rewriting >40% of an existing file. '
+                'For small targeted edits, use edit_file instead.'
             ),
             'zh': (
                 '创建新文件或用完整内容覆写已有文件。'
-                '用于新建文件或需要重写整个文件的场景。'
-                '如果只需修改特定几行，优先使用 edit_file。'
+                '用于：新建文件，或重写超过 40% 的已有文件。'
+                '小范围精确修改请使用 edit_file。'
             ),
         }
 

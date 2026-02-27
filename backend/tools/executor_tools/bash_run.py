@@ -115,7 +115,10 @@ class BashRunTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Execute shell command (cmake, make, gcc, git, etc.)."
+        return (
+            "Execute shell command for compilation, testing, and system operations. "
+            "Dangerous commands (rm -rf, chmod -R 777) require user confirmation."
+        )
 
     @property
     def category(self) -> str:

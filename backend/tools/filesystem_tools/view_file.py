@@ -33,8 +33,15 @@ class ViewFileTool(BaseTool):
     @property
     def description_i18n(self) -> Dict[str, str]:
         return {
-            'en': 'Read file contents with line numbers.',
-            'zh': '读取文件内容（包含行号）。'
+            'en': (
+                'Read file contents with line numbers. MUST read before editing. '
+                'For large files, returns a size warning — use grep_search to locate '
+                'the target, then read with line_range.'
+            ),
+            'zh': (
+                '读取文件内容（含行号）。编辑前必须先读取。'
+                '大文件会返回大小警告 — 先用 grep_search 定位目标，再用 line_range 读取特定区段。'
+            ),
         }
 
 
@@ -65,6 +72,18 @@ class ViewFileTool(BaseTool):
     def parameters_model(self):
         return ViewFileParams
 
+    def _get_max_file_tokens(self) -> int:
+        """Load max file token limit from config, fallback to 10000."""
+        try:
+            from pathlib import Path
+            import yaml
+            config_path = Path(__file__).parent.parent.parent.parent / "config" / "token_budget.yaml"
+            with open(config_path) as f:
+                config = yaml.safe_load(f)
+            return config['token_management']['limits']['max_file_size']
+        except Exception:
+            return 10000
+
     def execute(self, path: str, line_range: Optional[Tuple[int, int]] = None) -> Dict[str, Any]:
         """
         Read file contents with optional line range
@@ -94,6 +113,20 @@ class ViewFileTool(BaseTool):
 
         if not os.path.isfile(path):
             raise FileSystemError(f"Not a file: {path}")
+
+        # Large file pre-check: estimate tokens before reading
+        if not line_range:
+            file_size = os.path.getsize(path)
+            estimated_tokens = file_size // 3
+            max_file_tokens = self._get_max_file_tokens()
+            if estimated_tokens > max_file_tokens:
+                return ToolResult.success(
+                    f"File too large to read entirely "
+                    f"(size: {file_size:,} bytes, ~{estimated_tokens:,} tokens, "
+                    f"limit: {max_file_tokens:,} tokens).\n"
+                    f"Use grep_search to locate the relevant code by keyword, "
+                    f"then use view_file with line_range to read the specific section."
+                )
 
         # Read file
         try:

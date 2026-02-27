@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from ..llm import BaseLLMClient, create_client
+from ..llm.prompts import get_system_prompt
 from .token_counter import TokenCounter
 from .tools import (
     ConfirmAction,
@@ -164,9 +165,6 @@ class AgentLoop:
     def _cleanup_after_tool(self, ctx: ExecutionContext):
         """工具执行后清理"""
         if ctx.metadata.get('preview_shown'):
-            # Interactive mode already closed the diff view on the VSCode side
-            if ctx.metadata.get('diff_accepted') is not None:
-                return
             try:
                 from backend.rpc.client import is_vscode_mode
                 if is_vscode_mode():
@@ -237,6 +235,10 @@ class AgentLoop:
 
         # 使用管道处理消息
         messages = self.message_pipeline.process(list(self.conversation_history))
+
+        # 注入 system prompt 作为第一条消息（pipeline 之后，避免被清理或截断）
+        system_msg = {'role': 'system', 'content': get_system_prompt(self.project_root)}
+        messages = [system_msg] + messages
 
         iteration = 0
 

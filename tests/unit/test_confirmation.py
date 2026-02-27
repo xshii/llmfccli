@@ -24,9 +24,14 @@ def test_confirmation_basic():
     registry = ToolRegistry(project_root='/tmp')
     confirmation = ToolConfirmation(tool_registry=registry)
 
-    # Test 1: First time needs confirmation
+    # Test 1a: skip_confirmation tools don't need confirmation
     needs_confirm = confirmation.needs_confirmation('view_file', {'path': '/test/file.cpp'})
-    print(f"✓ First time 'view_file' needs confirmation: {needs_confirm}")
+    print(f"✓ 'view_file' (skip_confirmation) needs confirmation: {needs_confirm}")
+    assert needs_confirm is False, "view_file has skip_confirmation=True, should not need confirmation"
+
+    # Test 1b: First time edit_file needs confirmation
+    needs_confirm = confirmation.needs_confirmation('edit_file', {'path': '/test/file.cpp', 'old_str': 'a', 'new_str': 'b'})
+    print(f"✓ First time 'edit_file' needs confirmation: {needs_confirm}")
     assert needs_confirm is True, "First time should need confirmation"
 
     # Test 2: Allow always
@@ -34,18 +39,18 @@ def test_confirmation_basic():
         return ConfirmAction.ALLOW_ALWAYS
 
     confirmation.set_confirmation_callback(mock_callback_allow_always)
-    result = confirmation.confirm('view_file', {'path': '/test/file.cpp'})
+    result = confirmation.confirm('edit_file', {'path': '/test/file.cpp', 'old_str': 'a', 'new_str': 'b'})
     print(f"✓ User chose: {result.action}")
     assert result.action == ConfirmAction.ALLOW_ALWAYS
 
     # Test 3: Second time should not need confirmation
-    needs_confirm = confirmation.needs_confirmation('view_file', {'path': '/test/other.cpp'})
-    print(f"✓ Second time 'view_file' needs confirmation: {needs_confirm}")
+    needs_confirm = confirmation.needs_confirmation('edit_file', {'path': '/test/other.cpp', 'old_str': 'a', 'new_str': 'b'})
+    print(f"✓ Second time 'edit_file' needs confirmation: {needs_confirm}")
     assert needs_confirm is False, "Should not need confirmation after ALLOW_ALWAYS"
 
     # Test 4: Reset confirmations
     confirmation.reset()
-    needs_confirm = confirmation.needs_confirmation('view_file', {'path': '/test/file.cpp'})
+    needs_confirm = confirmation.needs_confirmation('edit_file', {'path': '/test/file.cpp', 'old_str': 'a', 'new_str': 'b'})
     print(f"✓ After reset, needs confirmation: {needs_confirm}")
     assert needs_confirm is True, "Should need confirmation after reset"
 
@@ -161,17 +166,17 @@ def test_session_level_only():
         return ConfirmAction.ALLOW_ALWAYS
 
     confirmation1.set_confirmation_callback(mock_callback_allow_always)
-    confirmation1.confirm('view_file', {'path': '/test/file.cpp'})
-    print(f"✓ Confirmed 'view_file' with ALLOW_ALWAYS in session 1")
+    confirmation1.confirm('edit_file', {'path': '/test/file.cpp', 'old_str': 'a', 'new_str': 'b'})
+    print(f"✓ Confirmed 'edit_file' with ALLOW_ALWAYS in session 1")
 
     # Session 1 should not need confirmation
-    needs_confirm = confirmation1.needs_confirmation('view_file', {'path': '/test/other.cpp'})
+    needs_confirm = confirmation1.needs_confirmation('edit_file', {'path': '/test/other.cpp', 'old_str': 'a', 'new_str': 'b'})
     print(f"✓ Session 1: needs_confirmation={needs_confirm}")
     assert needs_confirm is False
 
     # Create second instance - should NOT share state (session-level only)
     confirmation2 = ToolConfirmation(tool_registry=registry)
-    needs_confirm = confirmation2.needs_confirmation('view_file', {'path': '/test/other.cpp'})
+    needs_confirm = confirmation2.needs_confirmation('edit_file', {'path': '/test/other.cpp', 'old_str': 'a', 'new_str': 'b'})
     print(f"✓ Session 2 (new instance): needs_confirmation={needs_confirm}")
     assert needs_confirm is True, "New session should need confirmation"
 
