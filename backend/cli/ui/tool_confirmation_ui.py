@@ -65,6 +65,10 @@ class ToolConfirmationUI:
         # 显示确认面板
         self._show_confirmation_panel(tool_name, category, arguments, args_text)
 
+        # edit_file / create_file: 在确认前显示 diff 预览
+        if tool_name in ('edit_file', 'create_file'):
+            self._show_diff_preview(tool_name, arguments)
+
         # 获取工具签名用于显示
         signature = self.confirmation._get_signature(tool_name, arguments)
 
@@ -78,6 +82,22 @@ class ToolConfirmationUI:
 
         # 获取用户选择
         return self._get_user_choice(tool_name, arguments, signature)
+
+    def _show_diff_preview(self, tool_name: str, arguments: Dict[str, Any]) -> None:
+        """在确认前显示 CLI diff 预览"""
+        from backend.cli.cli_diff import show_edit_diff
+
+        file_path = arguments.get('path', '')
+
+        if tool_name == 'edit_file':
+            old_str = arguments.get('old_str', '')
+            new_str = arguments.get('new_str', '')
+            if old_str or new_str:
+                show_edit_diff(self.console, old_str, new_str, file_path=file_path)
+        elif tool_name == 'create_file':
+            content = arguments.get('content', '')
+            if content:
+                show_edit_diff(self.console, '', content, file_path=file_path)
 
     def _format_arguments(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """格式化参数显示"""
