@@ -47,8 +47,9 @@ class AgentLoop:
     """Main agent loop for task execution"""
 
     # 需要去重的工具及其去重 key 提取方式（同工具重复调用）
+    # view_file: 有 line_range 的精确读取不去重，只对全文读取去重
     _DEDUP_TOOLS = {
-        'view_file': lambda args: args.get('path', ''),
+        'view_file': lambda args: '' if args.get('line_range') else args.get('path', ''),
         'grep_search': lambda args: f"{args.get('pattern', '')}@{args.get('scope', '')}",
     }
 

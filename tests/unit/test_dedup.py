@@ -223,6 +223,73 @@ def test_multiple_view_files_all_invalidated():
     print("✓ test_multiple_view_files_all_invalidated PASSED")
 
 
+def test_line_range_view_no_dedup():
+    """带 line_range 的 view_file 不应被去重"""
+    agent = make_agent()
+
+    # 第一次 view 带 line_range
+    add_command(agent, 'view_file', {'path': 'src/main.cpp', 'line_range': [1, 50]}, 'call_1')
+    original_1 = 'lines 1-50 content' * 20
+    add_tool_message(agent, 'call_1', original_1)
+
+    # 第二次 view 同文件不同 line_range — 不应去重
+    agent._dedup_tool_result('view_file', {'path': 'src/main.cpp', 'line_range': [51, 100]})
+    assert agent.conversation_history[-1]['content'] == original_1
+
+    # 同文件同 line_range 也不去重（line_range 存在就跳过）
+    agent._dedup_tool_result('view_file', {'path': 'src/main.cpp', 'line_range': [1, 50]})
+    assert agent.conversation_history[-1]['content'] == original_1
+
+    print("✓ test_line_range_view_no_dedup PASSED")
+
+
+def test_full_view_dedup_skips_line_range():
+    """全文 view_file 去重时，不应影响带 line_range 的旧结果"""
+    agent = make_agent()
+
+    # 带 line_range 的 view
+    add_command(agent, 'view_file', {'path': 'src/main.cpp', 'line_range': [1, 50]}, 'call_1')
+    ranged_content = 'lines 1-50' * 20
+    add_tool_message(agent, 'call_1', ranged_content)
+
+    # 全文 view
+    add_command(agent, 'view_file', {'path': 'src/main.cpp'}, 'call_2')
+    add_tool_message(agent, 'call_2', 'full file content' * 50)
+
+    # 再次全文 view — 应去重 call_2，不动 call_1
+    agent._dedup_tool_result('view_file', {'path': 'src/main.cpp'})
+
+    msgs = {m['tool_call_id']: m['content'] for m in agent.conversation_history if m.get('role') == 'tool'}
+    assert msgs['call_1'] == ranged_content, "line_range view should be untouched"
+    assert '[已更新]' in msgs['call_2'], "full view should be deduped"
+
+    print("✓ test_full_view_dedup_skips_line_range PASSED")
+
+
+def test_edit_invalidation_skips_line_range():
+    """edit_file 失效时，不应干掉带 line_range 的 view_file"""
+    agent = make_agent()
+
+    # 带 line_range 的 view
+    add_command(agent, 'view_file', {'path': 'src/main.cpp', 'line_range': [1, 50]}, 'call_1')
+    ranged_content = 'lines 1-50' * 20
+    add_tool_message(agent, 'call_1', ranged_content)
+
+    # 全文 view
+    add_command(agent, 'view_file', {'path': 'src/main.cpp'}, 'call_2')
+    full_content = 'full file' * 50
+    add_tool_message(agent, 'call_2', full_content)
+
+    # edit_file — 应只失效 call_2（全文），保留 call_1（line_range）
+    agent._invalidate_stale_results('edit_file', {'path': 'src/main.cpp'})
+
+    msgs = {m['tool_call_id']: m['content'] for m in agent.conversation_history if m.get('role') == 'tool'}
+    assert msgs['call_1'] == ranged_content, "line_range view should survive invalidation"
+    assert '[已失效]' in msgs['call_2'], "full view should be invalidated"
+
+    print("✓ test_edit_invalidation_skips_line_range PASSED")
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("测试 conversation history 去重和失效机制")
@@ -238,6 +305,9 @@ if __name__ == '__main__':
     test_edit_different_file_no_invalidation()
     test_non_dedup_tool_ignored()
     test_multiple_view_files_all_invalidated()
+    test_line_range_view_no_dedup()
+    test_full_view_dedup_skips_line_range()
+    test_edit_invalidation_skips_line_range()
 
     print()
     print("=" * 60)
