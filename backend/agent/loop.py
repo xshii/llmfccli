@@ -46,10 +46,16 @@ from .patterns import (
 class AgentLoop:
     """Main agent loop for task execution"""
 
-    # 需要去重的工具及其去重 key 提取方式
+    # 需要去重的工具及其去重 key 提取方式（同工具重复调用）
     _DEDUP_TOOLS = {
         'view_file': lambda args: args.get('path', ''),
         'grep_search': lambda args: f"{args.get('pattern', '')}@{args.get('scope', '')}",
+    }
+
+    # 跨工具失效：edit/create 成功后，干掉同文件的旧 view_file 结果
+    _INVALIDATE_RULES = {
+        'edit_file':   {'target': 'view_file', 'key_fn': lambda args: args.get('path', '')},
+        'create_file': {'target': 'view_file', 'key_fn': lambda args: args.get('path', '')},
     }
 
     def __init__(self,
@@ -344,6 +350,9 @@ class AgentLoop:
 
                 # 去重：替换同文件/同搜索的旧结果
                 self._dedup_tool_result(command.tool_name, command.arguments)
+                # 跨工具失效：edit/create 后干掉同文件旧 view_file
+                if command.success:
+                    self._invalidate_stale_results(command.tool_name, command.arguments)
 
                 # 添加工具结果到历史
                 tool_message = {
@@ -400,6 +409,49 @@ class AgentLoop:
                 old_content = msg['content']
                 old_len = self.token_counter.count_tokens(old_content)
                 msg['content'] = f"[已更新] {dedup_key} 的内容已被最新 {tool_name} 替换。"
+                new_len = self.token_counter.count_tokens(msg['content'])
+                saved_tokens += old_len - new_len
+
+        if saved_tokens > 0:
+            self.events.emit(AgentEvent.CONTEXT_COMPRESSED, saved_tokens=saved_tokens)
+
+    def _invalidate_stale_results(self, tool_name: str, arguments: dict):
+        """edit/create 成功后，干掉同文件的旧 view_file 结果"""
+        rule = self._INVALIDATE_RULES.get(tool_name)
+        if rule is None:
+            return
+
+        target_tool = rule['target']
+        invalidate_key = rule['key_fn'](arguments)
+        if not invalidate_key:
+            return
+
+        # view_file 的 key_fn
+        target_key_fn = self._DEDUP_TOOLS.get(target_tool)
+        if target_key_fn is None:
+            return
+
+        # 收集同文件的旧 view_file 成功命令的 tool_call_id
+        old_ids = set()
+        for cmd in self.command_history.commands:
+            if (cmd.tool_name == target_tool
+                    and cmd.success
+                    and target_key_fn(cmd.arguments) == invalidate_key):
+                old_ids.add(cmd.tool_call_id)
+
+        if not old_ids:
+            return
+
+        # 替换旧的 view_file 结果为摘要
+        saved_tokens = 0
+        for msg in self.conversation_history:
+            if msg.get('role') == 'tool' and msg.get('tool_call_id') in old_ids:
+                old_content = msg['content']
+                old_len = self.token_counter.count_tokens(old_content)
+                msg['content'] = (
+                    f"[已失效] {invalidate_key} 已被 {tool_name} 修改，"
+                    f"此 view_file 结果不再准确。如需最新内容请重新 view_file。"
+                )
                 new_len = self.token_counter.count_tokens(msg['content'])
                 saved_tokens += old_len - new_len
 
