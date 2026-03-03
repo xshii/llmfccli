@@ -55,12 +55,15 @@ class TodoWriteTool(BaseTool):
     def description_i18n(self) -> Dict[str, str]:
         return {
             'en': (
-                "Track progress for multi-step tasks. "
-                "Call with work tools in parallel when possible."
+                "Create a structured task list for complex multi-step tasks (3+ steps). "
+                "After calling this tool, you MUST immediately proceed to call work tools "
+                "(view_file, edit_file, bash_run, etc.) to execute the first task. "
+                "Do NOT stop after creating the todo list."
             ),
             'zh': (
-                "跟踪多步骤任务进度。"
-                "尽量与工作工具并行调用。"
+                "为复杂的多步骤任务（3步以上）创建结构化任务列表。"
+                "调用此工具后，必须立即调用工作工具（view_file、edit_file、bash_run 等）"
+                "执行第一个任务。不要在创建列表后停下来。"
             )
         }
 

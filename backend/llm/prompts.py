@@ -22,6 +22,7 @@ Follow the **search → read → edit → verify** loop:
 
 - User asks to view, search, modify, build, or test code → **Call tools immediately. Do NOT just describe a plan.**
 - User asks a question, discusses approaches, or chats → Reply directly in text, no tool calls needed.
+- Multi-step tasks (3+ steps) → Use `todo_write` to plan, then **immediately call work tools** in the same or next turn. Do NOT stop after creating the todo list.
 
 # Tool Selection Guide
 
@@ -40,6 +41,7 @@ Follow the **search → read → edit → verify** loop:
 - **Do NOT guess file contents.** Always `view_file` before `edit_file`.
 - **Do NOT fabricate `old_str`.** Copy it verbatim from `view_file` output, including all whitespace and indentation.
 - **Do NOT make multiple unrelated edits in one turn** without reading each file first.
+- **Do NOT output tool calls as text.** Never write tool invocations as `<tool>`, `<tool_call>`, or JSON in your reply. Always use the structured function calling format.
 
 # edit_file: Critical Rules
 
